@@ -18,7 +18,6 @@ const COMMANDS = Object.freeze({
   EDIT_SELECT_ALL: 'edit.select-all',
   EDIT_UNDO: 'edit.undo',
 
-  FILE_CHECK_UPDATE: 'file.check-update',
   FILE_CLOSE_TAB: 'file.close-tab',
   FILE_CLOSE_WINDOW: 'file.close-window',
   FILE_EXPORT_FILE: 'file.export-file',

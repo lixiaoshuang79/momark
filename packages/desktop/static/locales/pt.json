@@ -87,27 +87,22 @@
     },
     "help": {
       "help": "Ajuda",
-      "markdownReference": "Referência Markdown",
       "changelog": "Histórico de Mudanças",
       "askQuestion": "Fazer Pergunta",
       "reportBug": "Reportar Bug",
       "viewSource": "Ver Código Fonte",
-      "followUs": "Siga-nos",
-      "support": "Apoiar MarkText",
       "license": "Licença",
-      "about": "Sobre",
-      "checkUpdates": "Verificar Atualizações"
+      "about": "Sobre"
     },
     "marktext": {
-      "title": "MarkText",
-      "about": "Sobre MarkText",
-      "checkUpdates": "Verificar Atualizações...",
+      "title": "MoMark",
+      "about": "Sobre MoMark",
       "preferences": "Preferências",
       "services": "Serviços",
-      "hide": "Ocultar MarkText",
+      "hide": "Ocultar MoMark",
       "hideOthers": "Ocultar Outros",
       "showAll": "Mostrar Todos",
-      "quit": "Sair do MarkText"
+      "quit": "Sair do MoMark"
     },
     "view": {
       "view": "Visualizar",
@@ -346,7 +341,7 @@
   },
   "import": {
     "title": "Importar ou Abrir",
-    "description": "Solte aqui para colocar suas coisas no MarkText"
+    "description": "Solte aqui para colocar suas coisas no MoMark"
   },
   "preferences": {
     "title": "Preferências",
@@ -375,10 +370,10 @@
         "hideScrollbar": "Se ocultar as barras de rolagem",
         "wordWrapInToc": "Se habilitar a quebra de linha na tabela de conteúdos",
         "fileSortBy": "Ordenar arquivos na pasta aberta por tempo de criação, tempo de modificação e título",
-        "startUpAction": "A ação após a inicialização do MarkText, abrir o último conteúdo editado, abrir a pasta especificada ou página em branco",
+        "startUpAction": "A ação após a inicialização do MoMark, abrir o último conteúdo editado, abrir a pasta especificada ou página em branco",
         "restoreLayoutState": "Restaurar o estado anterior do editor na inicialização",
         "defaultDirectoryToOpen": "O diretório padrão que deve ser aberto na inicialização quando startUp=folder",
-        "language": "O idioma que o MarkText usa",
+        "language": "O idioma que o MoMark usa",
         "editorFontFamily": "Família de fonte do editor",
         "fontSize": "Tamanho da fonte em pixels",
         "lineHeight": "Altura da linha",
@@ -402,7 +397,7 @@
         "preferLooseListItem": "O tipo de lista preferido",
         "bulletListMarker": "O marcador usado na lista de marcadores",
         "orderListDelimiter": "O delimitador usado na lista ordenada",
-        "preferHeadingStyle": "O estilo de cabeçalho preferido no MarkText",
+        "preferHeadingStyle": "O estilo de cabeçalho preferido no MoMark",
         "tabSize": "Substituir a tabulação com x espaços",
         "listIndentation": "Selecionar a indentação da lista",
         "frontmatterType": "O tipo de frontmatter",
@@ -412,7 +407,7 @@
         "isGitlabCompatibilityEnabled": "Habilitar modo de compatibilidade GitLab",
         "sequenceTheme": "Tema do diagrama de sequência",
         "plantumlServer": "URL do servidor PlantUML",
-        "theme": "Selecionar o tema usado no MarkText",
+        "theme": "Selecionar o tema usado no MoMark",
         "followSystemTheme": "Seguir tema do sistema",
         "lightModeTheme": "Tema a ser usado quando o sistema está no modo claro",
         "darkModeTheme": "Tema a ser usado quando o sistema está no modo escuro",
@@ -620,7 +615,7 @@
         "neverDetected": "Nunca detectado",
         "neverSuccessful": "Nunca bem-sucedido"
       },
-      "defaultBehavior": "O comportamento padrão após colar ou arrastar a imagem para o MarkText"
+      "defaultBehavior": "O comportamento padrão após colar ou arrastar a imagem para o MoMark"
     },
     "markdown": {
       "title": "Markdown",
@@ -732,12 +727,12 @@
     }
   },
   "about": {
-    "copyright": "Copyright © Luo Ran 2017-{year}",
-    "copyrightContributors": "Copyright Contribuidores"
+    "copyright": "Copyright © {year} MoMark Team",
+    "copyrightContributors": "MoMark Team"
   },
   "commands": {
     "mt": {
-      "hide": "Ocultar MarkText",
+      "hide": "Ocultar MoMark",
       "hideOthers": "Ocultar Outros"
     },
     "file": {
@@ -762,8 +757,7 @@
       "importFile": "Importar Arquivo",
       "exportFile": "Exportar Arquivo",
       "exportFilePdf": "Exportar como PDF",
-      "zoom": "Zoom",
-      "checkUpdate": "Verificar Atualizações"
+      "zoom": "Zoom"
     },
     "edit": {
       "undo": "Desfazer",
@@ -867,10 +861,6 @@
       "switchToNinth": "Alternar para Nona",
       "switchToTenth": "Alternar para Décima"
     },
-    "docs": {
-      "userGuide": "Guia do Usuário",
-      "markdownSyntax": "Sintaxe Markdown"
-    },
     "spellchecker": {
       "switchLanguage": "Alterar Idioma"
     }
@@ -903,7 +893,7 @@
     "configSchemaViolation": "Violação do esquema de configuração",
     "copyError": "Erro de cópia",
     "initializationFailed": "Falha na inicialização {hint}",
-    "otherInstanceDetected": "Outra instância do MarkText já está em execução",
+    "otherInstanceDetected": "Outra instância do MoMark já está em execução",
     "report": "Reportar",
     "startupError": "Erro de inicialização",
     "terminatedDueToError": "Terminado devido a erro",

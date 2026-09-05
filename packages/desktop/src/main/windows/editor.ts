@@ -203,7 +203,7 @@ class EditorWindow extends BaseWindow {
       )
     })
 
-    win.webContents.once('render-process-gone', async(_event, { reason }) => {
+    win.webContents.once('render-process-gone', async (_event, { reason }) => {
       if (reason === 'clean-exit') {
         return
       }
@@ -218,7 +218,7 @@ class EditorWindow extends BaseWindow {
       const { response } = await dialog.showMessageBox(win!, {
         type: 'warning',
         buttons: ['Close', 'Reload', 'Keep It Open'],
-        message: 'MarkText has crashed',
+        message: 'MoMark has crashed',
         detail: msg
       })
 

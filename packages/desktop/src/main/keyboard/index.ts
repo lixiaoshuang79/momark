@@ -59,7 +59,10 @@ class KeyboardLayoutMonitor extends EventEmitter {
   // NOTE: Preserves the pre-existing single-argument override; the original JS
   // also delegated to `this.removeListener(channel, callback)` (recursive).
   override removeListener(eventNameOrCallback: unknown, _listener?: unknown): this {
-    this.removeListener(KEYBOARD_LAYOUT_MONITOR_CHANNEL_ID, eventNameOrCallback as KeyboardInfoListener)
+    this.removeListener(
+      KEYBOARD_LAYOUT_MONITOR_CHANNEL_ID,
+      eventNameOrCallback as KeyboardInfoListener
+    )
     return this
   }
 
@@ -84,11 +87,11 @@ class KeyboardLayoutMonitor extends EventEmitter {
 export const keyboardLayoutMonitor = new KeyboardLayoutMonitor()
 
 export const registerKeyboardListeners = (): void => {
-  ipcMain.handle('mt::keybinding-get-keyboard-info', async() => {
+  ipcMain.handle('mt::keybinding-get-keyboard-info', async () => {
     return getKeyboardInfo()
   })
-  ipcMain.on('mt::keybinding-debug-dump-keyboard-info', async() => {
-    const dumpPath = path.join(os.tmpdir(), 'marktext_keyboard_info.json')
+  ipcMain.on('mt::keybinding-debug-dump-keyboard-info', async () => {
+    const dumpPath = path.join(os.tmpdir(), 'momark_keyboard_info.json')
     const content = JSON.stringify(getKeyboardInfo(), null, 2)
     fsPromises
       .writeFile(dumpPath, content, 'utf8')

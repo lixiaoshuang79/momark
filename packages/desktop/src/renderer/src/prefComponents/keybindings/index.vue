@@ -2,22 +2,8 @@
   <div class="pref-keybindings">
     <h4>{{ t('preferences.keybindings.title') }}</h4>
     <section class="keybindings">
-      <div class="text">
-        {{ t('preferences.keybindings.description') }}
-        <a
-          class="link"
-          :title="t('preferences.keybindings.online')"
-          :aria-label="t('preferences.keybindings.online')"
-          @click="openKeybindingDocs"
-        ><LinkIcon
-          :size="14"
-          class="link-icon"
-        /></a>.
-      </div>
-      <el-table
-        :data="keybindingList"
-        style="width: 100%"
-      >
+      <div class="text">{{ t('preferences.keybindings.description') }}.</div>
+      <el-table :data="keybindingList" style="width: 100%">
         <el-table-column
           prop="description"
           :label="t('preferences.keybindings.table.description')"
@@ -28,10 +14,7 @@
           :label="t('preferences.keybindings.table.keyCombination')"
           min-width="160"
         />
-        <el-table-column
-          :label="t('preferences.keybindings.table.options')"
-          min-width="90"
-        >
+        <el-table-column :label="t('preferences.keybindings.table.options')" min-width="90">
           <template #default="scope">
             <el-button
               type="text"
@@ -39,10 +22,7 @@
               :title="t('preferences.keybindings.table.edit')"
               @click="handleEditClick(scope.$index, scope.row)"
             >
-              <Edit
-                width="14"
-                height="14"
-              />
+              <Edit width="14" height="14" />
             </el-button>
             <el-button
               type="text"
@@ -50,10 +30,7 @@
               :title="t('preferences.keybindings.table.reset')"
               @click="handleResetClick(scope.$index, scope.row)"
             >
-              <RefreshRight
-                width="14"
-                height="14"
-              />
+              <RefreshRight width="14" height="14" />
             </el-button>
             <el-button
               type="text"
@@ -61,10 +38,7 @@
               :title="t('preferences.keybindings.table.unbind')"
               @click="handleUnbindClick(scope.$index, scope.row)"
             >
-              <Delete
-                width="14"
-                height="14"
-              />
+              <Delete width="14" height="14" />
             </el-button>
           </template>
         </el-table-column>
@@ -72,38 +46,23 @@
     </section>
     <section class="footer">
       <separator />
-      <el-button
-        size="medium"
-        @click="saveKeybindings"
-      >
+      <el-button size="medium" @click="saveKeybindings">
         {{ t('preferences.keybindings.save') }}
       </el-button>
-      <el-button
-        size="medium"
-        @click="restoreDefaults"
-      >
+      <el-button size="medium" @click="restoreDefaults">
         {{ t('preferences.keybindings.restoreDefaults') }}
       </el-button>
     </section>
-    <section
-      v-if="showDebugTools"
-      class="keyboard-debug"
-    >
+    <section v-if="showDebugTools" class="keyboard-debug">
       <separator />
       <div>
         <strong>{{ t('preferences.keybindings.debugOptions') }}:</strong>
       </div>
-      <el-button
-        size="medium"
-        @click="dumpKeyboardInformation"
-      >
+      <el-button size="medium" @click="dumpKeyboardInformation">
         {{ t('preferences.keybindings.dumpKeyboardInfo') }}
       </el-button>
     </section>
-    <key-input-dialog
-      :show-with-id="selectedShortcutId"
-      :on-commit="onKeybinding"
-    />
+    <key-input-dialog :show-with-id="selectedShortcutId" :on-commit="onKeybinding" />
   </div>
 </template>
 
@@ -117,7 +76,6 @@ import KeybindingConfigurator from './KeybindingConfigurator'
 import type { UiKeybinding } from './KeybindingConfigurator'
 import notice from '@/services/notification'
 import { Edit, RefreshRight, Delete } from '@element-plus/icons-vue'
-import LinkIcon from '@/components/icons/LinkIcon.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t, locale } = useI18n()
@@ -166,12 +124,6 @@ onUnmounted(() => {
   keybindingList.value = []
   keybindingConfigurator.value = null
 })
-
-const openKeybindingDocs = (): void => {
-  window.electron.shell.openExternal(
-    'https://marktext.me/docs/key-bindings'
-  )
-}
 
 const saveKeybindings = (): void => {
   if (keybindingConfigurator.value && keybindingList.value.length > 0) {

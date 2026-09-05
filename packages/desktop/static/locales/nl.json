@@ -86,27 +86,22 @@
     },
     "help": {
       "help": "Help",
-      "markdownReference": "Markdown-referentie",
       "changelog": "Wijzigingslog",
       "askQuestion": "Vraag stellen",
       "reportBug": "Bug melden",
       "viewSource": "Broncode bekijken",
-      "followUs": "Volg ons",
-      "support": "Steun MarkText",
       "license": "Licentie",
-      "about": "Over",
-      "checkUpdates": "Controleer op updates"
+      "about": "Over"
     },
     "marktext": {
-      "title": "MarkText",
-      "about": "Over MarkText",
-      "checkUpdates": "Controleer op updates...",
+      "title": "MoMark",
+      "about": "Over MoMark",
       "preferences": "Voorkeuren",
       "services": "Diensten",
-      "hide": "Verberg MarkText",
+      "hide": "Verberg MoMark",
       "hideOthers": "Verberg overige",
       "showAll": "Toon alles",
-      "quit": "MarkText afsluiten"
+      "quit": "MoMark afsluiten"
     },
     "view": {
       "view": "Weergave",
@@ -345,7 +340,7 @@
   },
   "import": {
     "title": "Importeren of openen",
-    "description": "Sleep hier om je bestanden in MarkText te openen"
+    "description": "Sleep hier om je bestanden in MoMark te openen"
   },
   "preferences": {
     "title": "Voorkeuren",
@@ -373,10 +368,10 @@
         "hideScrollbar": "Schuifbalken verbergen",
         "wordWrapInToc": "Tekstterugloop in inhoudsopgave",
         "fileSortBy": "Bestanden sorteren op aanmaaktijd, wijzigingstijd of titel",
-        "startUpAction": "De actie na het opstarten van MarkText",
+        "startUpAction": "De actie na het opstarten van MoMark",
         "restoreLayoutState": "Vorige editorstatus herstellen bij opstarten",
         "defaultDirectoryToOpen": "De standaardmap die geopend wordt bij opstarten",
-        "language": "De taal die MarkText gebruikt",
+        "language": "De taal die MoMark gebruikt",
         "editorFontFamily": "Lettertype van de editor",
         "fontSize": "Lettergrootte in pixels",
         "lineHeight": "Regelhoogte",
@@ -410,7 +405,7 @@
         "isGitlabCompatibilityEnabled": "GitLab-compatibiliteitsmodus inschakelen",
         "sequenceTheme": "Sequentiediagram thema",
         "plantumlServer": "PlantUML server-URL",
-        "theme": "Selecteer het thema voor MarkText",
+        "theme": "Selecteer het thema voor MoMark",
         "followSystemTheme": "Systeemthema volgen",
         "lightModeTheme": "Thema voor lichte modus",
         "darkModeTheme": "Thema voor donkere modus",
@@ -619,7 +614,7 @@
         "pleaseInstall": "Installeer a.u.b.",
         "scriptPath": "Scriptpad"
       },
-      "defaultBehavior": "Het standaardgedrag na plakken of slepen van een afbeelding naar MarkText"
+      "defaultBehavior": "Het standaardgedrag na plakken of slepen van een afbeelding naar MoMark"
     },
     "markdown": {
       "title": "Markdown",
@@ -731,12 +726,12 @@
     }
   },
   "about": {
-    "copyright": "Copyright © Luo Ran 2017-{year}",
-    "copyrightContributors": "Gemaakt met <3 door GitHub-bijdragers"
+    "copyright": "Copyright © {year} MoMark Team",
+    "copyrightContributors": "MoMark Team"
   },
   "commands": {
     "mt": {
-      "hide": "MarkText verbergen",
+      "hide": "MoMark verbergen",
       "hideOthers": "Overige verbergen"
     },
     "file": {
@@ -761,8 +756,7 @@
       "importFile": "Bestand importeren",
       "exportFile": "Bestand exporteren",
       "exportFilePdf": "Exporteren als PDF",
-      "zoom": "Zoom",
-      "checkUpdate": "Controleer op updates"
+      "zoom": "Zoom"
     },
     "edit": {
       "undo": "Ongedaan maken",
@@ -866,10 +860,6 @@
       "switchToNinth": "Naar negende wisselen",
       "switchToTenth": "Naar tiende wisselen"
     },
-    "docs": {
-      "userGuide": "Gebruikershandleiding",
-      "markdownSyntax": "Markdown-syntax"
-    },
     "spellchecker": {
       "switchLanguage": "Taal wisselen"
     }
@@ -902,7 +892,7 @@
     "configSchemaViolation": "Configuratieschemaovertreding",
     "copyError": "Kopieerfout",
     "initializationFailed": "Initialisatie mislukt {hint}",
-    "otherInstanceDetected": "Er draait al een andere instantie van MarkText",
+    "otherInstanceDetected": "Er draait al een andere instantie van MoMark",
     "report": "Melden",
     "startupError": "Opstartfout",
     "terminatedDueToError": "Beëindigd door fout",

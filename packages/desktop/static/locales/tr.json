@@ -87,27 +87,22 @@
     },
     "help": {
       "help": "Yardım",
-      "markdownReference": "Markdown Başvurusu",
       "changelog": "Değişiklik Günlüğü",
       "askQuestion": "Soru Sor",
       "reportBug": "Hata Bildir",
       "viewSource": "Kaynağı Görüntüle",
-      "followUs": "Bizi Takip Edin",
-      "support": "MarkText'e Destek Ol",
       "license": "Lisans",
-      "about": "Hakkında",
-      "checkUpdates": "Güncellemeleri Denetle"
+      "about": "Hakkında"
     },
     "marktext": {
-      "title": "MarkText",
-      "about": "MarkText Hakkında",
-      "checkUpdates": "Güncellemeleri Denetle...",
+      "title": "MoMark",
+      "about": "MoMark Hakkında",
       "preferences": "Tercihler",
       "services": "Hizmetler",
-      "hide": "MarkText'i Gizle",
+      "hide": "MoMark'i Gizle",
       "hideOthers": "Diğerlerini Gizle",
       "showAll": "Tümünü Göster",
-      "quit": "MarkText'ten Çık"
+      "quit": "MoMark'ten Çık"
     },
     "view": {
       "view": "Görünüm",
@@ -346,7 +341,7 @@
   },
   "import": {
     "title": "İçe Aktar veya Aç",
-    "description": "İçeriklerinizi MarkText'e almak için buraya bırakın"
+    "description": "İçeriklerinizi MoMark'e almak için buraya bırakın"
   },
   "preferences": {
     "title": "Tercihler",
@@ -374,10 +369,10 @@
         "hideScrollbar": "Kaydırma çubuklarının gizlenip gizlenmeyeceği",
         "wordWrapInToc": "İçindekilerde sözcük kaydırmanın etkinleştirilip etkinleştirilmeyeceği",
         "fileSortBy": "Açık klasördeki dosyaları oluşturulma zamanı, değiştirilme zamanı ve başlığa göre sırala",
-        "startUpAction": "MarkText başladıktan sonraki eylem: son düzenlenen içeriği aç, belirtilen klasörü aç veya boş sayfa",
+        "startUpAction": "MoMark başladıktan sonraki eylem: son düzenlenen içeriği aç, belirtilen klasörü aç veya boş sayfa",
         "restoreLayoutState": "Başlangıçta önceki düzenleyici durumunu geri yükle",
         "defaultDirectoryToOpen": "startUp=folder olduğunda başlangıçta açılması gereken varsayılan klasör",
-        "language": "MarkText'in kullandığı dil",
+        "language": "MoMark'in kullandığı dil",
         "editorFontFamily": "Düzenleyici yazı tipi ailesi",
         "fontSize": "Piksel cinsinden yazı tipi boyutu",
         "lineHeight": "Satır Yüksekliği",
@@ -401,7 +396,7 @@
         "preferLooseListItem": "Tercih edilen liste türü",
         "bulletListMarker": "Sırasız listede kullanılan işaret",
         "orderListDelimiter": "Sıralı listede kullanılan ayraç",
-        "preferHeadingStyle": "MarkText'te tercih edilen başlık stili",
+        "preferHeadingStyle": "MoMark'te tercih edilen başlık stili",
         "tabSize": "Sekmeyi x boşlukla değiştir",
         "listIndentation": "Liste girintisini seçin",
         "frontmatterType": "Ön bilgi türü",
@@ -410,7 +405,7 @@
         "isHtmlEnabled": "HTML işlemeyi etkinleştir",
         "isGitlabCompatibilityEnabled": "GitLab uyumluluk modunu etkinleştir",
         "sequenceTheme": "Dizi diyagramı teması",
-        "theme": "MarkText'te kullanılan temayı seçin",
+        "theme": "MoMark'te kullanılan temayı seçin",
         "followSystemTheme": "Sistem Temasını Takip Et",
         "lightModeTheme": "Sistem açık moddayken kullanılacak tema",
         "darkModeTheme": "Sistem koyu moddayken kullanılacak tema",
@@ -620,7 +615,7 @@
         "pleaseInstall": "Lütfen yükleyin",
         "scriptPath": "Betik yolu"
       },
-      "defaultBehavior": "Görseli MarkText'e yapıştırdıktan veya sürükledikten sonraki varsayılan davranış"
+      "defaultBehavior": "Görseli MoMark'e yapıştırdıktan veya sürükledikten sonraki varsayılan davranış"
     },
     "markdown": {
       "title": "Markdown",
@@ -732,12 +727,12 @@
     }
   },
   "about": {
-    "copyright": "Telif Hakkı © Luo Ran 2017-{year}",
-    "copyrightContributors": "Github Katkıda Bulunanlar tarafından <3 ile yapıldı"
+    "copyright": "Copyright © {year} MoMark Team",
+    "copyrightContributors": "MoMark Team"
   },
   "commands": {
     "mt": {
-      "hide": "MarkText'i Gizle",
+      "hide": "MoMark'i Gizle",
       "hideOthers": "Diğerlerini Gizle"
     },
     "file": {
@@ -762,8 +757,7 @@
       "importFile": "Dosya İçe Aktar",
       "exportFile": "Dosya Dışa Aktar",
       "exportFilePdf": "PDF Olarak Dışa Aktar",
-      "zoom": "Yakınlaştırma",
-      "checkUpdate": "Güncellemeleri Denetle"
+      "zoom": "Yakınlaştırma"
     },
     "edit": {
       "undo": "Geri Al",
@@ -867,10 +861,6 @@
       "switchToNinth": "Dokuzuncuya Geç",
       "switchToTenth": "Onuncuya Geç"
     },
-    "docs": {
-      "userGuide": "Kullanıcı Kılavuzu",
-      "markdownSyntax": "Markdown Söz Dizimi"
-    },
     "spellchecker": {
       "switchLanguage": "Dili Değiştir"
     }
@@ -903,7 +893,7 @@
     "configSchemaViolation": "Yapılandırma şeması ihlali",
     "copyError": "Kopyalama hatası",
     "initializationFailed": "Başlatma başarısız {hint}",
-    "otherInstanceDetected": "Başka bir MarkText penceresi zaten açık",
+    "otherInstanceDetected": "Başka bir MoMark penceresi zaten açık",
     "report": "Bildir",
     "startupError": "Başlangıç hatası",
     "terminatedDueToError": "Hata nedeniyle sonlandırıldı",

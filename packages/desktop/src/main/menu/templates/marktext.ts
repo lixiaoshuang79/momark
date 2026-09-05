@@ -6,7 +6,7 @@ import type Keybindings from '../../keyboard/shortcutHandler'
 
 // macOS only menu.
 
-export default function(keybindings: Keybindings): MenuItemConstructorOptions {
+export default function (keybindings: Keybindings): MenuItemConstructorOptions {
   return {
     label: t('menu.marktext.title'),
     submenu: [
@@ -14,12 +14,6 @@ export default function(keybindings: Keybindings): MenuItemConstructorOptions {
         label: t('menu.marktext.about'),
         click(_menuItem, focusedWindow) {
           showAboutDialog(focusedWindow as BrowserWindow | undefined)
-        }
-      },
-      {
-        label: t('menu.marktext.checkUpdates'),
-        click(_menuItem, focusedWindow) {
-          actions.checkUpdates((focusedWindow as BrowserWindow | undefined) ?? null)
         }
       },
       {

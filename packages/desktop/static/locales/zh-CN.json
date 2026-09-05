@@ -87,27 +87,22 @@
     },
     "help": {
       "help": "帮助",
-      "markdownReference": "Markdown 参考",
       "changelog": "更新日志",
       "askQuestion": "提问",
       "reportBug": "报告错误",
       "viewSource": "查看源码",
-      "followUs": "关注我们",
-      "support": "支持 MarkText",
       "license": "许可证",
-      "about": "关于",
-      "checkUpdates": "检查更新"
+      "about": "关于"
     },
     "marktext": {
-      "title": "MarkText",
-      "about": "关于 MarkText",
-      "checkUpdates": "检查更新…",
+      "title": "墨记",
+      "about": "关于墨记",
       "preferences": "偏好设置",
       "services": "服务",
-      "hide": "隐藏 MarkText",
+      "hide": "隐藏墨记",
       "hideOthers": "隐藏其他",
       "showAll": "显示全部",
-      "quit": "退出 MarkText"
+      "quit": "退出墨记"
     },
     "view": {
       "view": "视图",
@@ -346,7 +341,7 @@
   },
   "import": {
     "title": "导入或打开",
-    "description": "拖放到这里将您的内容导入 MarkText"
+    "description": "拖放到这里将您的内容导入 MoMark"
   },
   "preferences": {
     "title": "偏好设置",
@@ -375,10 +370,10 @@
         "hideScrollbar": "是否隐藏滚动条",
         "wordWrapInToc": "是否在目录中启用自动换行",
         "fileSortBy": "按创建时间、修改时间和标题对打开文件夹中的文件进行排序",
-        "startUpAction": "MarkText 启动后的操作，打开最后编辑的内容、打开指定文件夹或空白页",
+        "startUpAction": "MoMark 启动后的操作，打开最后编辑的内容、打开指定文件夹或空白页",
         "restoreLayoutState": "启动时恢复上次编辑器状态",
         "defaultDirectoryToOpen": "当 startUp=folder 时启动时应打开的默认目录",
-        "language": "MarkText 使用的语言",
+        "language": "MoMark 使用的语言",
         "editorFontFamily": "编辑器字体系列",
         "fontSize": "字体大小（像素）",
         "lineHeight": "行高",
@@ -402,7 +397,7 @@
         "preferLooseListItem": "首选列表类型",
         "bulletListMarker": "项目符号列表中使用的标记",
         "orderListDelimiter": "有序列表中使用的分隔符",
-        "preferHeadingStyle": "MarkText 中的首选标题样式",
+        "preferHeadingStyle": "MoMark 中的首选标题样式",
         "tabSize": "用 x 个空格替换制表符",
         "listIndentation": "选择列表的缩进",
         "frontmatterType": "前言类型",
@@ -412,7 +407,7 @@
         "isGitlabCompatibilityEnabled": "启用 GitLab 兼容模式",
         "sequenceTheme": "序列图主题",
         "plantumlServer": "PlantUML 服务器 URL",
-        "theme": "选择 MarkText 中使用的主题",
+        "theme": "选择 MoMark 中使用的主题",
         "followSystemTheme": "跟随系统主题",
         "lightModeTheme": "系统处于浅色模式时使用的主题",
         "darkModeTheme": "系统处于深色模式时使用的主题",
@@ -620,7 +615,7 @@
         "pleaseInstall": "请安装",
         "scriptPath": "脚本路径"
       },
-      "defaultBehavior": "粘贴或拖拽图片到 MarkText 后的默认行为"
+      "defaultBehavior": "粘贴或拖拽图片到 MoMark 后的默认行为"
     },
     "markdown": {
       "title": "Markdown",
@@ -732,12 +727,12 @@
     }
   },
   "about": {
-    "copyright": "Copyright © Luo Ran 2017-{year}",
-    "copyrightContributors": "版权贡献者"
+    "copyright": "© {year} 墨记 MoMark 团队",
+    "copyrightContributors": "墨记 MoMark 团队"
   },
   "commands": {
     "mt": {
-      "hide": "隐藏 MarkText",
+      "hide": "隐藏墨记",
       "hideOthers": "隐藏其他"
     },
     "file": {
@@ -762,7 +757,6 @@
       "exportFile": "导出文件",
       "exportFilePdf": "导出为 PDF",
       "zoom": "缩放",
-      "checkUpdate": "检查更新",
       "changeLineEnding": "更改行结束符"
     },
     "edit": {
@@ -867,10 +861,6 @@
       "switchToNinth": "切换到第九个",
       "switchToTenth": "切换到第十个"
     },
-    "docs": {
-      "userGuide": "用户指南",
-      "markdownSyntax": "Markdown 语法"
-    },
     "spellchecker": {
       "switchLanguage": "切换拼写检查语言"
     }
@@ -903,7 +893,7 @@
     "configSchemaViolation": "配置架构违规",
     "copyError": "复制错误",
     "initializationFailed": "初始化失败 {hint}",
-    "otherInstanceDetected": "检测到 MarkText 的另一个实例正在运行",
+    "otherInstanceDetected": "检测到 MoMark 的另一个实例正在运行",
     "report": "报告",
     "startupError": "启动错误",
     "terminatedDueToError": "由于错误而终止",
