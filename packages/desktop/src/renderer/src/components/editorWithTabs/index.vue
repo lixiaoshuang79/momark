@@ -3,7 +3,10 @@
     class="editor-with-tabs"
     :style="{ 'max-width': `calc(100vw - ${effectiveSideBarWidth}px)` }"
   >
-    <tabs v-show="showTabBar" />
+    <!-- 标签栏：单文档态（tabs ≤ 1）物理移除整行，多文档态渲染（PHASE2-SPEC §1/§10） -->
+    <Tabs v-if="showTabBar" />
+    <!-- 面包屑行 28px -->
+    <Crumbs />
     <div class="container">
       <editor
         :markdown="markdown"
@@ -23,9 +26,12 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useLayoutStore } from '@/store/layout'
+import { useEditorStore } from '@/store/editor'
 import { storeToRefs } from 'pinia'
 import Tabs from './tabs.vue'
+import Crumbs from '../crumbs/index.vue'
 import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
 import TabNotifications from './notifications.vue'
@@ -38,12 +44,17 @@ defineProps<{
   cursor: unknown
   muyaIndexCursor?: unknown
   sourceCode: boolean
-  showTabBar: boolean
   textDirection: string
   platform: string
 }>()
 
-const { effectiveSideBarWidth } = storeToRefs(useLayoutStore())
+const layoutStore = useLayoutStore()
+const editorStore = useEditorStore()
+const { effectiveSideBarWidth } = storeToRefs(layoutStore)
+const { tabs } = storeToRefs(editorStore)
+
+// 场景派生（STATE-MACHINE §1）：标签栏是否渲染完全由标签数量决定。
+const showTabBar = computed(() => tabs.value.length >= 2)
 </script>
 
 <style scoped>
@@ -55,7 +66,7 @@ const { effectiveSideBarWidth } = storeToRefs(useLayoutStore())
   flex-direction: column;
 
   overflow: hidden;
-  background: var(--editorBgColor);
+  background: var(--bg);
   & > .container {
     flex: 1;
     overflow: hidden;

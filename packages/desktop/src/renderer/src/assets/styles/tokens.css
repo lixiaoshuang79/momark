@@ -58,6 +58,8 @@
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   /* 标签滑轨回弹 */ --ease-tab-indicator: cubic-bezier(.18,1.32,.36,1);
   /* 面板生长回弹 */ --ease-grow: cubic-bezier(.18,1.28,.36,1);
+  /* 标签滑轨 width 过渡 */ --ease-tab-width: cubic-bezier(.22,1,.36,1);
+  /* 活动标签 tabSpring 关键帧 */ --ease-tab-spring: cubic-bezier(.2,1.35,.35,1);
   /* 内容分层滑入 */ --ease-line-in: cubic-bezier(.16,1.14,.3,1);
   /* 内容移出 */     --ease-line-out: cubic-bezier(.4,0,.8,.2);
 

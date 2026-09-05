@@ -191,12 +191,14 @@ export const addThemeStyle = (theme: string): void => {
     document.body.classList.add('dark')
   }
 
-  // MoMark 设计体系作用域：
-  // ① tokens.css 的深色段通过 <html data-theme="dark"> 生效（:root 级覆盖，
-  //    保证派生变量按令牌正确计算）；
-  // ② claude-editor.css 的 §6 编辑器对齐仅在 body.is-claude-theme 下生效，
+  // MoMark 设计体系作用域（合并裁决：html+body 双标记都挂）：
+  // ① tokens.css 的深色段 [data-theme="dark"] 由 html 标记驱动；
+  // ② chrome 样式读取 body[data-theme]（feat/chrome 实现）；
+  // ③ claude-editor.css 的 §6 编辑器对齐仅在 body.is-claude-theme 下生效，
   //    旧主题渲染保持不变。
-  document.documentElement.dataset.theme = isDarkTheme ? 'dark' : 'light'
+  const darkMarker = isDarkTheme ? 'dark' : 'light'
+  document.documentElement.dataset.theme = darkMarker
+  document.body.dataset.theme = darkMarker
   document.body.classList.toggle(
     'is-claude-theme',
     theme === 'claude-light' || theme === 'claude-dark'

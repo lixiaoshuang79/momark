@@ -21,13 +21,13 @@
       "export": "Export",
       "exportHtml": "Export as HTML",
       "exportPdf": "Export as PDF",
-      "exportDocx": "Export as docx",
       "import": "Import",
       "print": "Print",
       "closeTab": "Close Tab",
       "closeWindow": "Close Window",
       "quit": "Quit",
-      "preferences": "Preferences"
+      "preferences": "Preferences",
+      "exportDocx": "Export as docx"
     },
     "edit": {
       "edit": "Edit",
@@ -88,16 +88,21 @@
     },
     "help": {
       "help": "Help",
+      "markdownReference": "Markdown Reference",
       "changelog": "Changelog",
       "askQuestion": "Ask Question",
       "reportBug": "Report Bug",
       "viewSource": "View Source",
+      "followUs": "Follow Us",
+      "support": "Support MarkText",
       "license": "License",
-      "about": "About"
+      "about": "About",
+      "checkUpdates": "Check for Updates"
     },
     "marktext": {
       "title": "MoMark",
       "about": "About MoMark",
+      "checkUpdates": "Check for Updates...",
       "preferences": "Preferences",
       "services": "Services",
       "hide": "Hide MoMark",
@@ -138,8 +143,6 @@
       "dark": "Dark",
       "followThemDisabled": "Theme selection disabled when following system theme",
       "lightThemes": "— Light Themes —",
-      "claudeLight": "Claude Light",
-      "claudeDark": "Claude Dark",
       "darkThemes": "— Dark Themes —",
       "ayuDark": "Ayu Dark",
       "ayuLight": "Ayu Light",
@@ -173,7 +176,9 @@
       "tokyoNight": "Tokyo Night",
       "tokyoNightLight": "Tokyo Night Light",
       "tokyoNightStorm": "Tokyo Night Storm",
-      "ulyssesLight": "Ulysses Light"
+      "ulyssesLight": "Ulysses Light",
+      "claudeLight": "Claude Light",
+      "claudeDark": "Claude Dark"
     }
   },
   "contextMenu": {
@@ -826,6 +831,7 @@
       "exportFile": "Export File",
       "exportFilePdf": "Export as PDF",
       "zoom": "Zoom",
+      "checkUpdate": "Check for Updates",
       "exportFileHtml": "Export as HTML",
       "exportFileDocx": "Export as docx"
     },
@@ -931,6 +937,10 @@
       "switchToNinth": "Switch to Ninth",
       "switchToTenth": "Switch to Tenth"
     },
+    "docs": {
+      "userGuide": "User Guide",
+      "markdownSyntax": "Markdown Syntax"
+    },
     "spellchecker": {
       "switchLanguage": "Switch Language"
     }
@@ -1026,7 +1036,18 @@
       "languageMissing": "Spellcheck language missing {languageCode}",
       "switchError": "Spellcheck switch error for {languageCode}, {error}",
       "title": "Spellcheck"
-    }
+    },
+    "emptyHint": "Start writing here…"
+  },
+  "statusBar": {
+    "saved": "Saved",
+    "unsaved": "Unsaved changes",
+    "words": "Words",
+    "paragraphs": "Paragraphs",
+    "characters": "Characters"
+  },
+  "tabs": {
+    "reorderToast": "Tab order updated"
   },
   "export": {
     "progress": {

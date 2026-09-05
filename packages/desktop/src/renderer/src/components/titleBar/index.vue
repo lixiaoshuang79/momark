@@ -1,64 +1,35 @@
 <template>
   <div>
-    <div v-if="showTitleBar" class="title-bar-editor-bg" :class="{ 'tabs-visible': showTabBar }" />
+    <div v-if="showTitleBar" class="title-bar-editor-bg" />
     <div
       v-if="showTitleBar"
       class="title-bar"
-      :class="[
-        { active: active },
-        { 'tabs-visible': showTabBar },
-        { frameless: titleBarStyle === 'custom' },
-        { isOsx: isOsx }
-      ]"
+      :class="[{ active: active }, { frameless: titleBarStyle === 'custom' }, { isOsx: isOsx }]"
     >
-      <div class="title" @dblclick.stop="toggleMaxmizeOnMacOS">
-        <span v-if="!filename">MoMark</span>
-        <span v-else>
-          <span v-for="(path, index) of paths" :key="index">
-            {{ path }}
-            <el-icon class="path-arrow" :size="12">
-              <ArrowRight />
-            </el-icon>
-          </span>
-          <span class="filename" :class="{ isOsx: platform === 'darwin' }" @click="rename">
-            {{ filename }}
-          </span>
-          <span class="save-dot" :class="{ show: !isSaved }" />
-        </span>
-      </div>
-      <div :class="showCustomTitleBar ? 'left-toolbar title-no-drag' : 'right-toolbar'">
-        <div
-          v-if="showCustomTitleBar"
-          class="frameless-titlebar-menu title-no-drag"
-          @click.stop="handleMenuClick"
-        >
+      <div v-if="showCustomTitleBar" class="left-toolbar title-no-drag">
+        <div class="frameless-titlebar-menu title-no-drag" @click.stop="handleMenuClick">
           <span class="text-center-vertical">&#9776;</span>
         </div>
-        <el-tooltip
-          v-if="wordCount"
-          class="item"
-          :content="`${wordCount[show]} ${HASH[show].full + (wordCount[show] > 1 ? 's' : '')}`"
-          placement="bottom-end"
-        >
-          <template #content>
-            <div class="title-item">
-              <span class="front">{{ t('menu.counter.words') }}:</span
-              ><span class="text">{{ wordCount['word'] }}</span>
-            </div>
-            <div class="title-item">
-              <span class="front">{{ t('menu.counter.characters') }}:</span
-              ><span class="text">{{ wordCount['character'] }}</span>
-            </div>
-            <div class="title-item">
-              <span class="front">{{ t('menu.counter.paragraphs') }}:</span
-              ><span class="text">{{ wordCount['paragraph'] }}</span>
-            </div>
-          </template>
-          <div v-if="wordCount" class="word-count" @click.stop="handleWordClick">
-            <span class="text-center-vertical">{{ `${HASH[show].short} ${wordCount[show]}` }}</span>
-          </div>
-        </el-tooltip>
       </div>
+
+      <!-- 单文档态：7px 墨蓝状态点 + 完整路径（多文档/分栏态标题区留空） -->
+      <div class="title" @dblclick.stop="toggleMaxmizeOnMacOS">
+        <div v-if="isSingleDoc && (filename || pathname)" class="title-path">
+          <span class="title-dot" :class="{ show: !isSaved }" />
+          <span class="title-text">
+            <span v-if="dirDisplay" class="title-dirs">{{ dirDisplay }}</span>
+            <span v-if="dirDisplay" class="title-sep">›</span>
+            <span
+              class="filename title-no-drag"
+              :class="{ isOsx: platform === 'darwin' }"
+              @click="rename"
+              >{{ filename }}</span
+            >
+          </span>
+        </div>
+        <div v-else-if="isSingleDoc" class="title-brand">墨记 MoMark</div>
+      </div>
+
       <div
         v-if="titleBarStyle === 'custom' && !isFullScreen && !isOsx"
         class="right-toolbar"
@@ -102,17 +73,12 @@
 
 <script setup lang="ts">
 import { usePreferencesStore } from '@/store/preferences.js'
-import { useLayoutStore } from '@/store/layout.js'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { minimizePath, restorePath, maximizePath, closePath } from '../../assets/window-controls.js'
-import { PATH_SEPARATOR } from '../../config'
 import { isOsx as isOsxPlatform } from '@/util'
 import { shouldShowInAppTitleBar } from './visibility'
 import { useEditorStore } from '@/store/editor'
-import { useI18n } from 'vue-i18n'
-import { ArrowRight } from '@element-plus/icons-vue'
-import type { FileWordCount } from '@shared/types/files'
 
 interface ProjectInfo {
   name?: string
@@ -124,35 +90,16 @@ const props = defineProps<{
   filename?: string
   pathname?: string
   active?: boolean
-  wordCount?: FileWordCount | null
   platform?: string
   isSaved?: boolean
+  // 标签集合大小：≤1 视为单文档态（标签栏不渲染、标题区显示路径）
+  tabCount?: number
 }>()
 
 const preferencesStore = usePreferencesStore()
-const layoutStore = useLayoutStore()
 const editorStore = useEditorStore()
-const { t } = useI18n()
 
 const isOsx = isOsxPlatform
-const HASH = {
-  word: {
-    short: 'W',
-    full: 'word'
-  },
-  character: {
-    short: 'C',
-    full: 'character'
-  },
-  paragraph: {
-    short: 'P',
-    full: 'paragraph'
-  },
-  all: {
-    short: 'A',
-    full: '(with space)character'
-  }
-}
 const windowIconMinimize = minimizePath
 const windowIconRestore = restorePath
 const windowIconMaximize = maximizePath
@@ -160,7 +107,6 @@ const windowIconClose = closePath
 
 const isFullScreen = ref(false)
 const isMaximized = ref(false)
-const show = ref<'word' | 'paragraph' | 'character' | 'all'>('word')
 
 onMounted(async () => {
   try {
@@ -174,12 +120,22 @@ onMounted(async () => {
 })
 
 const { titleBarStyle } = storeToRefs(preferencesStore)
-const { showTabBar } = storeToRefs(layoutStore)
 
-const paths = computed(() => {
-  if (!props.pathname) return []
-  const pathnameToken = props.pathname.split(PATH_SEPARATOR).filter((i) => i)
-  return pathnameToken.slice(0, pathnameToken.length - 1).slice(-3)
+const isSingleDoc = computed(() => (props.tabCount ?? 0) <= 1)
+
+// 完整路径（dirname 部分）：家目录折叠为 `~`，段间用系统分隔符连接，
+// 与文件名之间用 ` › ` 分隔（PHASE2-SPEC §1 标题区格式）。
+const dirDisplay = computed(() => {
+  if (!props.pathname) return ''
+  const sep = window.path.sep
+  const dir = window.path.dirname(props.pathname)
+  if (!dir || dir === '.') return ''
+  const home = window.marktext?.env?.HOME as string | undefined
+  let base = dir
+  if (home && (base === home || base.startsWith(home + sep))) {
+    base = '~' + base.slice(home.length)
+  }
+  return base
 })
 
 const showCustomTitleBar = computed(() => {
@@ -206,15 +162,6 @@ watch(
     document.title = title
   }
 )
-
-const handleWordClick = () => {
-  const ITEMS = ['word', 'paragraph', 'character', 'all'] as const
-  const len = ITEMS.length
-  let index = ITEMS.indexOf(show.value)
-  index += 1
-  if (index >= len) index = 0
-  show.value = ITEMS[index]!
-}
 
 const handleCloseClick = () => {
   window.electron.windowControl.close()
@@ -283,20 +230,21 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .title-bar-editor-bg {
-  height: var(--titleBarHeight);
-  background: var(--editorBgColor);
+  height: 40px;
+  background: var(--bg);
   position: relative;
   left: 0;
   top: 0;
   right: 0;
+  flex: none;
 }
 .title-bar {
   -webkit-app-region: drag;
   user-select: none;
   background: transparent;
-  height: var(--titleBarHeight);
+  height: 40px;
   box-sizing: border-box;
-  color: var(--editorColor50);
+  color: var(--muted);
   position: fixed;
   left: 0;
   top: 0;
@@ -306,61 +254,75 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 .active {
-  color: var(--editorColor);
+  color: var(--ink);
 }
-img {
-  height: 90%;
-  margin-top: 1px;
-  vertical-align: top;
-}
+
 .title {
-  padding: 0 142px;
-  height: 100%;
-  line-height: var(--titleBarHeight);
-  font-size: 14px;
-  text-align: center;
-  transition: all 0.25s ease-in-out;
-  & .filename {
-    transition: all 0.25s ease-in-out;
-  }
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    height: 1px;
-    width: 100%;
-    z-index: 1;
-    -webkit-app-region: no-drag;
-  }
-}
-div.title > span {
-  /* Workaround for GH#339 */
-  display: block;
-  direction: rtl;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 居中标题不能压到原生红绿灯（macOS）与左右工具栏 */
+  padding: 0 148px;
   overflow: hidden;
-  text-overflow: clip;
+}
+
+.title-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  font-size: var(--f13);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.title-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   white-space: nowrap;
 }
 
-.title-bar .title .filename.isOsx:hover {
-  color: var(--themeColor);
+.title-dirs {
+  white-space: nowrap;
 }
 
-.active .save-dot {
-  margin-right: 0.25rem;
-  width: 8px;
-  height: 8px;
-  display: inline-block;
+.title-sep {
+  color: var(--faint);
+  font-weight: 400;
+}
+
+.title-path .filename {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.title-brand {
+  font-size: var(--f13);
+  font-weight: 600;
+  color: var(--faint);
+}
+
+/* 未保存状态点（PHASE2-SPEC §2：7px 墨蓝，保存成功即移除） */
+.title-dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--highlightThemeColor);
-  opacity: 0.7;
-  visibility: hidden;
+  background: var(--accent);
+  flex: none;
+  opacity: 0;
+  transition: opacity 0.16s ease;
 }
-.active .save-dot.show {
-  visibility: visible;
+.title-dot.show {
+  opacity: 1;
 }
-.title:hover {
-  color: var(sideBarTitleColor);
+
+.title-bar .title .filename.isOsx:hover {
+  color: var(--accent);
 }
 
 .left-toolbar {
@@ -382,29 +344,6 @@ div.title > span {
   display: flex;
   align-items: center;
   flex-direction: row-reverse;
-  & .item {
-    margin-right: 10px;
-  }
-}
-
-.word-count {
-  -webkit-app-region: no-drag;
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--editorColor30);
-  text-align: center;
-  line-height: 24px;
-  padding: 0 5px;
-  box-sizing: border-box;
-  transition: all 0.25s ease-in-out;
-  & > .text-center-vertical {
-    padding: 2px 5px;
-    border-radius: 3px;
-  }
-  &:hover > span {
-    background: var(--sideBarBgColor);
-    color: var(--sideBarTitleColor);
-  }
 }
 
 .title-no-drag {
@@ -415,7 +354,7 @@ div.title > span {
   position: relative;
   display: block;
   width: 46px;
-  height: var(--titleBarHeight);
+  height: 40px;
 }
 .frameless-titlebar-button > div {
   position: absolute;
@@ -425,7 +364,7 @@ div.title > span {
   transform: translateX(-50%) translateY(-50%);
 }
 .frameless-titlebar-menu {
-  color: var(--sideBarColor);
+  color: var(--muted);
 }
 .frameless-titlebar-close:hover {
   background-color: rgb(228, 79, 79);
@@ -445,18 +384,5 @@ div.title > span {
   display: inline-block;
   vertical-align: middle;
   line-height: normal;
-}
-</style>
-
-<style>
-.title-item {
-  height: 28px;
-  line-height: 28px;
-  & .front {
-    opacity: 0.7;
-  }
-  & .text {
-    margin-left: 10px;
-  }
 }
 </style>

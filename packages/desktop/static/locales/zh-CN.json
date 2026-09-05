@@ -21,13 +21,13 @@
       "export": "导出",
       "exportHtml": "导出为 HTML",
       "exportPdf": "导出为 PDF",
-      "exportDocx": "导出为 docx",
       "import": "导入",
       "print": "打印",
       "closeTab": "关闭标签页",
       "closeWindow": "关闭窗口",
       "quit": "退出",
-      "preferences": "偏好设置"
+      "preferences": "偏好设置",
+      "exportDocx": "导出为 docx"
     },
     "edit": {
       "edit": "编辑",
@@ -88,16 +88,21 @@
     },
     "help": {
       "help": "帮助",
+      "markdownReference": "Markdown 参考",
       "changelog": "更新日志",
       "askQuestion": "提问",
       "reportBug": "报告错误",
       "viewSource": "查看源码",
+      "followUs": "关注我们",
+      "support": "支持 MarkText",
       "license": "许可证",
-      "about": "关于"
+      "about": "关于",
+      "checkUpdates": "检查更新"
     },
     "marktext": {
       "title": "墨记",
       "about": "关于墨记",
+      "checkUpdates": "检查更新…",
       "preferences": "偏好设置",
       "services": "服务",
       "hide": "隐藏墨记",
@@ -138,8 +143,6 @@
       "dark": "深色",
       "followThemDisabled": "跟随系统主题时无法选择主题",
       "lightThemes": "— 浅色主题 —",
-      "claudeLight": "Claude 浅色",
-      "claudeDark": "Claude 深色",
       "darkThemes": "— 深色主题 —",
       "ayuDark": "Ayu 深色",
       "ayuLight": "Ayu 浅色",
@@ -173,7 +176,9 @@
       "tokyoNight": "Tokyo Night",
       "tokyoNightLight": "Tokyo Night 浅色",
       "tokyoNightStorm": "Tokyo Night Storm",
-      "ulyssesLight": "Ulysses 浅色"
+      "ulyssesLight": "Ulysses 浅色",
+      "claudeLight": "Claude 浅色",
+      "claudeDark": "Claude 深色"
     }
   },
   "contextMenu": {
@@ -825,6 +830,7 @@
       "exportFile": "导出文件",
       "exportFilePdf": "导出为 PDF",
       "zoom": "缩放",
+      "checkUpdate": "检查更新",
       "changeLineEnding": "更改行结束符",
       "exportFileHtml": "导出为 HTML",
       "exportFileDocx": "导出为 docx"
@@ -931,6 +937,10 @@
       "switchToNinth": "切换到第九个",
       "switchToTenth": "切换到第十个"
     },
+    "docs": {
+      "userGuide": "用户指南",
+      "markdownSyntax": "Markdown 语法"
+    },
     "spellchecker": {
       "switchLanguage": "切换拼写检查语言"
     }
@@ -1026,7 +1036,18 @@
       "errorSwitchingLanguage": "切换拼写检查语言时出错 {languageCode}",
       "languageMissing": "拼写检查语言缺失 {languageCode}",
       "switchError": "{languageCode} 拼写检查切换错误，{error}"
-    }
+    },
+    "emptyHint": "从这里开始写作…"
+  },
+  "statusBar": {
+    "saved": "已保存",
+    "unsaved": "未保存的更改",
+    "words": "字数",
+    "paragraphs": "段落",
+    "characters": "字符"
+  },
+  "tabs": {
+    "reorderToast": "标签顺序已更新"
   },
   "export": {
     "progress": {

@@ -1,67 +1,68 @@
 <template>
   <div class="editor-tabs">
-    <!-- 左栏开关（标签栏最左 ⌘\）：展开态 .on = accentSoft 底 + accent 图标；与菜单 ⌘\ 同源联动 -->
     <button
-      class="sidebar-toggle"
+      class="tb-toggle"
       :class="{ on: showSideBar }"
-      :title="toggleTitle"
+      title="显示/隐藏侧栏 ⌘\"
       @click.stop="toggleSidebar"
     >
-      <svg
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.4"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <rect x="2" y="2.5" width="12" height="11" rx="2.2" />
-        <path d="M5.8 2.5v11" />
-      </svg>
+      <el-icon :size="16">
+        <Operation />
+      </el-icon>
     </button>
-    <div ref="tabContainer" class="scrollable-tabs">
-      <ul ref="tabDropContainer" class="tabs-container">
-        <li
-          v-for="file of tabs"
-          :key="file.id"
-          :title="file.pathname"
-          :class="{ active: currentFile?.id === file.id, unsaved: !file.isSaved }"
-          :data-id="file.id"
-          @click.stop="selectFile(file)"
-          @click.middle="closeTab(file.id)"
-          @contextmenu.prevent="handleContextMenu($event, file)"
+
+    <div ref="tabContainer" class="tabstrip">
+      <div
+        v-for="file of tabs"
+        :key="file.id"
+        class="tab"
+        :class="{ active: currentFile?.id === file.id, dirty: !file.isSaved }"
+        :title="file.pathname"
+        :data-id="file.id"
+        @click.stop="selectFile(file)"
+        @click.middle="closeTab(file.id)"
+        @contextmenu.prevent="handleContextMenu($event, file)"
+      >
+        <span class="tname">
+          <span class="tn">{{ file.filename }}</span>
+          <span class="dot" />
+        </span>
+        <button
+          v-if="tabs.length > 1"
+          class="tclose"
+          title="关闭标签"
+          @click.stop="removeFileInTab(file)"
         >
-          <span>{{ file.filename }}</span>
-          <span class="unsaved-dot" />
-          <el-icon class="close-icon" :size="12" @click.stop="removeFileInTab(file)">
+          <el-icon :size="10">
             <Close />
           </el-icon>
-        </li>
-      </ul>
+        </button>
+      </div>
+      <!-- 活动标签底部独立滑轨：独立元素，不随标签重建（PHASE2-SPEC §2） -->
+      <span ref="indicator" class="tab-indicator" />
     </div>
-    <div class="new-file" @click.stop="newFile()">
+
+    <button class="tb-toggle" title="右侧栏 / 浏览器面板（后续接入）">
       <el-icon :size="16">
-        <Plus />
+        <Monitor />
       </el-icon>
-    </div>
+    </button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
 import dragula from 'dragula'
-import { Plus, Close } from '@element-plus/icons-vue'
+import { Operation, Monitor, Close } from '@element-plus/icons-vue'
 import { showContextMenu } from '../../contextMenu/tabs'
 import bus from '../../bus'
-import { useI18n } from 'vue-i18n'
+import notice from '@/services/notification'
+import { t } from '../../i18n'
 import type { IFileState } from '@shared/types/files'
-
-const { t } = useI18n()
 
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
@@ -69,27 +70,21 @@ const layoutStore = useLayoutStore()
 const { currentFile, tabs } = storeToRefs(editorStore)
 const { showSideBar } = storeToRefs(layoutStore)
 
-const toggleTitle = computed(() => `${t('menu.view.toggleSidebar')} ⌘\\`)
-
-// 左栏开关：走 layoutStore 的 view:toggle-layout-entry 总线——与菜单 ⌘\（view.toggle-sidebar）
-// 完全同一条链路，展开态按钮 .on 与菜单勾选、侧栏显隐三方一致。
-const toggleSidebar = (): void => {
-  bus.emit('view:toggle-layout-entry', 'showSideBar')
-}
-
 interface AutoScroller {
   readonly down: boolean
   destroy: (forceCleanAnimation?: boolean) => void
 }
 
 const tabContainer = ref<HTMLElement | null>(null)
-const tabDropContainer = ref<HTMLElement | null>(null)
+const indicator = ref<HTMLElement | null>(null)
 let autoScroller: AutoScroller | null = null
 let drake: dragula.Drake | null = null
+let resizeObserver: ResizeObserver | null = null
 
-// Computed properties
+const toggleSidebar = () => {
+  bus.emit('view:toggle-layout-entry', 'showSideBar')
+}
 
-// Methods incorporated from tabsMixins
 const selectFile = (file: IFileState) => {
   if (file.id !== currentFile.value?.id) {
     editorStore.UPDATE_CURRENT_FILE(file)
@@ -105,19 +100,41 @@ const removeFileInTab = (file: IFileState) => {
   }
 }
 
-// Original methods
-const newFile = () => {
-  editorStore.NEW_UNTITLED_TAB({})
+// 滑轨（PHASE2-SPEC §2）：width = max(18px, active.offsetWidth - 20px)，
+// transform = translateX(active.offsetLeft + 10px)。
+const moveIndicator = (animate: boolean): void => {
+  const strip = tabContainer.value
+  const ind = indicator.value
+  if (!strip || !ind) return
+  const active = strip.querySelector<HTMLElement>('.tab.active')
+  if (!active) {
+    ind.style.opacity = '0'
+    return
+  }
+  if (!animate) {
+    ind.style.transition = 'none'
+  }
+  ind.style.width = `${Math.max(18, active.offsetWidth - 20)}px`
+  ind.style.transform = `translateX(${active.offsetLeft + 10}px)`
+  ind.style.opacity = '1'
+  if (!animate) {
+    // 双 rAF 后再恢复过渡，防止首帧闪现（PHASE2-SPEC §2）。
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        ind.style.transition = ''
+      })
+    })
+  }
 }
 
 // Keep the active tab visible when the selection changes by something other
 // than a direct click on a visible tab (keyboard cycle, switch-by-index, open
-// from the sidebar): the strip has `overflow: hidden` and only scrolls on the
+// from the sidebar): the strip has `overflow-x: auto` and only scrolls on the
 // wheel, so an off-screen tab would otherwise stay hidden (#3958).
 const scrollActiveTabIntoView = () => {
   const container = tabContainer.value
   if (!container) return
-  const activeTab = container.querySelector<HTMLElement>('li.active')
+  const activeTab = container.querySelector<HTMLElement>('.tab.active')
   if (!activeTab) return
 
   const containerRect = container.getBoundingClientRect()
@@ -164,10 +181,6 @@ const closeAll = () => {
   editorStore.CLOSE_ALL_TABS()
 }
 
-const changeMaxWidth = (width: unknown) => {
-  layoutStore.CHANGE_SIDE_BAR_WIDTH(width as number)
-}
-
 const rename = (tabId: unknown) => {
   const tab = tabs.value.find((f) => f.id === tabId)
   if (tab && tab.pathname) {
@@ -198,7 +211,18 @@ const handleContextMenu = (event: MouseEvent, tab: IFileState) => {
 watch(
   () => currentFile.value?.id,
   () => {
-    nextTick(scrollActiveTabIntoView)
+    nextTick(() => {
+      scrollActiveTabIntoView()
+      moveIndicator(true)
+    })
+  }
+)
+
+// 重排/增删标签后滑轨同步位移。
+watch(
+  () => tabs.value.map((tab) => tab.id).join(','),
+  () => {
+    nextTick(() => moveIndicator(true))
   }
 )
 
@@ -210,37 +234,53 @@ onMounted(() => {
   bus.on('TABS::rename', rename)
   bus.on('TABS::copy-path', copyPath)
   bus.on('TABS::show-in-folder', showInFolder)
-  bus.on('EDITOR_TABS::change-max-width', changeMaxWidth)
 
   const tabsEl = tabContainer.value
-  if (!tabsEl || !tabDropContainer.value) return
+  if (!tabsEl) return
 
   // Allow to scroll through the tabs by mouse wheel or touchpad.
   tabsEl.addEventListener('wheel', handleTabScroll)
 
-  // Allow tab drag and drop to reorder tabs.
-  drake = dragula([tabDropContainer.value], {
+  // Allow tab drag and drop to reorder tabs (拖拽重排保留 dragula)。
+  drake = dragula([tabsEl], {
     direction: 'horizontal',
     revertOnSpill: true,
-    mirrorContainer: tabDropContainer.value,
-    ignoreInputTextSelection: false
-  }).on('drop', (el, _target, _source, sibling) => {
-    // Current tab that was dropped and need to be reordered.
-    const droppedId = el?.getAttribute('data-id')
-    // This should be the next tab (tab | ... | el | sibling | tab | ...) but may be
-    // the mirror image or null (tab | ... | el | sibling or null) if last tab.
-    const nextTabId = sibling ? sibling.getAttribute('data-id') : null
-    const isLastTab = !sibling || sibling.classList.contains('gu-mirror')
-    if (!droppedId || (sibling && !nextTabId)) {
-      console.error('Tab reorder error: invalid tab IDs')
-      return
-    }
-
-    editorStore.EXCHANGE_TABS_BY_ID({
-      fromId: droppedId,
-      toId: isLastTab ? null : nextTabId
-    })
+    mirrorContainer: tabsEl,
+    ignoreInputTextSelection: false,
+    moves: (el) => !!el?.classList.contains('tab')
   })
+    .on('drag', (el) => {
+      el?.classList.add('dragging')
+    })
+    .on('drop', (el, _target, _source, sibling) => {
+      el?.classList.remove('dragging')
+      // Current tab that was dropped and need to be reordered.
+      const droppedId = el?.getAttribute('data-id')
+      // This should be the next tab (tab | ... | el | sibling | tab | ...) but may be
+      // the mirror image or null (tab | ... | el | sibling or null) if last tab.
+      // The trailing slide indicator (`tab-indicator`) lives inside the strip:
+      // dropping after it is a drop at the very end.
+      const siblingIsIndicator = !!sibling && sibling.classList.contains('tab-indicator')
+      const nextTabId = sibling && !siblingIsIndicator ? sibling.getAttribute('data-id') : null
+      const isLastTab = !sibling || siblingIsIndicator || sibling.classList.contains('gu-mirror')
+      if (!droppedId || (sibling && !siblingIsIndicator && !nextTabId)) {
+        console.error('Tab reorder error: invalid tab IDs')
+        return
+      }
+
+      editorStore.EXCHANGE_TABS_BY_ID({
+        fromId: droppedId,
+        toId: isLastTab ? null : nextTabId
+      })
+      notice.notify({
+        message: t('tabs.reorderToast'),
+        time: 2000,
+        type: 'primary'
+      })
+    })
+    .on('cancel', (el) => {
+      el?.classList.remove('dragging')
+    })
 
   // Scroll when dragging a tab to the beginning or end of the tab container.
   autoScroller = autoScroll([tabsEl], {
@@ -251,6 +291,13 @@ onMounted(() => {
       return autoScroller!.down && drake?.dragging
     }
   })
+
+  // 首帧定位滑轨：无动画（防闪现）。
+  nextTick(() => moveIndicator(false))
+
+  // 字体加载/窗口缩放导致标签宽度变化时同步滑轨。
+  resizeObserver = new ResizeObserver(() => moveIndicator(true))
+  resizeObserver.observe(tabsEl)
 })
 
 onBeforeUnmount(() => {
@@ -259,6 +306,9 @@ onBeforeUnmount(() => {
     tabsEl.removeEventListener('wheel', handleTabScroll)
   }
 
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
   if (autoScroller) {
     // Force destroy
     autoScroller.destroy(true)
@@ -275,193 +325,182 @@ onBeforeUnmount(() => {
   bus.off('TABS::rename', rename)
   bus.off('TABS::copy-path', copyPath)
   bus.off('TABS::show-in-folder', showInFolder)
-  bus.off('EDITOR_TABS::change-max-width', changeMaxWidth)
 })
 </script>
 
 <style scoped>
-.close-icon {
-  cursor: pointer;
-  transition: opacity 0.15s ease-in-out;
-}
-
-.close-icon:hover {
-  color: var(--focusColor);
-}
-
 .editor-tabs {
-  position: relative;
+  flex: none;
   display: flex;
-  flex-direction: row;
-  height: 28px;
+  align-items: center;
+  gap: 2px;
+  min-height: 40px;
+  padding: 2px 14px;
+  background: var(--bg);
+  box-sizing: border-box;
   user-select: none;
-  box-shadow: 0px 0px 9px 2px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  &:hover > .new-file {
-    opacity: 1 !important;
-  }
 }
 
-/* 左栏开关（tokens：muted → hover 底 → .on accentSoft 底 + accent 图标） */
-.editor-tabs > .sidebar-toggle {
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
-  margin-left: 8px;
+.tb-toggle {
+  width: 32px;
+  height: 32px;
   border: none;
   background: transparent;
   border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
+  display: grid;
+  place-items: center;
   color: var(--muted);
+  flex: none;
   transition:
     background 0.22s ease,
     color 0.22s ease;
 }
-
-.editor-tabs > .sidebar-toggle:hover {
+.tb-toggle:hover {
   background: var(--hover);
   color: var(--ink);
 }
-
-.editor-tabs > .sidebar-toggle.on {
-  background: var(--accent-soft);
+.tb-toggle.on {
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
   color: var(--accent);
 }
 
-.editor-tabs > .sidebar-toggle svg {
-  width: 16px;
-  height: 16px;
-}
-.scrollable-tabs {
-  flex: 0 1 auto;
-  height: 28px;
-  overflow: hidden;
-}
-.tabs-container {
-  min-width: min-content;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  height: 28px;
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  overflow-y: hidden;
-  z-index: 2;
-  &::-webkit-scrollbar:horizontal {
-    display: none;
-  }
-  & > li {
-    transition: all 0.15s ease-in-out;
-    position: relative;
-    padding: 0 8px;
-    color: var(--editorColor50);
-    font-size: 12px;
-    line-height: 28px;
-    height: 28px;
-    max-width: 280px;
-    display: flex;
-    align-items: center;
-    &[aria-grabbed='true'] {
-      color: var(--editorColor30) !important;
-    }
-    & > .close-icon {
-      opacity: 0;
-    }
-    &:focus {
-      outline: none;
-    }
-    &:hover {
-      background: var(--floatBgColor) !important;
-    }
-    &:hover > .close-icon {
-      opacity: 1;
-    }
-    &:hover > .unsaved-dot {
-      display: none;
-    }
-    & > span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      margin-right: 3px;
-    }
-    & > .unsaved-dot {
-      display: none;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--themeColor);
-      flex-shrink: 0;
-    }
-  }
-  & > li.unsaved:not(.active) {
-    & > .close-icon {
-      opacity: 0;
-    }
-    & > .unsaved-dot {
-      display: block;
-    }
-    &:hover > .close-icon {
-      opacity: 1;
-    }
-    &:hover > .unsaved-dot {
-      display: none;
-    }
-  }
-  & > li.active {
-    background: var(--itemBgColor);
-    z-index: 3;
-    &:after {
-      content: '';
-      position: absolute;
-      left: 0;
-      bottom: 0;
-      right: 0;
-      height: 2px;
-      background: var(--themeColor);
-    }
-    & > .close-icon {
-      opacity: 1;
-    }
-    & > .unsaved-dot {
-      display: none;
-    }
-  }
-}
-.editor-tabs > .new-file {
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
-  border-right: none;
-  background: transparent;
+.tabstrip {
   display: flex;
   align-items: center;
-  justify-content: space-around;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: relative;
+  height: 36px;
+}
+.tabstrip::-webkit-scrollbar {
+  display: none;
+}
+
+/* 标签：只显示文件名；宽度随内容自适应，max 420px，不得省略截断（PHASE2-SPEC §2） */
+.tab {
+  position: relative;
+  flex: 0 0 auto;
+  max-width: 420px;
+  height: 36px;
+  background: transparent;
+  border-radius: 8px 8px 0 0;
   cursor: pointer;
-  color: var(--editorColor50);
-  opacity: 0;
-  &.always-visible {
-    opacity: 1;
+  user-select: none;
+  padding: 0 30px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  box-sizing: border-box;
+  transition:
+    background 0.22s ease,
+    transform 0.46s var(--ease-tab-spring),
+    box-shadow 0.22s ease;
+}
+.tab:hover {
+  background: var(--hover);
+}
+.tab.active {
+  background: var(--surface-2);
+  animation: tabSpring 0.52s var(--ease-tab-spring);
+}
+@keyframes tabSpring {
+  0% {
+    transform: translateY(2px) scale(0.96);
+  }
+  55% {
+    transform: translateY(-1.5px) scale(1.018);
+  }
+  100% {
+    transform: none;
   }
 }
 
-.editor-tabs > .new-file:hover {
-  transition: all 0.15s ease-in-out;
-  & > svg {
-    fill: var(--focusColor);
-  }
+.tab .tname {
+  font-size: var(--f11);
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab.active .tname {
+  color: var(--ink);
+}
+
+/* 活动标签底部独立滑轨（独立元素，不随标签重建） */
+.tab-indicator {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  transition:
+    transform 0.58s var(--ease-tab-indicator),
+    width 0.48s var(--ease-tab-width),
+    opacity 0.16s ease;
+  will-change: transform, width;
+}
+
+/* 未保存圆点：7px 墨蓝，文件名之后；保存成功即移除 */
+.tab .tname .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: none;
+  flex: none;
+}
+.tab.dirty .tname .dot {
+  display: block;
+}
+
+/* 关闭按钮：18px，hover 标签才出现；仅剩一个标签时不渲染 */
+.tab .tclose {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  opacity: 0;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+.tab:hover .tclose {
+  opacity: 1;
+}
+.tab .tclose:hover {
+  background: var(--selected);
+  color: var(--ink);
 }
 
 /* dragula effects */
+.tab.dragging {
+  opacity: 0.45;
+}
 .gu-mirror {
   position: fixed !important;
   margin: 0 !important;
   z-index: 9999 !important;
-  opacity: 0.8;
+  opacity: 0.45;
   cursor: grabbing;
 }
 .gu-hide {
