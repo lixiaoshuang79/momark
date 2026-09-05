@@ -1,7 +1,7 @@
-import { type BrowserWindow } from 'electron'
+import { ipcMain } from 'electron'
 
-export const showAboutDialog = (win: BrowserWindow | null | undefined): void => {
-  if (win && win.webContents) {
-    win.webContents.send('mt::about-dialog')
-  }
+// MoMark opens a dedicated about window (PHASE2-SPEC §9) instead of an
+// in-editor dialog, so this action only forwards to the main controller.
+export const showAboutDialog = (): void => {
+  ipcMain.emit('app-create-about-window')
 }

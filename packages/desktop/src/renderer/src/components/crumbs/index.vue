@@ -24,7 +24,7 @@
     <button
       class="crumb-pbtn"
       :class="{ rolled: bpanelOpen }"
-      title="右侧栏 / 浏览器面板（拖标签进面板可双屏分栏）"
+      :title="t('sideBar.rightPanelTitle')"
       @click.stop="toggleBpPanel"
     >
       <el-icon :size="13">
@@ -46,6 +46,7 @@ import { useBrowserPanelStore } from '@/store/browserPanel'
 import { Monitor, Close } from '@element-plus/icons-vue'
 import bus from '@/bus'
 import BpModes from '@/components/browserPanel/bpModes.vue'
+import { t } from '../../i18n'
 
 // 面包屑行（PHASE2-SPEC §1：28px）：
 // - multi：路径+文件名（左侧）+ 右栏开关；

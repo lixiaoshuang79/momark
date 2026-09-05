@@ -4,6 +4,8 @@ import type { RouteRecordRaw } from 'vue-router'
 // runtime, but vue-tsc needs the suffix.
 import App from '@/pages/app.vue'
 import Preference from '@/pages/preference.vue'
+import Welcome from '@/pages/welcome.vue'
+import About from '@/pages/about.vue'
 import General from '@/prefComponents/general/index.vue'
 import Editor from '@/prefComponents/editor/index.vue'
 import Markdown from '@/prefComponents/markdown/index.vue'
@@ -20,14 +22,28 @@ const parseSettingsPage = (type: string | null | undefined): string => {
   return pageUrl
 }
 
+const entryRedirect = (type: string | null | undefined): string => {
+  if (type === 'welcome') return '/welcome'
+  if (type === 'about') return '/about'
+  return type === 'editor' ? '/editor' : parseSettingsPage(type)
+}
+
 const routes = (type: string | null | undefined): RouteRecordRaw[] => [
   {
     path: '/',
-    redirect: type === 'editor' ? '/editor' : parseSettingsPage(type)
+    redirect: entryRedirect(type)
   },
   {
     path: '/editor',
     component: App
+  },
+  {
+    path: '/welcome',
+    component: Welcome
+  },
+  {
+    path: '/about',
+    component: About
   },
   {
     path: '/preference',

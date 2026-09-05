@@ -3,7 +3,7 @@
     <button
       class="tb-toggle"
       :class="{ on: showSideBar }"
-      title="显示/隐藏侧栏 ⌘\"
+      :title="t('sideBar.toggleTitle') + ' ⌘\\'"
       @click.stop="toggleSidebar"
     >
       <el-icon :size="16">
@@ -30,7 +30,7 @@
         <button
           v-if="visibleTabs.length > 1"
           class="tclose"
-          title="关闭标签"
+          :title="t('tabs.closeTab')"
           @click.stop="removeFileInTab(file)"
         >
           <el-icon :size="10">
@@ -45,7 +45,7 @@
     <button
       class="tb-toggle panel-toggle"
       :class="{ rolled: bpanelOpen }"
-      title="右侧栏 / 浏览器面板（拖标签进面板可双屏分栏）"
+      :title="t('sideBar.rightPanelTitle')"
       @click.stop="toggleBpPanel"
     >
       <el-icon :size="16">

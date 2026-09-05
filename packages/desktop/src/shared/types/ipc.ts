@@ -91,6 +91,10 @@ export interface IpcInvokeChannels {
   'mt::shell::open-path': { args: [fullPath: string]; ret: string }
   'mt::spellchecker-get-available-dictionaries': { args: []; ret: string[] }
   'mt::spellchecker-get-custom-dictionary-words': { args: []; ret: string[] }
+  'mt::welcome::recents': {
+    args: []
+    ret: Array<{ path: string; name: string; dirname: string; mtime: number }>
+  }
   'mt::spellchecker-remove-word': { args: [word: string]; ret: boolean }
   'mt::spellchecker-set-enabled': { args: [enabled: boolean]; ret: void }
   'mt::spellchecker-switch-language': { args: [language: string]; ret: void }
@@ -108,6 +112,7 @@ export interface IpcInvokeChannels {
 
 export interface IpcSendChannels {
   'app-create-editor-window': [config?: unknown]
+  'app-create-about-window': []
   'app-create-settings-window': []
   'app-open-directory-by-id': [windowId: number, dirPath: string]
   'app-open-file-by-id': [windowId: number, filePath: string, options?: unknown]
@@ -118,6 +123,10 @@ export interface IpcSendChannels {
   'menu-add-recently-used': [filePath: string]
   'menu-clear-recently-used': []
   'mt::add-recently-used-document': [filePath: string]
+  'mt::welcome::new-doc': []
+  'mt::welcome::open-file': []
+  'mt::welcome::open-folder': []
+  'mt::welcome::open-recent': [filePath: string]
   'mt::app-try-quit': []
   'mt::ask-for-image-auto-path': [payload: unknown]
   'mt::ask-for-modify-image-folder-path': [imagePath?: string]
@@ -239,7 +248,6 @@ export interface IpcSyncChannels {
 
 export interface IpcMainEventChannels {
   'language-changed': [language: string]
-  'mt::about-dialog': []
   'mt::ask-for-close': []
   'mt::bootstrap-editor': [config: BootstrapEditorConfig]
   'mt::cm-copy-as-html': []
