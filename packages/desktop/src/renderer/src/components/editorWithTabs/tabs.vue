@@ -13,7 +13,7 @@
 
     <div ref="tabContainer" class="tabstrip">
       <div
-        v-for="file of tabs"
+        v-for="file of visibleTabs"
         :key="file.id"
         class="tab"
         :class="{ active: currentFile?.id === file.id, dirty: !file.isSaved }"
@@ -28,7 +28,7 @@
           <span class="dot" />
         </span>
         <button
-          v-if="tabs.length > 1"
+          v-if="visibleTabs.length > 1"
           class="tclose"
           title="关闭标签"
           @click.stop="removeFileInTab(file)"
@@ -42,11 +42,18 @@
       <span ref="indicator" class="tab-indicator" />
     </div>
 
-    <button class="tb-toggle" title="右侧栏 / 浏览器面板（后续接入）">
+    <button
+      class="tb-toggle panel-toggle"
+      :class="{ rolled: bpanelOpen }"
+      title="右侧栏 / 浏览器面板（拖标签进面板可双屏分栏）"
+      @click.stop="toggleBpPanel"
+    >
       <el-icon :size="16">
-        <Monitor />
+        <Close v-if="bpanelOpen" />
+        <Monitor v-else />
       </el-icon>
     </button>
+    <bp-modes :shown="bpanelOpen" />
   </div>
 </template>
 
@@ -63,12 +70,21 @@ import bus from '../../bus'
 import notice from '@/services/notification'
 import { t } from '../../i18n'
 import type { IFileState } from '@shared/types/files'
+import { useBrowserPanelStore } from '@/store/browserPanel'
+import { useSplitStore } from '@/store/split'
+import { useWorkspaceStore } from '@/store/workspace'
+import BpModes from '@/components/browserPanel/bpModes.vue'
 
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
+const bpStore = useBrowserPanelStore()
+const splitStore = useSplitStore()
+const workspaceStore = useWorkspaceStore()
 
 const { currentFile, tabs } = storeToRefs(editorStore)
 const { showSideBar } = storeToRefs(layoutStore)
+const { open: bpanelOpen } = storeToRefs(bpStore)
+const { visibleTabs } = storeToRefs(workspaceStore)
 
 interface AutoScroller {
   readonly down: boolean
@@ -80,9 +96,37 @@ const indicator = ref<HTMLElement | null>(null)
 let autoScroller: AutoScroller | null = null
 let drake: dragula.Drake | null = null
 let resizeObserver: ResizeObserver | null = null
+// 投放区 / 面板容器元素（dragula 目标容器，onMounted 时从 DOM 解析）
+let splitZoneEl: HTMLElement | null = null
+let bpanelEl: HTMLElement | null = null
 
 const toggleSidebar = () => {
   bus.emit('view:toggle-layout-entry', 'showSideBar')
+}
+
+const toggleBpPanel = () => {
+  bpStore.TOGGLE_PANEL()
+}
+
+// 标签拖回标签栏（bp-docname 的 return-drag，PHASE2-SPEC §3.4）：
+// dragstart 时 tabstrip 挂 .return-target（accentSoft 底 + accent 环）。
+const onReturnDragStart = () => {
+  tabContainer.value?.classList.add('return-target')
+}
+
+const onReturnDragEnd = () => {
+  tabContainer.value?.classList.remove('return-target')
+}
+
+const onReturnDragOver = (event: DragEvent) => {
+  event.preventDefault()
+  event.dataTransfer!.dropEffect = 'move'
+}
+
+const onReturnDrop = (event: DragEvent) => {
+  event.preventDefault()
+  tabContainer.value?.classList.remove('return-target')
+  splitStore.RETURN_SPLIT_TO_TABS(true)
 }
 
 const selectFile = (file: IFileState) => {
@@ -234,28 +278,78 @@ onMounted(() => {
   bus.on('TABS::rename', rename)
   bus.on('TABS::copy-path', copyPath)
   bus.on('TABS::show-in-folder', showInFolder)
+  bus.on('split:return-drag-start', onReturnDragStart)
+  bus.on('split:return-drag-end', onReturnDragEnd)
 
   const tabsEl = tabContainer.value
   if (!tabsEl) return
 
   // Allow to scroll through the tabs by mouse wheel or touchpad.
   tabsEl.addEventListener('wheel', handleTabScroll)
+  // 接收 bp-docname 拖回标签栏（原生 HTML5 drop，PHASE2-SPEC §3.4）。
+  tabsEl.addEventListener('dragover', onReturnDragOver)
+  tabsEl.addEventListener('drop', onReturnDrop)
 
-  // Allow tab drag and drop to reorder tabs (拖拽重排保留 dragula)。
-  drake = dragula([tabsEl], {
+  // 分屏投放目标容器（dragula 多容器）：右缘 38% 投放区 + 整个右栏面板。
+  // 两个元素常驻 win-body（app.vue），标签栏挂载时它们必然已在 DOM 中。
+  splitZoneEl = document.querySelector<HTMLElement>('.split-drop-zone')
+  bpanelEl = document.querySelector<HTMLElement>('.bpanel')
+  const dropTargets = [splitZoneEl, bpanelEl].filter((el): el is HTMLElement => el !== null)
+
+  // 标签拖拽：标签栏内 = 重排；投放区/面板 = 分屏展开（PHASE2-SPEC §3）。
+  // 目标已在右屏 → accepts 拒绝（blocked，dropEffect none 语义，revertOnSpill 归位）。
+  drake = dragula([tabsEl, ...dropTargets], {
     direction: 'horizontal',
     revertOnSpill: true,
     mirrorContainer: tabsEl,
     ignoreInputTextSelection: false,
-    moves: (el) => !!el?.classList.contains('tab')
+    moves: (el) => !!el?.classList.contains('tab'),
+    accepts: (el, target) => {
+      if (target === tabsEl) return true
+      const id = el?.getAttribute('data-id') ?? null
+      if (!id) return false
+      // 该文档已在右屏 → blocked（投放区显示「该文件已在右侧分屏」）。
+      return !(splitStore.active && splitStore.tabId === id)
+    }
   })
     .on('drag', (el) => {
       el?.classList.add('dragging')
+      splitStore.dragTabId = el?.getAttribute('data-id') ?? null
     })
-    .on('drop', (el, _target, _source, sibling) => {
+    .on('over', (_el, container) => {
+      if (container === splitZoneEl) {
+        splitZoneEl?.classList.add('over')
+      } else if (container === bpanelEl) {
+        bpStore.SET_DRAG_STATE('over')
+      }
+    })
+    .on('out', (_el, container) => {
+      if (container === splitZoneEl) {
+        splitZoneEl?.classList.remove('over')
+      } else if (container === bpanelEl) {
+        bpStore.SET_DRAG_STATE('none')
+      }
+    })
+    .on('drop', (el, target, _source, sibling) => {
       el?.classList.remove('dragging')
-      // Current tab that was dropped and need to be reordered.
       const droppedId = el?.getAttribute('data-id')
+
+      // 投放区 / 右栏面板 → 拖拽分屏（文档移出左侧标签集合）。
+      if (target === splitZoneEl || target === bpanelEl) {
+        if (droppedId) {
+          const ok = splitStore.DRAG_TO_SPLIT(droppedId)
+          if (!ok) {
+            notice.notify({ message: '该文件已在右侧分屏', type: 'primary', time: 2000 })
+          }
+        }
+        splitZoneEl?.classList.remove('over')
+        bpStore.SET_DRAG_STATE('none')
+        splitStore.dragTabId = null
+        return
+      }
+
+      // 标签栏内 = 重排（原有逻辑）。
+      // Current tab that was dropped and need to be reordered.
       // This should be the next tab (tab | ... | el | sibling | tab | ...) but may be
       // the mirror image or null (tab | ... | el | sibling or null) if last tab.
       // The trailing slide indicator (`tab-indicator`) lives inside the strip:
@@ -272,6 +366,7 @@ onMounted(() => {
         fromId: droppedId,
         toId: isLastTab ? null : nextTabId
       })
+      splitStore.dragTabId = null
       notice.notify({
         message: t('tabs.reorderToast'),
         time: 2000,
@@ -280,6 +375,9 @@ onMounted(() => {
     })
     .on('cancel', (el) => {
       el?.classList.remove('dragging')
+      splitZoneEl?.classList.remove('over')
+      bpStore.SET_DRAG_STATE('none')
+      splitStore.dragTabId = null
     })
 
   // Scroll when dragging a tab to the beginning or end of the tab container.
@@ -304,6 +402,8 @@ onBeforeUnmount(() => {
   const tabsEl = tabContainer.value
   if (tabsEl) {
     tabsEl.removeEventListener('wheel', handleTabScroll)
+    tabsEl.removeEventListener('dragover', onReturnDragOver)
+    tabsEl.removeEventListener('drop', onReturnDrop)
   }
 
   if (resizeObserver) {
@@ -325,6 +425,8 @@ onBeforeUnmount(() => {
   bus.off('TABS::rename', rename)
   bus.off('TABS::copy-path', copyPath)
   bus.off('TABS::show-in-folder', showInFolder)
+  bus.off('split:return-drag-start', onReturnDragStart)
+  bus.off('split:return-drag-end', onReturnDragEnd)
 })
 </script>
 

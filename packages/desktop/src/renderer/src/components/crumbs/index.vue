@@ -1,14 +1,39 @@
 <template>
-  <div class="crumb" :class="{ 'single-doc': isSingleDoc }">
+  <div class="crumb" :class="{ 'single-doc': isSingleDoc, 'split-doc': scene === 'split-doc' }">
     <div class="crumb-main">
+      <span class="cdot" :class="{ show: !isSaved }" />
       <span class="path" :title="fullPathDisplay">{{ fullPathDisplay }}</span>
     </div>
+
+    <!-- 单文档态：只显示文件名（路径已在标题栏，不得重复） -->
     <span v-if="isSingleDoc" class="docname">{{ filename }}</span>
-    <button class="crumb-pbtn" title="右侧栏 / 浏览器面板（后续接入）">
+
+    <!-- 分屏右侧文档标题（状态点+路径，可拖回标签栏，PHASE2-SPEC §3.4/§10） -->
+    <span
+      v-if="splitDocTab"
+      class="bp-docname"
+      draggable="true"
+      title="拖回标签栏"
+      @dragstart="onDocnameDragStart"
+      @dragend="onDocnameDragEnd"
+    >
+      <span class="cdot" />
+      <span class="path">{{ splitDocDisplay }}</span>
+    </span>
+
+    <button
+      class="crumb-pbtn"
+      :class="{ rolled: bpanelOpen }"
+      title="右侧栏 / 浏览器面板（拖标签进面板可双屏分栏）"
+      @click.stop="toggleBpPanel"
+    >
       <el-icon :size="13">
-        <Monitor />
+        <Close v-if="bpanelOpen" />
+        <Monitor v-else />
       </el-icon>
     </button>
+    <!-- 单文档态：网址/文档选择器紧跟开关之后（多文档态在标签栏开关旁） -->
+    <bp-modes v-if="isSingleDoc" :shown="bpanelOpen" />
   </div>
 </template>
 
@@ -16,18 +41,28 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/store/editor'
-import { Monitor } from '@element-plus/icons-vue'
+import { useWorkspaceStore } from '@/store/workspace'
+import { useBrowserPanelStore } from '@/store/browserPanel'
+import { Monitor, Close } from '@element-plus/icons-vue'
+import bus from '@/bus'
+import BpModes from '@/components/browserPanel/bpModes.vue'
 
 // 面包屑行（PHASE2-SPEC §1：28px）：
-// - 多文档态：路径+文件名（左侧）+ 右栏开关；
-// - 单文档态：只显示文件名（路径已在标题栏，不重复）+ 右栏开关。
-// 分屏双面包屑留给后续任务。
+// - multi：路径+文件名（左侧）+ 右栏开关；
+// - single：只显示文件名（路径已在标题栏，不重复）+ 右栏开关；
+// - split-doc：左路径 + 右文档名 bp-docname（可拖回标签栏）。
 const editorStore = useEditorStore()
-const { currentFile, tabs } = storeToRefs(editorStore)
+const workspaceStore = useWorkspaceStore()
+const bpStore = useBrowserPanelStore()
 
-const isSingleDoc = computed(() => tabs.value.length <= 1)
+const { currentFile } = storeToRefs(editorStore)
+const { scene, splitDocTab } = storeToRefs(workspaceStore)
+const { open: bpanelOpen } = storeToRefs(bpStore)
+
+const isSingleDoc = computed(() => scene.value === 'single')
 
 const filename = computed(() => currentFile.value?.filename ?? '')
+const isSaved = computed(() => currentFile.value?.isSaved ?? true)
 
 const dirDisplay = computed(() => {
   const pathname = currentFile.value?.pathname ?? ''
@@ -47,6 +82,37 @@ const fullPathDisplay = computed(() => {
   if (!dir) return filename.value
   return `${dir} › ${filename.value}`
 })
+
+const splitDocDisplay = computed(() => {
+  const tab = splitDocTab.value
+  if (!tab) return ''
+  const dir = tab.pathname ? window.path.dirname(tab.pathname) : ''
+  if (!dir || dir === '.') return tab.filename
+  const sep = window.path.sep
+  const home = window.marktext?.env?.HOME as string | undefined
+  const display =
+    home && (dir === home || dir.startsWith(home + sep)) ? '~' + dir.slice(home.length) : dir
+  return `${display} › ${tab.filename}`
+})
+
+const toggleBpPanel = () => {
+  bpStore.TOGGLE_PANEL()
+}
+
+// 拖回标签栏：dragstart 时 tabstrip 挂 .return-target（tabs.vue 监听总线），
+// 并置 window 标记让 app.vue 的全局 dragover 放行内部 drop。
+const onDocnameDragStart = (event: DragEvent) => {
+  const id = splitDocTab.value?.id ?? ''
+  event.dataTransfer?.setData('text/plain', id)
+  event.dataTransfer!.effectAllowed = 'move'
+  window.__momarkReturnDrag = true
+  bus.emit('split:return-drag-start')
+}
+
+const onDocnameDragEnd = () => {
+  window.__momarkReturnDrag = false
+  bus.emit('split:return-drag-end')
+}
 </script>
 
 <style scoped>
@@ -73,6 +139,25 @@ const fullPathDisplay = computed(() => {
 .crumb.single-doc .crumb-main {
   display: none;
 }
+.crumb.split-doc .crumb-main {
+  max-width: calc(50% - 24px);
+}
+.crumb .cdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+  display: none;
+}
+.crumb .cdot.show {
+  display: block;
+}
+.crumb-main .path {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .docname {
   display: none;
   white-space: nowrap;
@@ -80,11 +165,6 @@ const fullPathDisplay = computed(() => {
 }
 .crumb.single-doc .docname {
   display: inline;
-}
-.path {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .crumb-pbtn {
   display: flex;
@@ -106,4 +186,5 @@ const fullPathDisplay = computed(() => {
   background: var(--hover);
   color: var(--ink);
 }
+/* bp-docname / rolled 状态样式走全局 browserPanel.css（宽度动画等跨组件） */
 </style>

@@ -62,6 +62,11 @@
   /* 活动标签 tabSpring 关键帧 */ --ease-tab-spring: cubic-bezier(.2,1.35,.35,1);
   /* 内容分层滑入 */ --ease-line-in: cubic-bezier(.16,1.14,.3,1);
   /* 内容移出 */     --ease-line-out: cubic-bezier(.4,0,.8,.2);
+  /* 右侧面板开合（PHASE2-SPEC §5 显式宽度动画） */ --ease-panel: cubic-bezier(.22,1,.36,1);
+  /* 网址/文档选择器生长回弹（PHASE2-SPEC §5） */ --ease-modes-grow: cubic-bezier(.18,1.42,.36,1);
+  /* 选择器 tab 错峰滑入 */ --ease-modes-tab: cubic-bezier(.18,1.35,.36,1);
+  /* 投放区浮现 / Dock 项弹跳 */ --ease-drop-zone: cubic-bezier(.18,1.22,.36,1);
+  --ease-dock: cubic-bezier(.18,1.32,.36,1);
 
   /* ── macOS 原生红绿灯（唯一 Apple 原生例外） ── */
   --tl-red: #ff5f57; --tl-yellow: #febc2e; --tl-green: #28c840;
