@@ -1,0 +1,143 @@
+/* MoMark · claude-light 主题
+   令牌唯一源：assets/styles/tokens.css。本文件只做变量映射（壳层 camelCase
+   兼容层 + @muyajs/core 引擎 kebab-case 变量），不出现任何硬编码色值；
+   浅/深色差异由 tokens.css 的 [data-theme="dark"] 段驱动（见 util/theme.ts）。 */
+
+:root {
+  /* ── 壳层（camelCase 兼容层 → tokens） ── */
+  --themeColor: var(--accent);
+  --highlightThemeColor: var(--accent);
+  --themeColor90: color-mix(in srgb, var(--accent) 90%, transparent);
+  --themeColor80: color-mix(in srgb, var(--accent) 80%, transparent);
+  --themeColor70: color-mix(in srgb, var(--accent) 70%, transparent);
+  --themeColor60: color-mix(in srgb, var(--accent) 60%, transparent);
+  --themeColor50: color-mix(in srgb, var(--accent) 50%, transparent);
+  --themeColor40: color-mix(in srgb, var(--accent) 40%, transparent);
+  --themeColor30: color-mix(in srgb, var(--accent) 30%, transparent);
+  --themeColor20: color-mix(in srgb, var(--accent) 20%, transparent);
+  --themeColor10: color-mix(in srgb, var(--accent) 10%, transparent);
+  --highlightColor: color-mix(in srgb, var(--accent) 30%, transparent);
+  --selectionColor: color-mix(in srgb, var(--accent) 30%, transparent);
+  --editorColor: var(--ink);
+  --editorColor80: var(--ink);
+  --editorColor60: var(--muted);
+  --editorColor50: var(--muted);
+  --editorColor40: var(--faint);
+  --editorColor30: var(--faint);
+  --editorColor10: var(--line);
+  --editorColor04: var(--hover);
+  --editorBgColor: var(--bg);
+  --deleteColor: var(--danger);
+  --iconColor: var(--muted);
+  --codeBgColor: var(--c-codeBg);
+  --codeBlockBgColor: var(--c-codeblockBg);
+  --footnoteBgColor: var(--hover);
+  --inputBgColor: var(--hover);
+  --focusColor: var(--accent);
+
+  --buttonFontColor: var(--ink);
+  --buttonBgColor: var(--surface-2);
+  --buttonBorder: 1px solid var(--line-strong);
+  --buttonShadow: none;
+  --buttonFontColorHover: var(--ink);
+  --buttonBgColorHover: var(--hover);
+  --buttonBorderHover: 1px solid var(--line-strong);
+  --buttonFontColorActive: var(--ink);
+  --buttonBgColorActive: var(--selected);
+  --buttonBorderActive: 1px solid var(--line-strong);
+  --buttonFocusBorder: 1px solid var(--accent);
+  --buttonPrimaryFontColor: var(--accent-on);
+  --buttonPrimaryBgColor: var(--accent);
+  --buttonPrimaryBorder: none;
+  --buttonPrimaryShadow: var(--elev-raised);
+  --buttonPrimaryFontColorHover: var(--accent-on);
+  --buttonPrimaryBgColorHover: var(--accent-hover);
+  --buttonPrimaryBgColorActive: var(--accent-active);
+  --buttonPrimaryFocusBorder: none;
+  --tableBorderColor: var(--c-tableBorder);
+
+  --headingColor: var(--ink);
+  --h1Color: var(--ink);
+  --h2Color: var(--ink);
+  --h3Color: var(--ink);
+  --h4Color: var(--ink);
+  --h5Color: var(--ink);
+  --h6Color: var(--ink);
+  --blockquoteTextColor: var(--muted);
+  --blockquoteBorderColor: var(--c-quoteBar);
+  --hrColor: var(--c-hr);
+  --linkColor: var(--accent);
+  --strongColor: var(--ink);
+  --emColor: var(--ink);
+  --listMarkerColor: var(--muted);
+
+  --sideBarColor: var(--muted);
+  --sideBarIconColor: var(--muted);
+  --sideBarTitleColor: var(--ink);
+  --sideBarTextColor: var(--faint);
+  --sideBarBgColor: var(--sidebar);
+  --sideBarItemHoverBgColor: var(--hover);
+  --itemBgColor: var(--surface-2);
+
+  --floatFontColor: var(--ink);
+  --floatBgColor: var(--surface-2);
+  --floatHoverColor: var(--hover);
+  --floatBorderColor: var(--line);
+  --floatShadow: var(--shadow-win);
+  --maskColor: var(--backdrop);
+
+  --notificationPrimaryBg: var(--accent);
+  --notificationInfoBg: var(--muted);
+  --notificationWarningBg: var(--warn);
+  --notificationErrorBg: var(--danger);
+
+  /* ── @muyajs/core 引擎（kebab-case 变量 → tokens） ── */
+  --theme-color: var(--accent);
+  --highlight-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  --selection-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  --editor-color: var(--ink);
+  --editor-color-80: var(--ink);
+  --editor-color-50: var(--muted);
+  --editor-color-30: var(--faint);
+  --editor-color-10: var(--line);
+  --editor-color-04: var(--hover);
+  --editor-bg-color: var(--c-bg);
+  --editor-area-width: 720px;
+  --editorAreaWidth: 720px;
+  --delete-color: var(--danger);
+  --icon-color: var(--muted);
+  --code-block-bg-color: var(--c-codeblockBg);
+  --table-border-color: var(--c-tableBorder);
+  --input-bg-color: var(--hover);
+  --button-font-color: var(--ink);
+  --button-bg-color: var(--surface-2);
+  --button-border: 1px solid var(--line-strong);
+  --button-bg-color-hover: var(--hover);
+  --button-border-hover: 1px solid var(--line-strong);
+  --button-bg-color-active: var(--selected);
+  --button-border-active: 1px solid var(--line-strong);
+  --button-border-focus: 1px solid var(--accent);
+  --float-bg-color: var(--surface-2);
+  --float-hover-color: var(--hover);
+  --float-border-color: var(--line);
+  --float-shadow: var(--shadow-win);
+  --link-color: var(--accent);
+  --h1-color: var(--ink);
+  --h2-color: var(--ink);
+  --h3-color: var(--ink);
+  --h4-color: var(--ink);
+  --h5-color: var(--ink);
+  --h6-color: var(--ink);
+  --blockquote-text-color: var(--muted);
+  --blockquote-border-color: var(--c-quoteBar);
+  --strong-color: var(--ink);
+  --em-color: var(--ink);
+  --list-marker-color: var(--muted);
+  --hr-color: var(--c-hr);
+
+  /* 排版（被 setOptions 内联样式覆盖时为后备值；默认偏好与其一致） */
+  --mu-font-family: var(--font-body);
+  --mu-font-size: 15px;
+  --mu-line-height: 1.58;
+  --mu-code-font-family: var(--font-mono);
+}

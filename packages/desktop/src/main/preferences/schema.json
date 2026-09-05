@@ -75,21 +75,21 @@
     "description": "Editor--editor font family",
     "type": "string",
     "pattern": "^[^\\s]+((-|\\s)*[^\\s])*$",
-    "default": "Open Sans"
+    "default": "Anthropic"
   },
   "fontSize": {
     "description": "Editor--Font size in pixels",
     "type": "number",
     "maximum": 32,
     "minimum": 12,
-    "default": 16
+    "default": 15
   },
   "lineHeight": {
     "description": "Editor--Line Height",
     "type": "number",
     "maximum": 2,
     "minimum": 1.2,
-    "default": 1.6
+    "default": 1.58
   },
   "wrapCodeBlocks": {
     "description": "Editor--Wrap text inside code blocks",
@@ -113,7 +113,7 @@
     "description": "Editor--Font family used in code block",
     "type": "string",
     "pattern": "^[^\\s]+((-|\\s)*[^\\s])*$",
-    "default": "DejaVu Sans Mono"
+    "default": "ui-monospace"
   },
   "codeBlockLineNumbers": {
     "description": "Editor--Whether to show the line numbers",
@@ -291,7 +291,7 @@
   "theme": {
     "description": "Theme--Select the theme used in MarkText",
     "type": "string",
-    "default": "light"
+    "default": "claude-light"
   },
   "followSystemTheme": {
     "description": "Theme--Use separate theme in dark mode.",
@@ -301,7 +301,7 @@
   "lightModeTheme": {
     "description": "Theme--Theme to use when system is in light mode.",
     "type": "string",
-    "default": "light"
+    "default": "claude-light"
   },
   "restoreLayoutState": {
     "description": "General--Restore previous editor state on startup.",
@@ -311,7 +311,7 @@
   "darkModeTheme": {
     "description": "Theme--Theme to use when system is in dark mode.",
     "type": "string",
-    "default": "dark"
+    "default": "claude-dark"
   },
   "customCss": {
     "description": "Custom CSS--Custom CSS to apply to the current theme.--internal",

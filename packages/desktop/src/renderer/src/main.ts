@@ -20,6 +20,10 @@ import Main from './Main.vue'
 
 import './assets/styles/index.css'
 import './assets/styles/printService.css'
+// MoMark Claude 设计体系：令牌（唯一源）→ 字体 → 编辑器对齐（scoped 到 claude 主题）
+import './assets/styles/tokens.css'
+import './assets/styles/fonts.css'
+import './assets/styles/claude-editor.css'
 
 // -----------------------------------------------
 
