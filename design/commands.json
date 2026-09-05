@@ -1,0 +1,164 @@
+[
+  {
+    "group": "墨记",
+    "name": "关于墨记",
+    "kbd": "",
+    "icon": "i-info"
+  },
+  {
+    "group": "墨记",
+    "name": "偏好设置…",
+    "kbd": "⌘,",
+    "icon": "i-gear"
+  },
+  {
+    "group": "文件",
+    "name": "新建",
+    "kbd": "⌘N",
+    "icon": "i-plus"
+  },
+  {
+    "group": "文件",
+    "name": "打开…",
+    "kbd": "⌘O",
+    "icon": "i-folder"
+  },
+  {
+    "group": "文件",
+    "name": "保存",
+    "kbd": "⌘S",
+    "icon": "i-save"
+  },
+  {
+    "group": "文件",
+    "name": "另存为…",
+    "kbd": "⇧⌘S",
+    "icon": "i-save"
+  },
+  {
+    "group": "文件",
+    "name": "导出 HTML…",
+    "kbd": "",
+    "icon": "i-export"
+  },
+  {
+    "group": "文件",
+    "name": "导出 PDF…",
+    "kbd": "",
+    "icon": "i-export"
+  },
+  {
+    "group": "文件",
+    "name": "导出 docx…",
+    "kbd": "",
+    "icon": "i-export"
+  },
+  {
+    "group": "文件",
+    "name": "打印…",
+    "kbd": "⌘P",
+    "icon": "i-print"
+  },
+  {
+    "group": "编辑",
+    "name": "撤销",
+    "kbd": "⌘Z",
+    "icon": "i-undo"
+  },
+  {
+    "group": "编辑",
+    "name": "重做",
+    "kbd": "⇧⌘Z",
+    "icon": "i-redo"
+  },
+  {
+    "group": "编辑",
+    "name": "查找",
+    "kbd": "⌘F",
+    "icon": "i-search"
+  },
+  {
+    "group": "编辑",
+    "name": "替换",
+    "kbd": "⌥⌘F",
+    "icon": "i-search"
+  },
+  {
+    "group": "编辑",
+    "name": "拼写检查",
+    "kbd": "⌘:",
+    "icon": "i-abc"
+  },
+  {
+    "group": "视图",
+    "name": "专注模式",
+    "kbd": "⌥⌘F",
+    "icon": "i-focus"
+  },
+  {
+    "group": "视图",
+    "name": "切换浅色/深色",
+    "kbd": "⇧⌘A",
+    "icon": "i-sun"
+  },
+  {
+    "group": "视图",
+    "name": "显示/隐藏侧栏",
+    "kbd": "⌘\\",
+    "icon": "i-sidebar"
+  },
+  {
+    "group": "视图",
+    "name": "右侧栏/浏览器面板",
+    "kbd": "⌥⌘B",
+    "icon": "i-partition"
+  },
+  {
+    "group": "格式",
+    "name": "标题 1",
+    "kbd": "⌘1",
+    "icon": "i-hash"
+  },
+  {
+    "group": "格式",
+    "name": "加粗",
+    "kbd": "⌘B",
+    "icon": "i-bold"
+  },
+  {
+    "group": "格式",
+    "name": "斜体",
+    "kbd": "⌘I",
+    "icon": "i-italic"
+  },
+  {
+    "group": "格式",
+    "name": "引用",
+    "kbd": "⌥⌘Q",
+    "icon": "i-quote"
+  },
+  {
+    "group": "格式",
+    "name": "插入链接",
+    "kbd": "⌘K",
+    "icon": "i-link"
+  },
+  {
+    "group": "格式",
+    "name": "插入表格…",
+    "kbd": "",
+    "icon": "i-table"
+  },
+  {
+    "group": "格式",
+    "name": "插入图片…",
+    "kbd": "",
+    "icon": "i-image"
+  },
+  {
+    "group": "格式",
+    "name": "插入公式…",
+    "kbd": "",
+    "icon": "i-graph"
+  }
+]

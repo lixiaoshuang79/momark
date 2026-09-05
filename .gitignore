@@ -21,3 +21,5 @@ playwright-report/
 .claude/
 .agents/
 .agent/
+assets/fonts/Anthropic.woff2
+assets/fonts/AnthropicSerif.woff2
