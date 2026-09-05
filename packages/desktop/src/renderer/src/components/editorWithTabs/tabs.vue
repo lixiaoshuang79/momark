@@ -1,13 +1,27 @@
 <template>
   <div class="editor-tabs">
-    <div
-      ref="tabContainer"
-      class="scrollable-tabs"
+    <!-- 左栏开关（标签栏最左 ⌘\）：展开态 .on = accentSoft 底 + accent 图标；与菜单 ⌘\ 同源联动 -->
+    <button
+      class="sidebar-toggle"
+      :class="{ on: showSideBar }"
+      :title="toggleTitle"
+      @click.stop="toggleSidebar"
     >
-      <ul
-        ref="tabDropContainer"
-        class="tabs-container"
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
       >
+        <rect x="2" y="2.5" width="12" height="11" rx="2.2" />
+        <path d="M5.8 2.5v11" />
+      </svg>
+    </button>
+    <div ref="tabContainer" class="scrollable-tabs">
+      <ul ref="tabDropContainer" class="tabs-container">
         <li
           v-for="file of tabs"
           :key="file.id"
@@ -20,20 +34,13 @@
         >
           <span>{{ file.filename }}</span>
           <span class="unsaved-dot" />
-          <el-icon
-            class="close-icon"
-            :size="12"
-            @click.stop="removeFileInTab(file)"
-          >
+          <el-icon class="close-icon" :size="12" @click.stop="removeFileInTab(file)">
             <Close />
           </el-icon>
         </li>
       </ul>
     </div>
-    <div
-      class="new-file"
-      @click.stop="newFile()"
-    >
+    <div class="new-file" @click.stop="newFile()">
       <el-icon :size="16">
         <Plus />
       </el-icon>
@@ -42,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
@@ -51,12 +58,24 @@ import dragula from 'dragula'
 import { Plus, Close } from '@element-plus/icons-vue'
 import { showContextMenu } from '../../contextMenu/tabs'
 import bus from '../../bus'
+import { useI18n } from 'vue-i18n'
 import type { IFileState } from '@shared/types/files'
+
+const { t } = useI18n()
 
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
 
 const { currentFile, tabs } = storeToRefs(editorStore)
+const { showSideBar } = storeToRefs(layoutStore)
+
+const toggleTitle = computed(() => `${t('menu.view.toggleSidebar')} ⌘\\`)
+
+// 左栏开关：走 layoutStore 的 view:toggle-layout-entry 总线——与菜单 ⌘\（view.toggle-sidebar）
+// 完全同一条链路，展开态按钮 .on 与菜单勾选、侧栏显隐三方一致。
+const toggleSidebar = (): void => {
+  bus.emit('view:toggle-layout-entry', 'showSideBar')
+}
 
 interface AutoScroller {
   readonly down: boolean
@@ -281,6 +300,40 @@ onBeforeUnmount(() => {
   &:hover > .new-file {
     opacity: 1 !important;
   }
+}
+
+/* 左栏开关（tokens：muted → hover 底 → .on accentSoft 底 + accent 图标） */
+.editor-tabs > .sidebar-toggle {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  margin-left: 8px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted);
+  transition:
+    background 0.22s ease,
+    color 0.22s ease;
+}
+
+.editor-tabs > .sidebar-toggle:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.editor-tabs > .sidebar-toggle.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.editor-tabs > .sidebar-toggle svg {
+  width: 16px;
+  height: 16px;
 }
 .scrollable-tabs {
   flex: 0 1 auto;

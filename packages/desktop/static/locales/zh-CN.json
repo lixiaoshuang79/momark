@@ -236,18 +236,25 @@
       "closeAll": "关闭全部",
       "emptyProject": "空项目",
       "createFile": "创建文件",
-      "openFolder": "打开文件夹"
+      "openFolder": "打开文件夹",
+      "currentFile": "当前",
+      "noFilesInDirectory": "该目录下没有 Markdown 文件"
     },
     "toc": {
       "title": "目录",
       "expandAll": "全部展开",
-      "collapseAll": "全部折叠"
+      "collapseAll": "全部折叠",
+      "empty": "暂无标题"
     },
     "icons": {
       "files": "文件",
       "search": "搜索",
       "toc": "目录",
       "settings": "设置"
+    },
+    "tabs": {
+      "outline": "大纲",
+      "files": "文件"
     }
   },
   "commandPalette": {

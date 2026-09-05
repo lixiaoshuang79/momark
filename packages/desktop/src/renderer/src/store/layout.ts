@@ -46,19 +46,17 @@ const initialWidth = localStorage.getItem('side-bar-width')
 const initialSideBarWidth = normalizeSideBarWidth(initialWidth)
 
 export const useLayoutStore = defineStore('layout', () => {
-  const rightColumn = ref<string>('files')
+  const rightColumn = ref<string>('toc')
   const showSideBar = ref(false)
   const showTabBar = ref(false)
   const sideBarWidth = ref<number>(initialSideBarWidth)
 
-  // Actual rendered sidebar width. `sideBarWidth` is the right-column width
-  // (clamped to ≥220 by `normalizeSideBarWidth`); when `rightColumn` is empty
-  // the sidebar collapses to its 45px icon strip. Consumers that need to
-  // subtract the sidebar from viewport space must use this, not the raw ref.
+  // MoMark 二期规格：左侧栏固定 288px（顶部 大纲/文件 双 tab），收起=0 无占位。
+  // 旧的 45px 图标 rail 已移除，`sideBarWidth` 仍保留以兼容其他调用方（标签右键菜单）。
+  const SIDEBAR_EXPANDED_WIDTH = 288
   const effectiveSideBarWidth = computed<number>(() => {
     if (!showSideBar.value) return 0
-    if (!rightColumn.value) return 45
-    return Number(sideBarWidth.value)
+    return SIDEBAR_EXPANDED_WIDTH
   })
 
   function SET_LAYOUT(

@@ -236,18 +236,25 @@
       "closeAll": "Close All",
       "emptyProject": "Empty project",
       "createFile": "Create File",
-      "openFolder": "Open Folder"
+      "openFolder": "Open Folder",
+      "currentFile": "Current",
+      "noFilesInDirectory": "No Markdown files in this directory"
     },
     "toc": {
       "title": "Table Of Contents",
       "expandAll": "Expand all",
-      "collapseAll": "Collapse all"
+      "collapseAll": "Collapse all",
+      "empty": "No headings"
     },
     "icons": {
       "files": "Files",
       "search": "Search",
       "toc": "Table of Contents",
       "settings": "Settings"
+    },
+    "tabs": {
+      "outline": "Outline",
+      "files": "Files"
     }
   },
   "commandPalette": {

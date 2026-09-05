@@ -25,6 +25,9 @@ import './assets/styles/tokens.css'
 import './assets/styles/fonts.css'
 import './assets/styles/claude-editor.css'
 
+// MoMark 设计令牌（唯一令牌源 design/tokens.css）：侧栏/胶囊 tab/高亮等新 UI 一律走令牌变量。
+import '../../../../../design/tokens.css'
+
 // -----------------------------------------------
 
 window.marktext = {}
