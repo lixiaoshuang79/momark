@@ -22,6 +22,7 @@
   --shadow: 0 1px 3px rgba(0,0,0,.07);
   --accent: #3d5a80;          /* 墨蓝（用户定案：颜色不参考 Claude） */
   --accent-on: #ffffff;
+  --accent-soft: rgba(61,90,128,.10); /* 墨蓝浅底（原型 v0.14 accentSoft） */
   --accent-hover: color-mix(in oklab, var(--accent), black 8%);
   --accent-active: color-mix(in oklab, var(--accent), black 14%);
   --success: #17a34a;
@@ -91,6 +92,7 @@
   --line: rgba(255,255,255,.08); --line-strong: rgba(255,255,255,.16);
   --hover: rgba(255,255,255,.06); --selected: rgba(255,255,255,.09);
   --accent: #7fa6cc; --accent-on: #12161b;
+  --accent-soft: rgba(127,166,204,.14);
   --accent-hover: color-mix(in oklab, var(--accent), white 8%);
   --accent-active: color-mix(in oklab, var(--accent), white 14%);
   --success: #58a96e; --warn: #d9a441; --danger: #c75d4e;

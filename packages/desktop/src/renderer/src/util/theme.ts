@@ -181,6 +181,10 @@ export const addThemeStyle = (theme: string): void => {
     document.body.classList.add('dark')
   }
 
+  // MoMark 设计令牌暗色适配：tokens.css 的暗色块由 [data-theme="dark"] 驱动，
+  // 与既有 body.dark 主题开关保持同步（侧栏/胶囊 tab 等新 UI 依赖它）。
+  document.documentElement.setAttribute('data-theme', isDarkTheme ? 'dark' : 'light')
+
   // change CodeMirror theme
   const cm = document.querySelector('.CodeMirror')
   if (cm) {

@@ -239,18 +239,25 @@
       "closeAll": "全部關閉",
       "emptyProject": "空專案",
       "createFile": "建立檔案",
-      "openFolder": "開啟資料夾"
+      "openFolder": "開啟資料夾",
+      "currentFile": "當前",
+      "noFilesInDirectory": "該目錄下沒有 Markdown 檔案"
     },
     "toc": {
       "title": "目錄",
       "expandAll": "全部展開",
-      "collapseAll": "全部折疊"
+      "collapseAll": "全部折疊",
+      "empty": "暫無標題"
     },
     "icons": {
       "files": "檔案",
       "search": "搜尋",
       "toc": "目錄",
       "settings": "設定"
+    },
+    "tabs": {
+      "outline": "大綱",
+      "files": "檔案"
     }
   },
   "commandPalette": {

@@ -4,18 +4,9 @@
     :class="[{ typewriter: typewriter, focus: focus, source: sourceCode }]"
     :dir="textDirection"
   >
-    <div
-      ref="editorRef"
-      class="editor-component"
-    />
-    <div
-      v-show="imageViewerVisible"
-      class="image-viewer"
-    >
-      <span
-        class="icon-close"
-        @click="setImageViewerVisible(false)"
-      >
+    <div ref="editorRef" class="editor-component" />
+    <div v-show="imageViewerVisible" class="image-viewer">
+      <span class="icon-close" @click="setImageViewerVisible(false)">
         <CloseIcon />
       </span>
       <div ref="imageViewerRef" />
@@ -34,10 +25,7 @@
           {{ t('editor.insertTable.title') }}
         </div>
       </template>
-      <el-form
-        :model="tableChecker"
-        :inline="true"
-      >
+      <el-form :model="tableChecker" :inline="true">
         <el-form-item :label="t('editor.insertTable.rows')">
           <el-input-number
             ref="rowInput"
@@ -63,10 +51,7 @@
           <el-button @click="dialogTableVisible = false">
             {{ t('common.cancel') }}
           </el-button>
-          <el-button
-            type="primary"
-            @click="handleDialogTableConfirm"
-          >
+          <el-button type="primary" @click="handleDialogTableConfirm">
             {{ t('common.ok') }}
           </el-button>
         </div>
@@ -125,7 +110,7 @@ import { moveImageToFolder, uploadImage } from '@/util/fileSystem'
 import { guessClipboardFilePath } from '@/util/clipboard'
 import { dataURLToFile } from '@/util/dataURLToFile'
 import { getCssForOptions, getHtmlToc, type PdfCssOptions, type HtmlTocOptions } from '@/util/pdf'
-import { resolveTocHeadingElement } from '@/util/tocNavigation'
+import { resolveTocHeadingElement, TOP_LEVEL_HEADINGS_SELECTOR } from '@/util/tocNavigation'
 import { addCommonStyle, setEditorWidth } from '@/util/theme'
 import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
@@ -286,6 +271,12 @@ let switchLanguageCommand: SpellcheckerLanguageCommand | null = null
 let imageViewer: SimpleImageViewer | null = null
 // The engine has no `scroll` event; we listen on the scroll container directly.
 let scrollHandler: ((e: Event) => void) | null = null
+
+// TOC「当前标题」同步：光标移动（selection-change）与滚动（scrollHandler）都会把
+// 光标/视口上方的最后一个标题 slug 广播给侧栏大纲（toc.vue），实现高亮跟随。
+// `lastCaretDocY` 为空时退化为「视口顶部 + STANDAR_Y」探测。
+let tocActiveSlugRaf = 0
+let lastCaretDocY: number | null = null
 
 // The engine's undo/redo history (`getHistory()`) has a different shape than
 // the desktop store's `tab.history` (which drives the save/dirty tracking and
@@ -458,7 +449,7 @@ class SimpleImageViewer {
   _onMousemove!: (e: MouseEvent) => void
   _onMouseup!: () => void
 
-  constructor (container: HTMLElement, { url }: { url: string }) {
+  constructor(container: HTMLElement, { url }: { url: string }) {
     this.container = container
     this.scale = 1
     this.translateX = 0
@@ -469,7 +460,7 @@ class SimpleImageViewer {
     this._init(url)
   }
 
-  _init (url: string) {
+  _init(url: string) {
     this.container.innerHTML = ''
     this.img = document.createElement('img')
     this.img.src = url
@@ -480,11 +471,11 @@ class SimpleImageViewer {
     this._bindEvents()
   }
 
-  _updateTransform () {
+  _updateTransform() {
     this.img.style.transform = `translate(${this.translateX}px,${this.translateY}px) scale(${this.scale})`
   }
 
-  _bindEvents () {
+  _bindEvents() {
     this._onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const factor = e.deltaY < 0 ? 1.1 : 0.9
@@ -515,7 +506,7 @@ class SimpleImageViewer {
     document.addEventListener('mouseup', this._onMouseup)
   }
 
-  destroy () {
+  destroy() {
     this.container.removeEventListener('wheel', this._onWheel)
     this.container.removeEventListener('mousedown', this._onMousedown)
     document.removeEventListener('mousemove', this._onMousemove)
@@ -627,11 +618,14 @@ watch(sequenceTheme, (value, oldValue) => {
   }
 })
 
-watch(() => preferencesStore.plantumlServer, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ plantumlServer: value }, true)
+watch(
+  () => preferencesStore.plantumlServer,
+  (value, oldValue) => {
+    if (value !== oldValue && editor.value) {
+      editor.value.setOptions({ plantumlServer: value }, true)
+    }
   }
-})
+)
 
 watch(listIndentation, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
@@ -1173,6 +1167,39 @@ const handleUploadedImage = (url: unknown, deletionUrl?: unknown) => {
 const getScrollContainer = (): HTMLElement | null =>
   (editor.value?.domNode as HTMLElement | undefined) ?? null
 
+// ---- TOC「当前标题」同步 ---------------------------------------------------
+// 大纲侧栏高亮跟随：在文档序标题（与 listToc 一一对应，见 util/tocNavigation）里
+// 找「探测线上方最后一个标题」。有光标位置（lastCaretDocY）时按光标算，否则按视口顶。
+const computeTocActiveSlug = (): void => {
+  tocActiveSlugRaf = 0
+  const container = getScrollContainer()
+  if (!container) return
+  const headings = container.querySelectorAll<HTMLElement>(TOP_LEVEL_HEADINGS_SELECTOR)
+  const listToc = editorStore.listToc
+  if (headings.length === 0 || listToc.length === 0) {
+    bus.emit('toc::active-slug', null)
+    return
+  }
+  // 引擎 getTOC 与 DOM 选择器必须同集合；长度不一致说明有嵌套标题等边角，放弃本次计算。
+  if (headings.length !== listToc.length) return
+
+  const containerRect = container.getBoundingClientRect()
+  const probe = lastCaretDocY ?? container.scrollTop + STANDAR_Y
+  let active: unknown = null
+  headings.forEach((el, index) => {
+    const docTop = el.getBoundingClientRect().top - containerRect.top + container.scrollTop
+    if (docTop <= probe) {
+      active = listToc[index]?.slug ?? null
+    }
+  })
+  bus.emit('toc::active-slug', active)
+}
+
+const scheduleTocActiveUpdate = (): void => {
+  if (tocActiveSlugRaf) return
+  tocActiveSlugRaf = requestAnimationFrame(computeTocActiveSlug)
+}
+
 // Viewport-relative caret rect (mirrors the engine's `Selection.getCursorCoords`
 // / legacy `cursorCoords`). Used for typewriter + keep-cursor-visible scrolling
 // when we are not inside a `selection-change` event (which already supplies it).
@@ -1493,6 +1520,9 @@ const setMarkdownToEditor = (payload: unknown) => {
     // `json-change`, so seed the TOC explicitly (otherwise it stays empty until
     // the first edit, and a file switch keeps the previous file's TOC).
     editorStore.UPDATE_TOC(editor.value.getTOC())
+    // 文档切换：光标参考位失效，按视口重新计算大纲当前标题高亮。
+    lastCaretDocY = null
+    scheduleTocActiveUpdate()
     // A freshly created/opened tab should be ready to type into.
     focusFreshEditor()
   }
@@ -1859,6 +1889,7 @@ onMounted(() => {
   bus.on('insertParagraph', handleInsertParagraph)
   bus.on('scroll-to-header', scrollToHeader)
   bus.on('scroll-to-anchor-element', scrollToAnchorElement)
+  bus.on('toc::request-active', computeTocActiveSlug)
   bus.on('screenshot-captured', handleScreenShot)
   bus.on('show-command-palette', handleModalOpening)
   bus.on('switch-spellchecker-language', switchSpellcheckLanguage)
@@ -1903,6 +1934,8 @@ onMounted(() => {
     if (currentFile.value) {
       editorStore.updateScrollPosition(currentFile.value.id, container.scrollTop)
     }
+    // 滚动时大纲「当前标题」高亮跟随。
+    scheduleTocActiveUpdate()
   }
   container.addEventListener('scroll', scrollHandler, { passive: true })
 
@@ -1970,6 +2003,9 @@ onMounted(() => {
     }
 
     selectionChange.value = changes
+    // TOC「当前标题」跟随光标：记录光标文档坐标（供大纲高亮探测线使用），无光标信息则退化。
+    lastCaretDocY = y != null ? container.scrollTop + y : null
+    scheduleTocActiveUpdate()
     // Persist the caret so a click/arrow-key move (which never fires
     // `json-change`) survives an in-session tab switch — `tab.cursor` is what
     // `handleFileChange` replays on re-activation. Cheap: serialized caret only.
@@ -1982,6 +2018,9 @@ onMounted(() => {
   document.addEventListener('keyup', keyup)
 
   setEditorWidth(editorLineWidth.value)
+
+  // 首屏：按当前视口初始化大纲「当前标题」高亮。
+  scheduleTocActiveUpdate()
 })
 
 onBeforeUnmount(() => {
@@ -2012,6 +2051,7 @@ onBeforeUnmount(() => {
   bus.off('insertParagraph', handleInsertParagraph)
   bus.off('scroll-to-header', scrollToHeader)
   bus.off('scroll-to-anchor-element', scrollToAnchorElement)
+  bus.off('toc::request-active', computeTocActiveSlug)
   bus.off('screenshot-captured', handleScreenShot)
   bus.off('show-command-palette', handleModalOpening)
   bus.off('switch-spellchecker-language', switchSpellcheckLanguage)
@@ -2028,6 +2068,11 @@ onBeforeUnmount(() => {
     container?.removeEventListener('scroll', scrollHandler)
   }
   scrollHandler = null
+
+  if (tocActiveSlugRaf) {
+    cancelAnimationFrame(tocActiveSlugRaf)
+    tocActiveSlugRaf = 0
+  }
 
   resizeObserverForEditor.disconnect()
 

@@ -1,229 +1,131 @@
 <template>
-  <div
-    v-show="showSideBar"
-    ref="sideBar"
-    class="side-bar"
-    :style="[!rightColumn ? { 'min-width': '45px' } : {}, { width: `${finalSideBarWidth}px` }]"
-  >
-    <div class="left-column">
-      <ul>
-        <li
-          v-for="(c, index) of sideBarIcons"
-          :key="index"
-          :class="{ active: c.id === rightColumn }"
-          @click="handleLeftIconClick(c.id)"
+  <div v-show="showSideBar" class="side-bar">
+    <div class="sb-inner">
+      <!-- 顶部「大纲 / 文件」双 tab 中性胶囊：容器 hover 底圆角 8px；选中=卡片底+hairline 描边+深色文字（不用墨蓝填充） -->
+      <div class="sb-tabs" role="tablist">
+        <button
+          role="tab"
+          :aria-selected="activeTab === 'outline'"
+          :class="{ on: activeTab === 'outline' }"
+          @click="selectTab('outline')"
         >
-          <component :is="c.icon" />
-        </li>
-      </ul>
-      <ul class="bottom">
-        <li
-          v-for="(c, index) of sideBarBottomIcons"
-          :key="index"
-          @click="handleLeftBottomClick(c.id)"
+          {{ t('sideBar.tabs.outline') }}
+        </button>
+        <button
+          role="tab"
+          :aria-selected="activeTab === 'files'"
+          :class="{ on: activeTab === 'files' }"
+          @click="selectTab('files')"
         >
-          <component :is="c.icon" />
-        </li>
-      </ul>
+          {{ t('sideBar.tabs.files') }}
+        </button>
+      </div>
+
+      <!-- 大纲 tab -->
+      <div v-show="activeTab === 'outline'" class="sb-sec">
+        <toc />
+      </div>
+
+      <!-- 文件 tab -->
+      <div v-show="activeTab === 'files'" class="sb-sec">
+        <tree />
+      </div>
     </div>
-    <div
-      v-show="rightColumn"
-      class="right-column"
-    >
-      <tree
-        v-if="rightColumn === 'files'"
-        :project-tree="projectTree"
-        :opened-files="openedFiles"
-        :tabs="tabs"
-      />
-      <side-bar-search v-else-if="rightColumn === 'search'" />
-      <toc v-else-if="rightColumn === 'toc'" />
-    </div>
-    <div
-      v-show="rightColumn"
-      ref="dragBar"
-      class="drag-bar"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { computed } from 'vue'
 import { useLayoutStore } from '@/store/layout'
-import { useProjectStore } from '@/store/project'
-import { useEditorStore } from '@/store/editor'
-
-import { sideBarIcons, sideBarBottomIcons } from './help'
-import Tree from './tree.vue'
-import SideBarSearch from './search.vue'
-import Toc from './toc.vue'
 import { storeToRefs } from 'pinia'
-import type { TabDescriptor } from './types'
+import { useI18n } from 'vue-i18n'
+
+import Tree from './tree.vue'
+import Toc from './toc.vue'
+
+const { t } = useI18n()
 
 const layoutStore = useLayoutStore()
-const projectStore = useProjectStore()
-const editorStore = useEditorStore()
 
-const sideBar = ref<HTMLDivElement | null>(null)
-const dragBar = ref<HTMLDivElement | null>(null)
+const { rightColumn, showSideBar } = storeToRefs(layoutStore)
 
-const openedFiles = ref<TabDescriptor[]>([])
-const sideBarViewWidth = ref(280)
+// MoMark：右栏（rail）已移除。rightColumn 仅保留 toc/files 语义用于 tab 选择，
+// 其余历史值（search/''）一律落到文件 tab。
+type SideBarTab = 'outline' | 'files'
+const activeTab = computed<SideBarTab>(() => (rightColumn.value === 'toc' ? 'outline' : 'files'))
 
-const { rightColumn, showSideBar, sideBarWidth } = storeToRefs(layoutStore)
-
-const { projectTree } = storeToRefs(projectStore)
-const { tabs } = storeToRefs(editorStore)
-
-const finalSideBarWidth = computed<number>(() => {
-  if (!showSideBar.value) return 0
-  if (rightColumn.value === '') return 45
-  return sideBarViewWidth.value < 220 ? 220 : sideBarViewWidth.value
-})
-
-onMounted(() => {
-  nextTick(() => {
-    const dragBarEl = dragBar.value
-    if (!dragBarEl) return
-    let startX = 0
-    let currentSideBarWidth = +sideBarWidth.value
-    let startWidth = currentSideBarWidth
-
-    sideBarViewWidth.value = currentSideBarWidth
-
-    const mouseUpHandler = (): void => {
-      document.removeEventListener('mousemove', mouseMoveHandler, false)
-      document.removeEventListener('mouseup', mouseUpHandler, false)
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(currentSideBarWidth < 220 ? 220 : currentSideBarWidth)
-    }
-
-    const mouseMoveHandler = (event: MouseEvent): void => {
-      const offset = event.clientX - startX
-      currentSideBarWidth = startWidth + offset
-      sideBarViewWidth.value = currentSideBarWidth
-    }
-
-    const mouseDownHandler = (event: MouseEvent): void => {
-      startX = event.clientX
-      startWidth = +sideBarWidth.value
-      document.addEventListener('mousemove', mouseMoveHandler, false)
-      document.addEventListener('mouseup', mouseUpHandler, false)
-    }
-
-    dragBarEl.addEventListener('mousedown', mouseDownHandler, false)
-  })
-})
-
-const handleLeftIconClick = (name: string): void => {
-  if (rightColumn.value === name) {
-    // Capture the expanded width BEFORE collapsing: once rightColumn is '',
-    // finalSideBarWidth evaluates to the 45px icon strip and would overwrite
-    // the user's real width with the clamped 220px minimum (#2421).
-    const widthToPersist = finalSideBarWidth.value
-    layoutStore.SET_LAYOUT({ rightColumn: '' })
-    layoutStore.CHANGE_SIDE_BAR_WIDTH(widthToPersist)
-  } else {
-    const needDispatch = rightColumn.value === ''
-    layoutStore.SET_LAYOUT({ rightColumn: name })
-    sideBarViewWidth.value = +sideBarWidth.value
-    if (needDispatch) {
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(finalSideBarWidth.value)
-    }
-  }
-}
-
-const handleLeftBottomClick = (name: string): void => {
-  if (name === 'settings') {
-    projectStore.OPEN_SETTING_WINDOW()
+const selectTab = (tab: SideBarTab): void => {
+  const column = tab === 'outline' ? 'toc' : 'files'
+  if (rightColumn.value !== column) {
+    layoutStore.SET_LAYOUT({ rightColumn: column })
   }
 }
 </script>
 
 <style scoped>
+/* 展开 288px 底 --sidebar，右侧 .5px 发丝线；收起 = v-show false，完全无占位（无 45px rail 残留） */
 .side-bar {
   display: flex;
   flex-shrink: 0;
   flex-grow: 0;
-  width: 280px;
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
   height: 100vh;
-  min-width: 220px;
   position: relative;
-  color: var(--sideBarColor);
+  color: var(--ink);
   user-select: none;
-  background: var(--sideBarBgColor);
-  border-right: 1px solid var(--itemBgColor);
+  background: var(--sidebar);
+  border-right: 0.5px solid var(--line);
 }
 
-.side-bar .left-column svg {
-  color: var(--iconColor);
-}
-
-.left-column {
+.sb-inner {
+  width: var(--sidebar-w);
   height: 100%;
-  width: 45px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding-top: 28px;
+  padding: 10px 8px 12px;
   box-sizing: border-box;
-}
-
-.left-column > ul {
-  opacity: 1;
-}
-
-.left-column ul {
-  list-style: none;
   display: flex;
   flex-direction: column;
-  margin: 0;
-  padding: 0;
 }
 
-.left-column ul > li {
-  width: 45px;
-  height: 45px;
-  margin: 0;
-  padding: 0;
+.sb-tabs {
   display: flex;
-  justify-content: space-around;
-  align-items: center;
-  cursor: pointer;
+  gap: 2px;
+  background: var(--hover);
+  border-radius: 8px;
+  padding: 2px;
+  margin-bottom: 10px;
+  flex: none;
 }
 
-.left-column ul > li > svg {
-  width: 18px;
-  height: 18px;
-  color: var(--sideBarIconColor);
-  opacity: 1;
-  transition: transform 0.25s ease-in-out;
-}
-
-.left-column ul > li.active > svg {
-  color: var(--themeColor);
-}
-
-.side-bar:hover .left-column ul li svg {
-  opacity: 1;
-}
-
-.right-column {
+.sb-tabs button {
   flex: 1;
-  width: calc(100% - 50px);
-  overflow: hidden;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--f11);
+  padding: 5px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
-.drag-bar {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  height: 100%;
-  width: 3px;
-  cursor: col-resize;
+.sb-tabs button.on {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--line);
 }
 
-.drag-bar:hover {
-  border-right: 2px solid var(--iconColor);
+[data-theme='dark'] .sb-tabs button.on {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.sb-sec {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 </style>

@@ -21,6 +21,9 @@ import Main from './Main.vue'
 import './assets/styles/index.css'
 import './assets/styles/printService.css'
 
+// MoMark 设计令牌（唯一令牌源 design/tokens.css）：侧栏/胶囊 tab/高亮等新 UI 一律走令牌变量。
+import '../../../../../design/tokens.css'
+
 // -----------------------------------------------
 
 window.marktext = {}
