@@ -160,6 +160,14 @@ const commands: CommandDescriptor[] = [
           await delay(50)
           bus.emit('showExportDialog', 'pdf')
         }
+      },
+      {
+        id: 'file.export-file-docx',
+        description: 'Export as docx',
+        execute: async () => {
+          await delay(50)
+          bus.emit('showExportDialog', 'docx')
+        }
       }
     ]
   },
@@ -690,7 +698,13 @@ export const getCommandsWithDescriptions = async (): Promise<CommandDescriptor[]
       const subcommands = (item as CommandDescriptor).subcommands
       // Always update description for commands with ID, regardless of existing description
       if (id) {
-        item.description = getCommandDescriptionById(id)
+        // Only overwrite when an i18n description actually exists — unmapped
+        // ids (e.g. zoom percentages) keep their literal description instead
+        // of degrading to the raw command id.
+        const description = getCommandDescriptionById(id)
+        if (description !== id) {
+          item.description = description
+        }
       }
 
       // Special handling for theme subcommands

@@ -21,6 +21,7 @@
       "export": "Export",
       "exportHtml": "Export as HTML",
       "exportPdf": "Export as PDF",
+      "exportDocx": "Export as docx",
       "import": "Import",
       "print": "Print",
       "closeTab": "Close Tab",
@@ -256,7 +257,16 @@
       "selectOption": "Select an option",
       "searchFileToOpen": "Search file to open",
       "selectLanguage": "Select a language to switch to"
-    }
+    },
+    "groups": {
+      "momark": "MoMark",
+      "file": "File",
+      "edit": "Edit",
+      "view": "View",
+      "format": "Format"
+    },
+    "noResultReason": "No commands match \"{query}\".",
+    "noResultHint": "Try a different keyword."
   },
   "exportSettings": {
     "autoNumberingHeadings": "Auto numbering headings",
@@ -335,7 +345,27 @@
         "default": "GitHub (Default)",
         "liber": "Liber"
       }
-    }
+    },
+    "printTitle": "Print",
+    "print": "Print",
+    "formatHtml": "Standalone web page, no pandoc required",
+    "formatPdf": "Print-optimized PDF with header/footer",
+    "formatDocx": "Word document, converted via Pandoc",
+    "pandocMissing": "Pandoc is not installed. Run `brew install pandoc` in Terminal, then retry.",
+    "preview": "Print preview (paper stays white in both themes)",
+    "untitled": "Untitled",
+    "preparing": "Preparing…",
+    "canceling": "Canceling…",
+    "canceledToast": "Export canceled.",
+    "exportingDocx": "Exporting docx…",
+    "exportingPdf": "Exporting PDF…",
+    "exportingHtml": "Exporting HTML…",
+    "exportDone": "Export finished",
+    "showInFinder": "Show in Finder",
+    "done": "Done",
+    "exportFailed": "Export failed",
+    "retry": "Retry",
+    "cancel": "Cancel"
   },
   "recent": {
     "noTabsOpen": "You have no tabs open.",
@@ -438,7 +468,11 @@
       "autoSave": {
         "title": "Auto Save",
         "description": "Auto save",
-        "delayDescription": "Auto save delay"
+        "delayDescription": "Auto save delay",
+        "delay3s": "3 seconds",
+        "delay5s": "5 seconds",
+        "delay10s": "10 seconds",
+        "namedFilesNote": "Named files are saved automatically; unnamed files are never prompted."
       },
       "window": {
         "title": "Window",
@@ -617,7 +651,27 @@
         "pleaseInstall": "Please install",
         "scriptPath": "Script path"
       },
-      "defaultBehavior": "The default behavior after pasting or dragging the image to MoMark"
+      "defaultBehavior": "The default behavior after pasting or dragging the image to MoMark",
+      "insertBehavior": "Insert action",
+      "insertBehaviorSub": "What happens after pasting or dropping an image.",
+      "behavior": {
+        "render": "Auto insert and render",
+        "viewer": "Open the image viewer on insert (Phase 2)"
+      },
+      "location": {
+        "relative": "Relative folder assets/",
+        "global": "Choose folder…",
+        "path": "Keep original location"
+      },
+      "locationSub": "The relative folder supports the ${filename} variable.",
+      "relativeFolderName": "Relative folder name",
+      "relativeFolderNameSub": "Supports the ${filename} variable (reserved).",
+      "uploaderToggle": "PicGo uploader",
+      "uploaderToggleSub": "Replace images with hosted URLs after upload (Tencent Cloud COS).",
+      "uploaderService": {
+        "picgo": "PicGo",
+        "tencentCos": "Tencent Cloud COS (Phase 2)"
+      }
     },
     "markdown": {
       "title": "Markdown",
@@ -682,7 +736,12 @@
       "importCustomThemes": "Import custom themes",
       "importTheme": "Import Theme",
       "openFolder": "Open Folder",
-      "openThemesFolder": "Open themes folder"
+      "openThemesFolder": "Open themes folder",
+      "appearance": "Appearance",
+      "appearanceSub": "Light / dark map onto claude-light / claude-dark.",
+      "followSystem": "Follow System",
+      "light": "Light",
+      "dark": "Dark"
     },
     "keybindings": {
       "title": "Keybindings",
@@ -759,7 +818,9 @@
       "importFile": "Import File",
       "exportFile": "Export File",
       "exportFilePdf": "Export as PDF",
-      "zoom": "Zoom"
+      "zoom": "Zoom",
+      "exportFileHtml": "Export as HTML",
+      "exportFileDocx": "Export as docx"
     },
     "edit": {
       "undo": "Undo",
@@ -889,7 +950,9 @@
     "unsafeFileTitle": "Potentially unsafe file",
     "unsafeFileMessage": "This link opens a file that can run code",
     "unsafeFileDetail": "\"{name}\" is an executable or script file. Opening it may run programs on your computer. Only continue if you trust this document.",
-    "openAnyway": "Open Anyway"
+    "openAnyway": "Open Anyway",
+    "pandocExportTitle": "Pandoc required",
+    "pandocExportMessage": "Exporting as docx requires Pandoc. Install it with `brew install pandoc`, then try again."
   },
   "error": {
     "configSchemaViolation": "Configuration schema violation",
@@ -957,5 +1020,13 @@
       "switchError": "Spellcheck switch error for {languageCode}, {error}",
       "title": "Spellcheck"
     }
+  },
+  "export": {
+    "progress": {
+      "convertDocx": "Converting to docx…",
+      "writeHtml": "Writing HTML file…",
+      "renderPdf": "Rendering PDF…"
+    },
+    "canceled": "Export canceled."
   }
 }

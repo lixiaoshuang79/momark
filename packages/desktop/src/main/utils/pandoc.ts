@@ -18,9 +18,23 @@ interface PandocConverter {
   stream: (srcStream: NodeJS.ReadableStream) => Readable | null
 }
 
+interface PandocFileConversion {
+  promise: Promise<void>
+  /** Aborts the underlying pandoc process. */
+  cancel: () => void
+}
+
 interface PandocFn {
   (from: string, to: string, ...args: string[]): PandocConverter
   exists: () => boolean
+  toFile: (
+    from: string,
+    to: string,
+    src: string,
+    destPath: string,
+    cwd: string,
+    ...args: string[]
+  ) => PandocFileConversion
 }
 
 const pandoc = ((from: string, to: string, ...args: string[]): PandocConverter => {
@@ -54,6 +68,54 @@ pandoc.exists = (): boolean => {
     return true
   }
   return commandExists.sync(pandocCommand)
+}
+
+pandoc.toFile = (
+  from: string,
+  to: string,
+  src: string,
+  destPath: string,
+  cwd: string,
+  ...args: string[]
+): PandocFileConversion => {
+  // Markdown → 文件（docx 等二进制格式）。cwd 设为源文档目录，
+  // 相对路径图片/资源即可解析；`-o` 直接流式落盘。
+  const command = getCommand()
+  const option = ['-f', from, '-t', to, '-o', destPath].concat(args)
+  const proc = spawn(command, option, { cwd: cwd || process.cwd() })
+
+  const promise = new Promise<void>((resolve, reject) => {
+    let settled = false
+    proc.on('error', (err) => {
+      if (!settled) {
+        settled = true
+        reject(err)
+      }
+    })
+    proc.on('close', (code) => {
+      if (settled) return
+      settled = true
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(`pandoc exited with code ${String(code)}`))
+      }
+    })
+  })
+
+  proc.stdin.on('error', () => {
+    // EPIPE when the process is killed — handled via the close event.
+  })
+  proc.stdin.end(src)
+
+  return {
+    promise,
+    cancel: () => {
+      if (!proc.killed) {
+        proc.kill()
+      }
+    }
+  }
 }
 
 const envPathExists = (): boolean => {

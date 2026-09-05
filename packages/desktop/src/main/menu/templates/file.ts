@@ -6,7 +6,7 @@ import { t } from '../../i18n'
 import type Keybindings from '../../keyboard/shortcutHandler'
 import type Preference from '../../preferences'
 
-export default function(
+export default function (
   keybindings: Keybindings,
   userPreference: Preference,
   recentlyUsedFiles: string[]
@@ -165,6 +165,12 @@ export default function(
           accelerator: keybindings.getAccelerator('file.export-file.pdf') ?? undefined,
           click(_menuItem, browserWindow) {
             actions.exportFile(browserWindow as BrowserWindow | undefined, 'pdf')
+          }
+        },
+        {
+          label: t('menu.file.exportDocx'),
+          click(_menuItem, browserWindow) {
+            actions.exportFile(browserWindow as BrowserWindow | undefined, 'docx')
           }
         }
       ]

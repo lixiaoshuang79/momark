@@ -4,8 +4,7 @@ import {
   Document as MarkdownIcon,
   Brush as ThemeIcon,
   Picture as ImageIcon,
-  Reading as SpellIcon,
-  Operation as KeyBindingIcon
+  Reading as SpellIcon
 } from '@element-plus/icons-vue'
 
 import preferences from '../../../../main/preferences/schema.json'
@@ -85,34 +84,30 @@ export const getCategory = (): PrefCategory[] => [
     path: '/preference/markdown'
   },
   {
-    name: t('preferences.categories.spelling'),
-    label: 'spelling',
-    icon: SpellIcon,
-    path: '/preference/spelling'
-  },
-  {
     name: t('preferences.categories.theme'),
     label: 'theme',
     icon: ThemeIcon,
     path: '/preference/theme'
   },
   {
+    name: t('preferences.categories.spelling'),
+    label: 'spelling',
+    icon: SpellIcon,
+    path: '/preference/spelling'
+  },
+  {
     name: t('preferences.categories.image'),
     label: 'image',
     icon: ImageIcon,
     path: '/preference/image'
-  },
-  {
-    name: t('preferences.categories.keybindings'),
-    label: 'keybindings',
-    icon: KeyBindingIcon,
-    path: '/preference/keybindings'
   }
 ]
 
 const errMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
-const resolveGlobal = (container: VueI18nGlobalContainer | undefined): VueI18nGlobal | undefined => {
+const resolveGlobal = (
+  container: VueI18nGlobalContainer | undefined
+): VueI18nGlobal | undefined => {
   if (!container) return undefined
   return typeof container.global === 'function' ? container.global() : container.global
 }

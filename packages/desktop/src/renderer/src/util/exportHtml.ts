@@ -22,6 +22,37 @@ export interface HeaderFooterPart {
   right?: string
 }
 
+/**
+ * 把页眉/页脚三格配置编译成 `webContents.printToPDF` 的 header/footerTemplate。
+ * 支持占位符：`{page}` → 页码（Chromium 真实页码）、`{date}` → 系统日期、
+ * `{title}` → 文档标题；其余文本原样渲染。type 1 = 单格（居中），type 2 = 三格
+ * （左/中/右）。返回 null 表示无需页眉/页脚。
+ */
+export const buildPrintHeaderFooterTemplate = (
+  part: HeaderFooterPart | null | undefined,
+  _isHeader: boolean
+): string | null => {
+  if (!part || !part.type) {
+    return null
+  }
+  const esc = (s: string): string =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  const renderCell = (raw: string | undefined): string => {
+    const text = esc(raw ?? '')
+      .replace(/\{page\}/g, '<span class="pageNumber"></span>')
+      .replace(/\{date\}/g, '<span class="date"></span>')
+      .replace(/\{title\}/g, '<span class="title"></span>')
+    return text
+  }
+
+  const { type, left = '', center = '', right = '' } = part
+  if (type === 1) {
+    return `<div style="font-size:9px;color:#3f3f3f;width:100%;display:flex;justify-content:center;"><span>${renderCell(center)}</span></div>`
+  }
+  return `<div style="font-size:9px;color:#3f3f3f;width:100%;display:flex;justify-content:space-between;"><span style="text-align:left;">${renderCell(left)}</span><span style="text-align:center;">${renderCell(center)}</span><span style="text-align:right;">${renderCell(right)}</span></div>`
+}
+
 export interface ExportStyledHtmlOptions {
   title?: string
   printOptimization?: boolean
@@ -89,9 +120,10 @@ const hf = (value: string): string => sanitize(value, EXPORT_DOMPURIFY_CONFIG) a
 
 const createTableHeader = (header: HeaderFooterPart, headerFooterStyled?: boolean): string => {
   const { type, left = '', center = '', right = '' } = header
-  const headerClass = `page-header ${(type === 1 ? 'single' : '') + styledClass(headerFooterStyled)}`
-    .replace(/\s+/g, ' ')
-    .trim()
+  const headerClass =
+    `page-header ${(type === 1 ? 'single' : '') + styledClass(headerFooterStyled)}`
+      .replace(/\s+/g, ' ')
+      .trim()
   return `<thead class="${headerClass}"><tr><th>
   <div class="hf-container">
     <div class="header-content-left">${hf(left)}</div>
@@ -103,9 +135,10 @@ const createTableHeader = (header: HeaderFooterPart, headerFooterStyled?: boolea
 
 const createRealFooter = (footer: HeaderFooterPart, headerFooterStyled?: boolean): string => {
   const { type, left = '', center = '', right = '' } = footer
-  const footerClass = `page-footer ${(type === 1 ? 'single' : '') + styledClass(headerFooterStyled)}`
-    .replace(/\s+/g, ' ')
-    .trim()
+  const footerClass =
+    `page-footer ${(type === 1 ? 'single' : '') + styledClass(headerFooterStyled)}`
+      .replace(/\s+/g, ' ')
+      .trim()
   return `<div class="${footerClass}">
   <div class="hf-container">
     <div class="footer-content-left">${hf(left)}</div>
@@ -168,7 +201,7 @@ const rewriteAnchorHrefs = (html: string): string =>
  * at the `[TOC]` marker, and — when a header/footer is supplied — wraps the
  * article in the page-container table for paged PDF / print export.
  */
-export const exportStyledHTML = async(
+export const exportStyledHTML = async (
   muya: Muya,
   markdown: string,
   options: ExportStyledHtmlOptions = {}

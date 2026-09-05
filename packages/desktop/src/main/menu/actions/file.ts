@@ -35,11 +35,46 @@ interface PageOptions {
   pageSizeWidth?: number
   pageSizeHeight?: number
   isLandscape?: boolean
+  pageMarginTop?: number
+  pageMarginRight?: number
+  pageMarginBottom?: number
+  pageMarginLeft?: number
 }
 
 // TODO(refactor): "save" and "save as" should be moved to the editor window (editor.js) and
 // the renderer should communicate only with the editor window for file relevant stuff.
 // E.g. "mt::save-tabs" --> "mt::window-save-tabs$wid:<windowId>"
+
+interface ExportPayload {
+  type: string
+  content?: string
+  pathname?: string
+  title?: string
+  pageOptions?: PageOptions
+  headerTemplate?: string
+  footerTemplate?: string
+}
+
+interface ActiveExport {
+  canceled: boolean
+  cancel: () => void
+}
+
+// Per-window (webContents id) in-flight export handle — supports the renderer's
+// progress view and the cancel button.
+const activeExports = new Map<number, ActiveExport>()
+
+const sendExportProgress = (win: BrowserWindow, phase: string, percent: number | null): void => {
+  if (!win.isDestroyed()) {
+    win.webContents.send('mt::export-progress', { phase, percent })
+  }
+}
+
+const sendExportFailure = (win: BrowserWindow, message: string, canceled = false): void => {
+  if (!win.isDestroyed()) {
+    win.webContents.send('mt::export-failure', { message, canceled })
+  }
+}
 
 const getExportExtensionFilter = (type: string): Electron.FileFilter[] | undefined => {
   if (type === 'pdf') {
@@ -54,6 +89,13 @@ const getExportExtensionFilter = (type: string): Electron.FileFilter[] | undefin
       {
         name: 'Hypertext Markup Language',
         extensions: ['html']
+      }
+    ]
+  } else if (type === 'docx') {
+    return [
+      {
+        name: 'Microsoft Word Document',
+        extensions: ['docx']
       }
     ]
   }
@@ -79,21 +121,25 @@ const getPdfPageOptions = (options?: PageOptions): Record<string, unknown> => {
   }
 }
 
-interface ExportPayload {
-  type: string
-  content?: string
-  pathname?: string
-  title?: string
-  pageOptions?: PageOptions
-}
+const mmToInches = (mm: number | undefined, fallback: number): number => (mm ?? fallback) / 25.4
 
 // Handle the export response from renderer process.
 const handleResponseForExport = async (e: IpcMainEvent, payload: ExportPayload): Promise<void> => {
-  const { type, content, pathname, title, pageOptions } = payload
+  const { type, content, pathname, title, pageOptions, headerTemplate, footerTemplate } = payload
   const win = BrowserWindow.fromWebContents(e.sender)
   if (!win) {
     return
   }
+  const windowId = win.webContents.id
+
+  // docx 缺 pandoc：在弹保存对话框之前走明确错误通道（mt::pandoc-not-exists），
+  // 并通知渲染层回到选项态，进度视图不悬挂。
+  if (type === 'docx' && !pandoc.exists()) {
+    noticePandocNotFoundForExport(win)
+    sendExportFailure(win, t('export.canceled'), true)
+    return
+  }
+
   const extension = (EXTENSION_HASN as Record<string, string>)[type]
   const dirname = pathname ? path.dirname(pathname) : getPath('documents')
   let nakedFilename = pathname ? path.basename(pathname, '.md') : title
@@ -101,50 +147,103 @@ const handleResponseForExport = async (e: IpcMainEvent, payload: ExportPayload):
     nakedFilename = 'Untitled'
   }
 
+  const exportHandle: ActiveExport = {
+    canceled: false,
+    cancel: () => {
+      exportHandle.canceled = true
+    }
+  }
+  // 在保存对话框弹出前注册，保证用户在对话框期间点击取消也能生效。
+  activeExports.set(windowId, exportHandle)
+
   const defaultPath = path.join(dirname, `${nakedFilename}${extension}`)
-  const { filePath, canceled } = await dialog.showSaveDialog(win, {
+  const { filePath, canceled: dialogCanceled } = await dialog.showSaveDialog(win, {
     defaultPath,
     filters: getExportExtensionFilter(type)
   })
 
-  if (filePath && !canceled) {
-    try {
-      if (type === 'pdf') {
-        // Build a clickable bookmark/outline tree from the document's h1-h6
-        // headings so exported PDFs have a navigation pane (#2989). The outline
-        // is derived from the tagged-PDF structure tree, so generateTaggedPDF is
-        // required — generateDocumentOutline alone produces no outline.
-        const options: Electron.PrintToPDFOptions = {
-          printBackground: true,
-          generateTaggedPDF: true,
-          generateDocumentOutline: true
-        }
-        Object.assign(options, getPdfPageOptions(pageOptions))
-        const data = await win.webContents.printToPDF(options)
-        removePrintServiceFromWindow(win)
-        await writeFile(filePath, data, extension!, 'binary')
-      } else {
-        if (!content) {
-          throw new Error('No HTML content found.')
-        }
-        await writeFile(filePath, content, extension!, 'utf8')
-      }
-      win.webContents.send('mt::export-success', { type, filePath })
-    } catch (err) {
-      log.error('Error while exporting:', err)
-      const ERROR_MSG =
-        (err instanceof Error && err.message) || `Error happened when export ${filePath}`
-      win.webContents.send('mt::show-notification', {
-        title: 'Export failure',
-        type: 'error',
-        message: ERROR_MSG
-      })
-    }
-  } else {
-    // User canceled save dialog
+  if (!filePath || dialogCanceled || exportHandle.canceled) {
+    // User canceled save dialog (or clicked cancel in the progress view)
+    activeExports.delete(windowId)
     if (type === 'pdf') {
       removePrintServiceFromWindow(win)
     }
+    sendExportFailure(win, t('export.canceled'), true)
+    return
+  }
+
+  try {
+    if (type === 'pdf') {
+      // Build a clickable bookmark/outline tree from the document's h1-h6
+      // headings so exported PDFs have a navigation pane (#2989). The outline
+      // is derived from the tagged-PDF structure tree, so generateTaggedPDF is
+      // required — generateDocumentOutline alone produces no outline.
+      const options: Electron.PrintToPDFOptions = {
+        printBackground: true,
+        generateTaggedPDF: true,
+        generateDocumentOutline: true
+      }
+      Object.assign(options, getPdfPageOptions(pageOptions))
+
+      // 页眉/页脚三格：走 webContents.printToPDF 的 displayHeaderFooter 模板，
+      // 页码/日期由 Chromium 内建 <span class="pageNumber/date"> 真实生成。
+      if (headerTemplate || footerTemplate) {
+        options.displayHeaderFooter = true
+        if (headerTemplate) {
+          options.headerTemplate = headerTemplate
+        }
+        if (footerTemplate) {
+          options.footerTemplate = footerTemplate
+        }
+        options.margins = {
+          top: mmToInches(pageOptions?.pageMarginTop, 15),
+          bottom: mmToInches(pageOptions?.pageMarginBottom, 15),
+          left: mmToInches(pageOptions?.pageMarginLeft, 15),
+          right: mmToInches(pageOptions?.pageMarginRight, 15)
+        }
+      }
+
+      sendExportProgress(win, t('export.progress.renderPdf'), null)
+      const data = await win.webContents.printToPDF(options)
+      removePrintServiceFromWindow(win)
+      if (exportHandle.canceled) {
+        sendExportFailure(win, t('export.canceled'), true)
+        return
+      }
+      await writeFile(filePath, data, extension!, 'binary')
+    } else if (type === 'docx') {
+      const markdown = content ?? ''
+      const cwd = pathname ? path.dirname(pathname) : getPath('documents')
+      sendExportProgress(win, t('export.progress.convertDocx'), null)
+      const conversion = pandoc.toFile('markdown', 'docx', markdown, filePath, cwd)
+      exportHandle.cancel = () => {
+        exportHandle.canceled = true
+        conversion.cancel()
+      }
+      await conversion.promise
+      if (exportHandle.canceled) {
+        sendExportFailure(win, t('export.canceled'), true)
+        return
+      }
+    } else {
+      if (!content) {
+        throw new Error('No HTML content found.')
+      }
+      sendExportProgress(win, t('export.progress.writeHtml'), null)
+      await writeFile(filePath, content, extension!, 'utf8')
+      if (exportHandle.canceled) {
+        sendExportFailure(win, t('export.canceled'), true)
+        return
+      }
+    }
+    win.webContents.send('mt::export-success', { type, filePath })
+  } catch (err) {
+    log.error('Error while exporting:', err)
+    const ERROR_MSG =
+      (err instanceof Error && err.message) || `Error happened when export ${filePath}`
+    sendExportFailure(win, ERROR_MSG)
+  } finally {
+    activeExports.delete(windowId)
   }
 }
 
@@ -265,7 +364,19 @@ const noticePandocNotFound = (win: BrowserWindow): void => {
     title: t('dialog.importWarning'),
     type: 'warning',
     message: t('dialog.installPandoc'),
-    time: 10000
+    time: 10000,
+    openDocs: true
+  })
+}
+
+// docx 导出缺 pandoc：明确错误通道（mt::pandoc-not-exists）+ 原因 + brew 指引。
+const noticePandocNotFoundForExport = (win: BrowserWindow): void => {
+  win.webContents.send('mt::pandoc-not-exists', {
+    title: t('dialog.pandocExportTitle'),
+    type: 'warning',
+    message: t('dialog.pandocExportMessage'),
+    time: 10000,
+    openDocs: false
   })
 }
 
@@ -464,6 +575,17 @@ ipcMain.on('mt::response-file-save', handleResponseForSave as Parameters<typeof 
 ipcMain.on('mt::response-export', handleResponseForExport as Parameters<typeof ipcMain.on>[1])
 
 ipcMain.on('mt::response-print', handleResponseForPrint as Parameters<typeof ipcMain.on>[1])
+
+ipcMain.on('mt::export-cancel', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  if (!win) {
+    return
+  }
+  const active = activeExports.get(win.webContents.id)
+  if (active) {
+    active.cancel()
+  }
+})
 
 ipcMain.on('mt::window::drop', async (e, fileList: string[]) => {
   const win = BrowserWindow.fromWebContents(e.sender)

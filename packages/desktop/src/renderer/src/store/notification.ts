@@ -16,15 +16,22 @@ export const useNotificationStore = defineStore('notification', () => {
       notice.notify(options)
     })
 
-    window.electron.ipcRenderer.on('mt::pandoc-not-exists', async(_e, opts) => {
+    window.electron.ipcRenderer.on('mt::pandoc-not-exists', async (_e, opts) => {
       // Preserve the custom title/message from main (e.g. dialog.importWarning
-      // / dialog.installPandoc); previously the opts arg was dropped and the
-      // user saw the generic defaultTitle/defaultMessage.
-      const options: NotifyOptions = Object.assign({ ...DEFAULT_OPTS }, opts as Partial<NotifyOptions>, {
+      // / dialog.installPandoc / docx 导出缺 pandoc 的 brew 指引); previously
+      // the opts arg was dropped and the user saw the generic defaultTitle /
+      // defaultMessage.
+      const { openDocs, ...rest } = (opts ?? {}) as Partial<NotifyOptions> & {
+        openDocs?: boolean
+      }
+      const options: NotifyOptions = Object.assign({ ...DEFAULT_OPTS }, rest, {
         showConfirm: true
       })
       await notice.notify(options)
-      window.electron.shell.openExternal('http://pandoc.org')
+      // 导入路径引导到 pandoc.org；docx 导出路径只展示 brew 指引，不跳外链。
+      if (openDocs) {
+        window.electron.shell.openExternal('http://pandoc.org')
+      }
     })
   }
 

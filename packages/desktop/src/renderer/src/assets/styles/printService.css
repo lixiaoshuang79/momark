@@ -51,6 +51,9 @@ body article.print-container {
   }
   body article.print-container {
     height: 100%;
+    /* 打印纸面恒白：深浅主题下输出一致（PHASE2-SPEC §9 / PRD 2.5）。 */
+    background: #ffffff !important;
+    color: #242422;
   }
   body article.markdown-body {
     box-sizing: border-box;

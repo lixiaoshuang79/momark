@@ -13,15 +13,15 @@
           :bool="autoSave"
           :on-change="(value) => onSelectChange('autoSave', value)"
         />
-        <range
+        <cur-select
           :description="t('preferences.general.autoSave.delayDescription')"
           :value="autoSaveDelay"
-          :min="1000"
-          :max="10000"
-          unit="ms"
-          :step="100"
+          :options="autoSaveDelayOptions"
           :on-change="(value) => onSelectChange('autoSaveDelay', value)"
         />
+        <div class="notes">
+          {{ t('preferences.general.autoSave.namedFilesNote') }}
+        </div>
       </template>
     </compound>
 
@@ -114,10 +114,7 @@
       <template #children>
         <h6>{{ t('preferences.general.startup.layoutOptions') }}</h6>
         <section>
-          <el-radio-group
-            v-model="restoreLayoutState"
-            class="startup-action-ctrl"
-          >
+          <el-radio-group v-model="restoreLayoutState" class="startup-action-ctrl">
             <el-radio :label="true">
               {{ t('preferences.general.startup.restorePreviousState') }}
             </el-radio>
@@ -128,10 +125,7 @@
         </section>
         <h6>{{ t('preferences.general.startup.startupFilesFolders') }}</h6>
         <section>
-          <el-radio-group
-            v-model="startUpAction"
-            class="startup-action-ctrl"
-          >
+          <el-radio-group v-model="startUpAction" class="startup-action-ctrl">
             <!--
               Hide "lastState" for now (#2064).
             <el-radio class="ag-underdevelop" label="lastState">Restore last editor session</el-radio>
@@ -147,10 +141,7 @@
                 {{ t('preferences.general.startup.openDefaultDirectory')
                 }}<span>: {{ defaultDirectoryToOpen }}</span>
               </el-radio>
-              <el-button
-                size="small"
-                @click="selectDefaultDirectoryToOpen"
-              >
+              <el-button size="small" @click="selectDefaultDirectoryToOpen">
                 {{ t('preferences.general.startup.selectFolder') }}
               </el-button>
             </div>
@@ -189,13 +180,13 @@ import { useI18n } from 'vue-i18n'
 import { usePreferencesStore } from '@/store/preferences'
 import type { PreferencesState } from '@/store/preferences'
 import Compound from '../common/compound/index.vue'
-import Range from '../common/range/index.vue'
 import CurSelect from '../common/select/index.vue'
 import Bool from '../common/bool/index.vue'
 import textBox from '../common/textBox/index.vue'
 import { isOsx } from '@/util'
 
 import {
+  getAutoSaveDelayOptions,
   getTitleBarStyleOptions,
   zoomOptions,
   getFileSortByOptions,
@@ -205,6 +196,8 @@ import {
 
 const { t } = useI18n()
 const preferenceStore = usePreferencesStore()
+
+const autoSaveDelayOptions = getAutoSaveDelayOptions()
 
 const {
   autoSave,

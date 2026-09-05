@@ -21,6 +21,7 @@
       "export": "导出",
       "exportHtml": "导出为 HTML",
       "exportPdf": "导出为 PDF",
+      "exportDocx": "导出为 docx",
       "import": "导入",
       "print": "打印",
       "closeTab": "关闭标签页",
@@ -256,7 +257,16 @@
       "selectOption": "选择一个选项",
       "searchFileToOpen": "搜索要打开的文件",
       "selectLanguage": "选择要切换的语言"
-    }
+    },
+    "groups": {
+      "momark": "墨记",
+      "file": "文件",
+      "edit": "编辑",
+      "view": "视图",
+      "format": "格式"
+    },
+    "noResultReason": "没有匹配「{query}」的命令。",
+    "noResultHint": "请修改关键词后重试。"
   },
   "exportSettings": {
     "title": "导出选项",
@@ -335,7 +345,27 @@
         "default": "GitHub (默认)",
         "liber": "Liber"
       }
-    }
+    },
+    "printTitle": "打印",
+    "print": "打印",
+    "formatHtml": "独立网页，不依赖 pandoc",
+    "formatPdf": "打印优化 PDF，支持页眉页脚",
+    "formatDocx": "Word 文档，经 Pandoc 转换",
+    "pandocMissing": "未检测到 Pandoc。请在终端运行 `brew install pandoc` 安装后重试。",
+    "preview": "打印预览（深浅主题下纸面恒为白色）",
+    "untitled": "未命名",
+    "preparing": "准备中…",
+    "canceling": "正在取消…",
+    "canceledToast": "导出已取消。",
+    "exportingDocx": "正在导出 docx…",
+    "exportingPdf": "正在导出 PDF…",
+    "exportingHtml": "正在导出 HTML…",
+    "exportDone": "导出完成",
+    "showInFinder": "在 Finder 中显示",
+    "done": "完成",
+    "exportFailed": "导出失败",
+    "retry": "重试",
+    "cancel": "取消"
   },
   "recent": {
     "noTabsOpen": "您没有打开的标签页。",
@@ -438,7 +468,11 @@
       "autoSave": {
         "title": "自动保存",
         "description": "自动保存",
-        "delayDescription": "自动保存延迟"
+        "delayDescription": "自动保存延迟",
+        "delay3s": "3 秒",
+        "delay5s": "5 秒",
+        "delay10s": "10 秒",
+        "namedFilesNote": "已命名文件默认自动保存；未命名文档不弹保存框。"
       },
       "window": {
         "title": "窗口",
@@ -617,7 +651,27 @@
         "pleaseInstall": "请安装",
         "scriptPath": "脚本路径"
       },
-      "defaultBehavior": "粘贴或拖拽图片到 MoMark 后的默认行为"
+      "defaultBehavior": "粘贴或拖拽图片到 MoMark 后的默认行为",
+      "insertBehavior": "插入动作",
+      "insertBehaviorSub": "粘贴或拖入图片后的行为。",
+      "behavior": {
+        "render": "自动插入并渲染",
+        "viewer": "插入时打开图片查看器（二期）"
+      },
+      "location": {
+        "relative": "相对目录 assets/",
+        "global": "指定目录…",
+        "path": "保持原位置"
+      },
+      "locationSub": "相对目录名支持 ${filename} 变量。",
+      "relativeFolderName": "相对目录名",
+      "relativeFolderNameSub": "支持 ${filename} 变量语义（留配置）。",
+      "uploaderToggle": "PicGo 上传器",
+      "uploaderToggleSub": "上传后自动替换为图床 URL（腾讯云 COS）。",
+      "uploaderService": {
+        "picgo": "PicGo",
+        "tencentCos": "腾讯云 COS（二期占位）"
+      }
     },
     "markdown": {
       "title": "Markdown",
@@ -682,7 +736,12 @@
       "importCustomThemes": "导入自定义主题",
       "importTheme": "导入主题",
       "openFolder": "打开文件夹",
-      "openThemesFolder": "打开主题文件夹"
+      "openThemesFolder": "打开主题文件夹",
+      "appearance": "外观",
+      "appearanceSub": "浅色 / 深色分别使用 claude-light / claude-dark。",
+      "followSystem": "跟随系统",
+      "light": "浅色",
+      "dark": "深色"
     },
     "keybindings": {
       "title": "快捷键",
@@ -759,7 +818,9 @@
       "exportFile": "导出文件",
       "exportFilePdf": "导出为 PDF",
       "zoom": "缩放",
-      "changeLineEnding": "更改行结束符"
+      "changeLineEnding": "更改行结束符",
+      "exportFileHtml": "导出为 HTML",
+      "exportFileDocx": "导出为 docx"
     },
     "edit": {
       "undo": "撤销",
@@ -889,7 +950,9 @@
     "unsafeFileTitle": "潜在不安全的文件",
     "unsafeFileMessage": "此链接将打开一个可执行代码的文件",
     "unsafeFileDetail": "“{name}”是可执行文件或脚本文件。打开它可能会在你的计算机上运行程序。请仅在信任此文档时继续。",
-    "openAnyway": "仍然打开"
+    "openAnyway": "仍然打开",
+    "pandocExportTitle": "缺少 Pandoc",
+    "pandocExportMessage": "导出 docx 需要 Pandoc。请运行 `brew install pandoc` 安装后重试。"
   },
   "error": {
     "configSchemaViolation": "配置架构违规",
@@ -957,5 +1020,13 @@
       "languageMissing": "拼写检查语言缺失 {languageCode}",
       "switchError": "{languageCode} 拼写检查切换错误，{error}"
     }
+  },
+  "export": {
+    "progress": {
+      "convertDocx": "正在转换为 docx…",
+      "writeHtml": "正在写入 HTML 文件…",
+      "renderPdf": "正在生成 PDF…"
+    },
+    "canceled": "导出已取消。"
   }
 }
