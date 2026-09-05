@@ -16,6 +16,8 @@ export type FrontmatterType = '-' | ';' | '{' | '+'
 export type SequenceTheme = 'hand' | 'simple'
 export type ImageInsertAction = 'folder' | 'path' | 'upload'
 export type ImageRelativeDirectoryBase = 'file' | 'root'
+export type ImageInsertBehavior = 'render' | 'viewer'
+export type ImageUploaderService = 'picgo' | 'tencent-cos'
 export type FileSortBy = 'created' | 'modified' | 'title'
 export type FileSortOrder = 'asc' | 'desc'
 
@@ -65,6 +67,9 @@ export interface PreferencesState {
   imagePreferRelativeDirectory: boolean
   imageRelativeDirectoryBase: ImageRelativeDirectoryBase | string
   imageRelativeDirectoryName: string
+  imageInsertBehavior: ImageInsertBehavior | string
+  imageUploaderEnabled: boolean
+  imageUploaderService: ImageUploaderService | string
   hideLinkPopup: boolean
   autoCheck: boolean
 
@@ -139,7 +144,7 @@ interface ModeTogglePayload {
 
 export const usePreferencesStore = defineStore('preferences', {
   state: (): PreferencesState => ({
-    autoSave: false,
+    autoSave: true,
     autoSaveDelay: 5000,
     titleBarStyle: 'custom',
     openFilesInNewWindow: false,
@@ -181,6 +186,9 @@ export const usePreferencesStore = defineStore('preferences', {
     imagePreferRelativeDirectory: false,
     imageRelativeDirectoryBase: 'file',
     imageRelativeDirectoryName: 'assets',
+    imageInsertBehavior: 'render',
+    imageUploaderEnabled: false,
+    imageUploaderService: 'picgo',
     hideLinkPopup: false,
     autoCheck: false,
 

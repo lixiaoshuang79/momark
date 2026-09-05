@@ -101,7 +101,11 @@ import {
   zhTW,
   type ILocale
 } from '@muyajs/core'
-import { exportStyledHTML, type HeaderFooterPart } from '@/util/exportHtml'
+import {
+  exportStyledHTML,
+  buildPrintHeaderFooterTemplate,
+  type HeaderFooterPart
+} from '@/util/exportHtml'
 import { applyCursor, isIndexCursor } from '@/util/cursor'
 import EditorSearch from '../search/index.vue'
 import bus from '@/bus'
@@ -1287,7 +1291,7 @@ const handleExport = async (options: unknown) => {
   const opts = options as ExportOptions
   const { type, headerFooterStyled, htmlTitle } = opts
 
-  if (!/^pdf|print|styledHtml$/.test(type)) {
+  if (!/^pdf|print|styledHtml|docx$/.test(type)) {
     throw new Error(`Invalid type to export: "${type}".`)
   }
 
@@ -1330,18 +1334,31 @@ const handleExport = async (options: unknown) => {
           isLandscape
         }
 
+        // 页眉/页脚三格：改走 printToPDF displayHeaderFooter 模板（页码/日期真实生成），
+        // 文档内不再嵌入 hf-table 以免重复渲染。
+        const usePrintTemplates = !!(header || footer)
         const html = await exportStyledHTML(editor.value, markdown, {
           title: '',
           printOptimization: true,
           extraCss,
           toc: htmlToc,
-          header,
-          footer,
+          header: usePrintTemplates ? null : header,
+          footer: usePrintTemplates ? null : footer,
           headerFooterStyled: headerFooterStyled as boolean | undefined,
           dir: props.textDirection
         })
         printer!.renderMarkdown(html, true, props.textDirection)
-        editorStore.EXPORT({ type, pageOptions })
+        editorStore.EXPORT({
+          type,
+          pageOptions,
+          headerTemplate: usePrintTemplates
+            ? (buildPrintHeaderFooterTemplate(header as HeaderFooterPart | null, true) ?? undefined)
+            : undefined,
+          footerTemplate: usePrintTemplates
+            ? (buildPrintHeaderFooterTemplate(footer as HeaderFooterPart | null, false) ??
+              undefined)
+            : undefined
+        })
       } catch (err) {
         log.error('Failed to export document:', err)
         notice.notify({
@@ -1350,6 +1367,22 @@ const handleExport = async (options: unknown) => {
           message: t('editor.export.errorExporting', { type: htmlTitle || 'PDF' })
         })
         handlePrintServiceClearup()
+      }
+      break
+    }
+    case 'docx': {
+      // docx 走 pandoc：直接把 Markdown 源码交给主进程转换，图片等相对路径
+      // 资源由 pandoc 以源文档目录为 cwd 解析。
+      try {
+        editorStore.EXPORT({ type: 'docx', content: markdown })
+      } catch (err) {
+        log.error('Failed to export document:', err)
+        notice.notify({
+          title: t('editor.export.failed', { type: 'docx' }),
+          type: 'error',
+          message:
+            (err as { message?: string } | null | undefined)?.message ?? t('editor.export.error')
+        })
       }
       break
     }

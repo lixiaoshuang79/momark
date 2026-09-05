@@ -1,13 +1,13 @@
 {
   "autoSave": {
-    "description": "General--Automatically save the content being edited.",
+    "description": "General--Automatically save the content being edited. Named files are auto-saved by default; unnamed files are silently skipped.",
     "type": "boolean",
-    "default": false
+    "default": true
   },
   "autoSaveDelay": {
-    "description": "General--The time in ms after a change that the file is saved.",
+    "description": "General--The time in ms after a change that the file is saved (3 / 5 / 10 seconds).",
     "type": "number",
-    "minimum": 1000,
+    "enum": [3000, 5000, 10000],
     "default": 5000
   },
   "titleBarStyle": {
@@ -350,9 +350,24 @@
     "default": "file"
   },
   "imageRelativeDirectoryName": {
-    "description": "Image--The relative image folder name.",
+    "description": "Image--The relative image folder name. Supports the ${filename} variable semantics (reserved for configuration).",
     "type": "string",
     "default": "assets"
+  },
+  "imageInsertBehavior": {
+    "description": "Image--What happens after an image is inserted (paste or drop): render inline, or open the image viewer (phase 2 placeholder).",
+    "enum": ["render", "viewer"],
+    "default": "render"
+  },
+  "imageUploaderEnabled": {
+    "description": "Image--Enable the PicGo uploader; uploaded images are replaced with hosted URLs.",
+    "type": "boolean",
+    "default": false
+  },
+  "imageUploaderService": {
+    "description": "Image--The uploader service. tencent-cos is a phase 2 placeholder.",
+    "enum": ["picgo", "tencent-cos"],
+    "default": "picgo"
   },
   "sideBarVisibility": {
     "description": "View--Whether the side bar is visible.--internal",

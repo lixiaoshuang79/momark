@@ -168,4 +168,4 @@ export interface PageOptions {
   [key: string]: unknown
 }
 
-export type ExportType = 'pdf' | 'html' | 'styledHtml' | 'png' | 'jpeg'
+export type ExportType = 'pdf' | 'html' | 'styledHtml' | 'png' | 'jpeg' | 'docx'

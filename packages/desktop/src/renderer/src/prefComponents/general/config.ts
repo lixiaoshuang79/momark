@@ -1,6 +1,21 @@
 import { t } from '../../i18n'
 import type { PrefSelectOption } from '../common/types'
 
+export const getAutoSaveDelayOptions = (): PrefSelectOption<number>[] => [
+  {
+    label: t('preferences.general.autoSave.delay3s'),
+    value: 3000
+  },
+  {
+    label: t('preferences.general.autoSave.delay5s'),
+    value: 5000
+  },
+  {
+    label: t('preferences.general.autoSave.delay10s'),
+    value: 10000
+  }
+]
+
 export const getTitleBarStyleOptions = (): PrefSelectOption<string>[] => [
   {
     label: t('preferences.general.window.titleBarStyle.custom'),

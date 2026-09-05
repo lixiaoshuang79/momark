@@ -141,6 +141,8 @@ export interface IpcSendChannels {
       filename: string
       pathname: string
       pageOptions: PageOptions
+      headerTemplate?: string
+      footerTemplate?: string
     }
   ]
   'mt::response-file-move-to': [payload: { id: string; pathname: string }]
@@ -161,6 +163,7 @@ export interface IpcSendChannels {
     defaultPath: string
   ]
   'mt::response-print': []
+  'mt::export-cancel': []
   'mt::rg::cancel': [searchId: string]
   'mt::save-and-close-tabs': [tabs: unknown[]]
   'mt::save-tabs': [tabs: unknown[]]
@@ -233,6 +236,8 @@ export interface IpcMainEventChannels {
   'mt::editor-paragraph-action': [payload: { type: string }]
   'mt::editor-rename-file': []
   'mt::execute-command-by-id': [commandId: string]
+  'mt::export-failure': [payload: { message: string; canceled?: boolean }]
+  'mt::export-progress': [payload: { phase: string; percent: number | null }]
   'mt::export-success': [payload: { type: string; filePath: string }]
   'mt::file-saved': [tabId: string]
   'mt::force-close-tabs-by-id': [tabIds: string[]]
