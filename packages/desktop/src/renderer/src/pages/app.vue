@@ -26,7 +26,6 @@
       />
       <status-bar v-if="hasCurrentFile && init" :word-count="wordCount" :is-saved="isSaved" />
       <command-palette />
-      <about-dialog />
       <export-setting-dialog />
       <rename />
       <import-modal />
@@ -44,7 +43,6 @@ import EditorWithTabs from '@/components/editorWithTabs/index.vue'
 import TitleBar from '@/components/titleBar/index.vue'
 import SideBar from '@/components/sideBar/index.vue'
 import StatusBar from '@/components/statusBar/index.vue'
-import AboutDialog from '@/components/about/index.vue'
 import CommandPalette from '@/components/commandPalette/index.vue'
 import ExportSettingDialog from '@/components/exportSettings/index.vue'
 import Rename from '@/components/rename/index.vue'

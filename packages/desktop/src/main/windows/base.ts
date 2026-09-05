@@ -16,7 +16,9 @@ import { getThemeBackgroundColor } from '../../common/theme'
 export const WindowType = {
   BASE: 'base', // You shold never create a `BASE` window.
   EDITOR: 'editor',
-  SETTINGS: 'settings'
+  SETTINGS: 'settings',
+  WELCOME: 'welcome',
+  ABOUT: 'about'
 } as const
 
 export type WindowTypeValue = (typeof WindowType)[keyof typeof WindowType]

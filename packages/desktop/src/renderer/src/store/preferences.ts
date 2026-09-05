@@ -181,7 +181,7 @@ export const usePreferencesStore = defineStore('preferences', {
 
     trimTrailingNewline: 2,
     textDirection: 'ltr',
-    hideQuickInsertHint: false,
+    hideQuickInsertHint: true,
     imageInsertAction: 'folder',
     imagePreferRelativeDirectory: false,
     imageRelativeDirectoryBase: 'file',
@@ -217,8 +217,9 @@ export const usePreferencesStore = defineStore('preferences', {
     spellcheckerLanguage: 'en-US',
 
     // Default values that are overwritten with the entries below.
-    sideBarVisibility: false,
-    tabBarVisibility: false,
+    // MoMark 裁决（QA-03/QA-02）：侧栏默认展开、标签栏常驻（含单文档态）。
+    sideBarVisibility: true,
+    tabBarVisibility: true,
     sourceCodeModeEnabled: false,
     openedFilesInSidebar: true,
 

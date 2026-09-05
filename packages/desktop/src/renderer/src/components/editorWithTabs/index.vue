@@ -3,7 +3,8 @@
     class="editor-with-tabs"
     :style="{ 'max-width': `calc(100vw - ${effectiveSideBarWidth}px)` }"
   >
-    <!-- 标签栏：单文档态（tabs ≤ 1）物理移除整行，多文档态渲染（PHASE2-SPEC §1/§10） -->
+    <!-- 标签栏：常驻渲染（QA-02 裁决：tabBarVisibility 默认 true，含单文档态；
+         用户可通过「视图」菜单/布局开关关闭整行） -->
     <Tabs v-if="showTabBar" />
     <!-- 面包屑行 28px -->
     <Crumbs />
@@ -26,9 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useLayoutStore } from '@/store/layout'
-import { useEditorStore } from '@/store/editor'
 import { storeToRefs } from 'pinia'
 import Tabs from './tabs.vue'
 import Crumbs from '../crumbs/index.vue'
@@ -49,12 +48,7 @@ defineProps<{
 }>()
 
 const layoutStore = useLayoutStore()
-const editorStore = useEditorStore()
-const { effectiveSideBarWidth } = storeToRefs(layoutStore)
-const { tabs } = storeToRefs(editorStore)
-
-// 场景派生（STATE-MACHINE §1）：标签栏是否渲染完全由标签数量决定。
-const showTabBar = computed(() => tabs.value.length >= 2)
+const { effectiveSideBarWidth, showTabBar } = storeToRefs(layoutStore)
 </script>
 
 <style scoped>

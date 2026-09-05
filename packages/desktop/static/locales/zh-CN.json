@@ -261,7 +261,9 @@
     "tabs": {
       "outline": "大纲",
       "files": "文件"
-    }
+    },
+    "toggleTitle": "显示/隐藏侧栏",
+    "rightPanelTitle": "右侧栏 / 浏览器面板（后续接入）"
   },
   "commandPalette": {
     "placeholder": "输入要执行的命令",
@@ -801,7 +803,10 @@
   },
   "about": {
     "copyright": "© {year} 墨记 MoMark 团队",
-    "copyrightContributors": "墨记 MoMark 团队"
+    "copyrightContributors": "墨记 MoMark 团队",
+    "version": "版本",
+    "thanks": "致谢：MarkText 社区 · muya 编辑器引擎（MIT）",
+    "license": "© {year} MoMark 贡献者 · 依据 MIT 许可证分发"
   },
   "commands": {
     "mt": {
@@ -1047,7 +1052,8 @@
     "characters": "字符"
   },
   "tabs": {
-    "reorderToast": "标签顺序已更新"
+    "reorderToast": "标签顺序已更新",
+    "closeTab": "关闭标签"
   },
   "export": {
     "progress": {
@@ -1056,5 +1062,17 @@
       "renderPdf": "正在生成 PDF…"
     },
     "canceled": "导出已取消。"
+  },
+  "welcome": {
+    "windowTitle": "欢迎使用墨记",
+    "hi": "欢迎",
+    "hiSub": "原生 macOS 所见即所得 Markdown 编辑器\nClaude Code 基准 · 内容即界面",
+    "newDocument": "新建文档",
+    "openFolder": "打开文件夹",
+    "openFile": "打开文件",
+    "recentTitle": "最近打开",
+    "noRecentText": "还没有打开过文档\n从左侧「新建文档」开始你的第一篇",
+    "timeToday": "今天",
+    "timeYesterday": "昨天"
   }
 }

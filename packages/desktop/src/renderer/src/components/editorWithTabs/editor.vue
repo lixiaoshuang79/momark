@@ -1,15 +1,11 @@
 <template>
   <div
+    ref="wrapperRef"
     class="editor-wrapper"
     :class="[{ typewriter: typewriter, focus: focus, source: sourceCode }]"
     :dir="textDirection"
   >
     <div ref="editorRef" class="editor-component" />
-    <!-- MoMark §6：空文档占位（引擎无 placeholder 配置，壳层轻量实现；
-         只在当前文档内容为空时显示，pointer-events 透传给编辑器） -->
-    <div v-if="showPlaceholder" class="editor-placeholder" aria-hidden="true">
-      {{ PLACEHOLDER_TEXT }}
-    </div>
     <div v-show="imageViewerVisible" class="image-viewer">
       <span class="icon-close" @click="setImageViewerVisible(false)">
         <CloseIcon />
@@ -63,8 +59,13 @@
       </template>
     </el-dialog>
     <editor-search v-if="!sourceCode" />
-    <!-- 空文档第一行提示（PHASE2-SPEC §6）：墨蓝闪烁光标 + 文案，输入即消失 -->
-    <div v-if="isEmptyDoc" class="empty-doc-hint" :style="emptyHintStyle">
+    <!-- 空文档第一行提示（PHASE2-SPEC §6）：墨蓝闪烁光标 + 弱化文案；
+         聚焦后隐藏、清空后显示；源码模式隐藏 -->
+    <div
+      v-if="isEmptyDoc && !sourceCode && !editorFocused"
+      class="empty-doc-hint"
+      :style="emptyHintStyle"
+    >
       <span class="caret" />
       <span class="text">{{ t('editor.emptyHint') }}</span>
     </div>
@@ -273,6 +274,10 @@ const isEmptyDoc = computed(() => {
   return md.trim().length === 0
 })
 
+// 编辑区是否聚焦（聚焦时隐藏空态提示，避免与真实光标重影）。
+const editorFocused = ref(false)
+let teardownFocusTracking: (() => void) | null = null
+
 // 提示行顶距：常规 20px（mu-container padding-top）；typewriter 模式居中偏移。
 const emptyHintStyle = computed(() => ({
   top: typewriter.value ? 'calc(50vh - 116px)' : '20px'
@@ -280,15 +285,6 @@ const emptyHintStyle = computed(() => ({
 
 // Project store refs
 const { projectTree } = storeToRefs(projectStore)
-
-// MoMark §6 空文档占位：引擎不支持 placeholder 配置，故在壳层实现——
-// 当前文档 markdown 为空（含首尾空白）时显示，输入即消失；源码/打字机模式隐藏。
-const PLACEHOLDER_TEXT = '从这里开始写作…'
-const showPlaceholder = computed<boolean>(() => {
-  if (sourceCode.value || typewriter.value) return false
-  const md = currentFile.value?.markdown
-  return md !== undefined && md !== null && md.trim() === ''
-})
 
 // Component state
 const defaultFontFamily = DEFAULT_EDITOR_FONT_FAMILY
@@ -306,6 +302,7 @@ const tableChecker = reactive({
 })
 
 // Template refs
+const wrapperRef = ref<HTMLDivElement | null>(null)
 const editorRef = ref<HTMLDivElement | null>(null)
 const imageViewerRef = ref<HTMLDivElement | null>(null)
 const rowInput = ref<InputNumberInstance | null>(null)
@@ -1786,6 +1783,22 @@ onMounted(() => {
   const ele = editorRef.value
   if (!ele) return
 
+  // 空态提示的聚焦跟踪：引擎会替换 .editor-component 节点，因此监听
+  // 外层稳定的 .editor-wrapper（focusin/focusout 冒泡）。
+  const wrapper = wrapperRef.value
+  const onFocusIn = (): void => {
+    editorFocused.value = true
+  }
+  const onFocusOut = (): void => {
+    editorFocused.value = false
+  }
+  wrapper?.addEventListener('focusin', onFocusIn)
+  wrapper?.addEventListener('focusout', onFocusOut)
+  teardownFocusTracking = () => {
+    wrapper?.removeEventListener('focusin', onFocusIn)
+    wrapper?.removeEventListener('focusout', onFocusOut)
+  }
+
   // Register the engine UI plugins once per renderer process (see
   // `muyaPluginsRegistered`). The image-edit tool receives the desktop's image
   // callbacks; LinkTools receives the ctrl/cmd-click jump handler.
@@ -2100,6 +2113,11 @@ onBeforeUnmount(() => {
 
   document.removeEventListener('keyup', keyup)
 
+  if (teardownFocusTracking) {
+    teardownFocusTracking()
+    teardownFocusTracking = null
+  }
+
   // Remove the manual scroll listener; engine `on(...)` listeners are torn down
   // by `destroy()` → `eventCenter.unsubscribeAll()`.
   if (scrollHandler && editor.value) {
@@ -2176,33 +2194,10 @@ onBeforeUnmount(() => {
   overflow-anchor: none !important;
 }
 
-/* MoMark §6 空文档占位：与内容列（720px/44px/32px）对齐的弱化提示，
-   pointer-events 透传，光标仍在第一行闪烁 */
 /* 编辑区聚焦环（PHASE2-SPEC §6）：聚焦时 inset 1.5px 墨蓝环，失焦移除。
    引擎替换原容器节点时会拷贝 class，故对运行时注入的 .editor-component 同样生效。 */
 .editor-component:focus-within {
   box-shadow: inset 0 0 0 1.5px var(--accent);
-}
-.editor-placeholder {
-  position: absolute;
-  top: 0;
-  left: 50%;
-
-  width: var(--editor-area-width, 720px);
-  max-width: 100%;
-  box-sizing: border-box;
-  padding: var(--editor-pad-top, 44px) var(--editor-pad-x, 32px);
-
-  color: var(--placeholder-color, var(--faint));
-  font-family: var(--font-body);
-  font-size: var(--editor-body-size, 15px);
-  line-height: var(--editor-body-lh, 1.58);
-  white-space: nowrap;
-  overflow: hidden;
-  user-select: none;
-  pointer-events: none;
-
-  transform: translateX(-50%);
 }
 
 .editor-component .mu-container {

@@ -51,6 +51,56 @@ export const preferencesWinOptions: Readonly<BrowserWindowConstructorOptions> = 
   zoomFactor: 1.0
 } as BrowserWindowConstructorOptions)
 
+// PHASE2-SPEC §9: 欢迎窗口 660×440pt（macOS 1pt = 1 CSS px），与原型 P8 一致。
+export const welcomeWinOptions: Readonly<BrowserWindowConstructorOptions> = Object.freeze({
+  width: 660,
+  height: 440,
+  resizable: false,
+  fullscreenable: false,
+  fullscreen: false,
+  minimizable: false,
+  maximizable: false,
+  webPreferences: {
+    contextIsolation: true,
+    sandbox: true,
+    spellcheck: false,
+    nodeIntegration: false,
+    webSecurity: false,
+    preload: path.join(__dirname, '../preload/index.js')
+  },
+  useContentSize: true,
+  show: true,
+  frame: false,
+  titleBarStyle: 'hiddenInset',
+  thickFrame: !isOsx,
+  zoomFactor: 1.0
+} as BrowserWindowConstructorOptions)
+
+// PHASE2-SPEC §9: 关于窗口 420×480，与原型 P7 一致。
+export const aboutWinOptions: Readonly<BrowserWindowConstructorOptions> = Object.freeze({
+  width: 420,
+  height: 480,
+  resizable: false,
+  fullscreenable: false,
+  fullscreen: false,
+  minimizable: false,
+  maximizable: false,
+  webPreferences: {
+    contextIsolation: true,
+    sandbox: true,
+    spellcheck: false,
+    nodeIntegration: false,
+    webSecurity: false,
+    preload: path.join(__dirname, '../preload/index.js')
+  },
+  useContentSize: true,
+  show: true,
+  frame: false,
+  titleBarStyle: 'hiddenInset',
+  thickFrame: !isOsx,
+  zoomFactor: 1.0
+} as BrowserWindowConstructorOptions)
+
 export const PANDOC_EXTENSIONS: readonly string[] = Object.freeze([
   'html',
   'docx',

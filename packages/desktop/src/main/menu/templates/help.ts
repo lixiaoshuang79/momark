@@ -1,4 +1,4 @@
-import { shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import { shell, type MenuItemConstructorOptions } from 'electron'
 import * as actions from '../actions/help'
 import { t } from '../../i18n'
 
@@ -55,8 +55,8 @@ export default function (): MenuItemConstructorOptions {
       },
       {
         label: t('menu.help.about'),
-        click(_menuItem, browserWindow) {
-          actions.showAboutDialog(browserWindow as BrowserWindow | undefined)
+        click() {
+          actions.showAboutDialog()
         }
       }
     )

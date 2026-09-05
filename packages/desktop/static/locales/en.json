@@ -261,7 +261,9 @@
     "tabs": {
       "outline": "Outline",
       "files": "Files"
-    }
+    },
+    "toggleTitle": "Show/Hide Side Bar",
+    "rightPanelTitle": "Right Panel / Browser Panel (coming soon)"
   },
   "commandPalette": {
     "placeholder": "Type a command to execute",
@@ -801,7 +803,10 @@
   },
   "about": {
     "copyright": "Copyright © {year} MoMark Team",
-    "copyrightContributors": "墨记 MoMark 团队"
+    "copyrightContributors": "墨记 MoMark 团队",
+    "version": "Version",
+    "thanks": "Thanks: MarkText community · muya editor engine (MIT)",
+    "license": "© {year} MoMark contributors · Distributed under the MIT License"
   },
   "commands": {
     "mt": {
@@ -1047,7 +1052,8 @@
     "characters": "Characters"
   },
   "tabs": {
-    "reorderToast": "Tab order updated"
+    "reorderToast": "Tab order updated",
+    "closeTab": "Close Tab"
   },
   "export": {
     "progress": {
@@ -1056,5 +1062,17 @@
       "renderPdf": "Rendering PDF…"
     },
     "canceled": "Export canceled."
+  },
+  "welcome": {
+    "windowTitle": "Welcome to MoMark",
+    "hi": "Welcome",
+    "hiSub": "Native macOS WYSIWYG Markdown editor\nClaude Code baseline · content as interface",
+    "newDocument": "New Document",
+    "openFolder": "Open Folder",
+    "openFile": "Open File",
+    "recentTitle": "Recent",
+    "noRecentText": "No documents opened yet\nStart your first one from \"New Document\" on the left",
+    "timeToday": "Today",
+    "timeYesterday": "Yesterday"
   }
 }

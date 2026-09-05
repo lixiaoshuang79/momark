@@ -87,9 +87,13 @@
   --maskColor: var(--backdrop);
 
   --notificationPrimaryBg: var(--accent);
+  --notificationPrimaryColor: var(--accent-on);
   --notificationInfoBg: var(--muted);
+  --notificationInfoColor: var(--hudfg);
   --notificationWarningBg: var(--warn);
+  --notificationWarningColor: #242422;
   --notificationErrorBg: var(--danger);
+  --notificationErrorColor: var(--hudfg);
 
   /* ── @muyajs/core 引擎（kebab-case 变量 → tokens） ── */
   --theme-color: var(--accent);

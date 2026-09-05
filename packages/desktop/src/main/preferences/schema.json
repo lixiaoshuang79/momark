@@ -205,7 +205,7 @@
   "hideQuickInsertHint": {
     "description": "Editor--Hide hint for quickly creating paragraphs",
     "type": "boolean",
-    "default": false
+    "default": true
   },
   "hideLinkPopup": {
     "description": "Editor--Hide link popup when the cursor is hover on the link",
@@ -372,12 +372,12 @@
   "sideBarVisibility": {
     "description": "View--Whether the side bar is visible.--internal",
     "type": "boolean",
-    "default": false
+    "default": true
   },
   "tabBarVisibility": {
     "description": "View--Whether the tabs are shown.--internal",
     "type": "boolean",
-    "default": false
+    "default": true
   },
   "sourceCodeModeEnabled": {
     "description": "View--Whether the source-code mode is enabled by default.--internal",

@@ -1,18 +1,20 @@
+/* MoMark HUD toast（对齐设计原型）：深底白字、12px、圆角 8px、右下角定位。
+   状态色走设计令牌：墨蓝=确认态（--accent）、danger=错误态（--danger）。 */
 .mt-notification {
   position: fixed;
   z-index: 10000;
   overflow: hidden;
-  border-radius: 5px;
+  border-radius: var(--radius);
   max-width: 350px;
   min-width: 280px;
   transition: all 0.2s ease;
-  box-shadow: 0px 12px 0px 0px rgba(0, 0, 0, 0);
+  box-shadow: var(--shadow-pop);
   backface-visibility: hidden;
-  right: 15px;
-  bottom: 15px;
+  right: 18px;
+  bottom: 18px;
 
   & > .notice-bg {
-    background: #000;
+    background: var(--hudbg);
     width: 0;
     height: 0;
     position: absolute;
@@ -29,8 +31,9 @@
 
   & .content {
     z-index: 100;
-    color: #fff;
+    color: var(--hudfg);
     position: relative;
+    font-size: 12px;
     & .icon-wrapper {
       width: 28px;
       height: 28px;
@@ -51,6 +54,7 @@
       & span {
         flex: 1;
         margin-left: 10px;
+        font-size: 12px;
       }
       & .close {
         margin-right: 10px;
@@ -64,7 +68,7 @@
     & .body {
       display: flex;
       align-items: center;
-      font-size: 14px;
+      font-size: 12px;
       padding-bottom: 5px;
       & .left-text {
         overflow: hidden;
@@ -113,37 +117,37 @@
     transform: scale(1);
   }
 
-  /* Notification style colors */
+  /* Notification style colors（tokens：墨蓝确认态 / danger 错误态） */
   &.mt-primary {
     & > .notice-bg {
-      background: var(--notificationPrimaryBg);
+      background: var(--accent);
     }
     & > .content {
-      color: var(--notificationPrimaryColor);
+      color: var(--accent-on);
     }
   }
   &.mt-info {
     & > .notice-bg {
-      background: var(--notificationInfoBg);
+      background: var(--muted);
     }
     & > .content {
-      color: var(--notificationInfoColor);
+      color: var(--hudfg);
     }
   }
   &.mt-warn {
     & > .notice-bg {
-      background: var(--notificationWarningBg);
+      background: var(--warn);
     }
     & > .content {
-      color: var(--notificationWarningColor);
+      color: #242422;
     }
   }
   &.mt-error {
     & > .notice-bg {
-      background: var(--notificationErrorBg);
+      background: var(--danger);
     }
     & > .content {
-      color: var(--notificationErrorColor);
+      color: var(--hudfg);
     }
   }
 }

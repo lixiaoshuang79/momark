@@ -17,14 +17,8 @@
         >
           {{ t('common.ok') }}
         </span>
-        <span
-          class="inline-button"
-          @click.stop="handleClick(false)"
-        >
-          <el-icon
-            class="close-icon"
-            :size="12"
-          >
+        <span class="inline-button" @click.stop="handleClick(false)">
+          <el-icon class="close-icon" :size="12">
             <Close />
           </el-icon>
         </span>

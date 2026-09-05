@@ -1,4 +1,4 @@
-import { app, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import { app, type MenuItemConstructorOptions } from 'electron'
 import { showAboutDialog } from '../actions/help'
 import * as actions from '../actions/marktext'
 import { t } from '../../i18n'
@@ -12,8 +12,8 @@ export default function (keybindings: Keybindings): MenuItemConstructorOptions {
     submenu: [
       {
         label: t('menu.marktext.about'),
-        click(_menuItem, focusedWindow) {
-          showAboutDialog(focusedWindow as BrowserWindow | undefined)
+        click() {
+          showAboutDialog()
         }
       },
       {

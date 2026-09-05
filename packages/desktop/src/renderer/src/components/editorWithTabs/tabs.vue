@@ -3,7 +3,7 @@
     <button
       class="tb-toggle"
       :class="{ on: showSideBar }"
-      title="显示/隐藏侧栏 ⌘\"
+      :title="t('sideBar.toggleTitle') + ' ⌘\\'"
       @click.stop="toggleSidebar"
     >
       <el-icon :size="16">
@@ -30,7 +30,7 @@
         <button
           v-if="tabs.length > 1"
           class="tclose"
-          title="关闭标签"
+          :title="t('tabs.closeTab')"
           @click.stop="removeFileInTab(file)"
         >
           <el-icon :size="10">
@@ -42,7 +42,7 @@
       <span ref="indicator" class="tab-indicator" />
     </div>
 
-    <button class="tb-toggle" title="右侧栏 / 浏览器面板（后续接入）">
+    <button class="tb-toggle" :title="t('sideBar.rightPanelTitle')">
       <el-icon :size="16">
         <Monitor />
       </el-icon>

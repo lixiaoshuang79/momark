@@ -130,6 +130,6 @@ const handleInput = (value: string) => {
   }
 }
 .pref-text-box-item .el-input.error input {
-  color: #f56c6c;
+  color: var(--danger);
 }
 </style>

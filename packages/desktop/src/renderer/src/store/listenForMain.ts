@@ -26,9 +26,6 @@ export const useListenForMainStore = defineStore('listenForMain', () => {
   }
 
   function LISTEN_FOR_SHOW_DIALOG(): void {
-    window.electron.ipcRenderer.on('mt::about-dialog', () => {
-      bus.emit('aboutDialog')
-    })
     window.electron.ipcRenderer.on('mt::show-export-dialog', (_e, type) => {
       bus.emit('showExportDialog', type)
     })

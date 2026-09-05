@@ -5,7 +5,7 @@ import dayjs from 'dayjs'
 import log from 'electron-log'
 import { app, BrowserWindow, clipboard, dialog, nativeTheme, shell, ipcMain } from 'electron'
 import type { BrowserWindowConstructorOptions } from 'electron'
-import { isChildOfDirectory } from 'common/filesystem/paths'
+import { isChildOfDirectory, MARKDOWN_EXTENSIONS } from 'common/filesystem/paths'
 import type { IUserPreferences } from '@shared/types/preferences'
 import { isLinux, isOsx, isWindows } from '../config'
 import parseArgs from '../cli/parser'
@@ -20,7 +20,9 @@ import { onInternalChannel } from '../utils/internalIpc'
 import { WindowType } from '../windows/base'
 import EditorWindow from '../windows/editor'
 import SettingWindow from '../windows/setting'
-import { setLanguage } from '../i18n'
+import WelcomeWindow from '../windows/welcome'
+import AboutWindow from '../windows/about'
+import { setLanguage, t } from '../i18n'
 import { getNativeThemeSource, isDarkApplicationTheme } from './nativeTheme'
 import type Accessor from './accessor'
 import type WindowManager from './windowManager'
@@ -289,54 +291,52 @@ class App {
       selectTheme(newTheme)
     }
 
-    onInternalChannel(
-      'broadcast-preferences-changed',
-      (change: Partial<IUserPreferences>) => {
-        const nextPreferences = {
-          ...preferences.getAll(),
-          ...change
-        }
-        nativeTheme.themeSource = getNativeThemeSource(nextPreferences)
+    onInternalChannel('broadcast-preferences-changed', (change: Partial<IUserPreferences>) => {
+      const nextPreferences = {
+        ...preferences.getAll(),
+        ...change
+      }
+      nativeTheme.themeSource = getNativeThemeSource(nextPreferences)
 
       // When followSystemTheme is enabled, immediately switch to match system
-        if (change.followSystemTheme === true) {
-          const systemIsDark = nativeTheme.shouldUseDarkColors
-          const lightModeTheme = preferences.getItem<string>('lightModeTheme')
-          const darkModeTheme = preferences.getItem<string>('darkModeTheme')
-          const newTheme = systemIsDark ? darkModeTheme : lightModeTheme
+      if (change.followSystemTheme === true) {
+        const systemIsDark = nativeTheme.shouldUseDarkColors
+        const lightModeTheme = preferences.getItem<string>('lightModeTheme')
+        const darkModeTheme = preferences.getItem<string>('darkModeTheme')
+        const newTheme = systemIsDark ? darkModeTheme : lightModeTheme
 
-          log.info(
-            `followSystemTheme enabled, switching to: ${newTheme} (system ${systemIsDark ? 'dark' : 'light'})`
-          )
-          selectTheme(newTheme)
-          preferences.setItem('theme', newTheme)
-        }
+        log.info(
+          `followSystemTheme enabled, switching to: ${newTheme} (system ${systemIsDark ? 'dark' : 'light'})`
+        )
+        selectTheme(newTheme)
+        preferences.setItem('theme', newTheme)
+      }
       // When light/dark mode theme preferences change, apply immediately if following system
-        if (
-          preferences.getItem<boolean>('followSystemTheme') &&
+      if (
+        preferences.getItem<boolean>('followSystemTheme') &&
         (change.lightModeTheme || change.darkModeTheme)
-        ) {
-          const systemIsDark = nativeTheme.shouldUseDarkColors
+      ) {
+        const systemIsDark = nativeTheme.shouldUseDarkColors
 
         // Get current values, but prefer the NEW values from the change event
-          let lightModeTheme = preferences.getItem<string>('lightModeTheme')
-          let darkModeTheme = preferences.getItem<string>('darkModeTheme')
+        let lightModeTheme = preferences.getItem<string>('lightModeTheme')
+        let darkModeTheme = preferences.getItem<string>('darkModeTheme')
 
         // If these preferences were just changed, use the new values from the change object
-          if (change.lightModeTheme !== undefined) {
-            lightModeTheme = change.lightModeTheme
-          }
-          if (change.darkModeTheme !== undefined) {
-            darkModeTheme = change.darkModeTheme
-          }
-
-          const newTheme = systemIsDark ? darkModeTheme : lightModeTheme
-
-          log.info(`Theme preference changed, applying: ${newTheme}`)
-          selectTheme(newTheme)
-          preferences.setItem('theme', newTheme)
+        if (change.lightModeTheme !== undefined) {
+          lightModeTheme = change.lightModeTheme
         }
-      })
+        if (change.darkModeTheme !== undefined) {
+          darkModeTheme = change.darkModeTheme
+        }
+
+        const newTheme = systemIsDark ? darkModeTheme : lightModeTheme
+
+        log.info(`Theme preference changed, applying: ${newTheme}`)
+        selectTheme(newTheme)
+        preferences.setItem('theme', newTheme)
+      }
+    })
 
     // Listen for system theme changes and auto-switch if enabled
     if (!this._themeListenerRegistered) {
@@ -396,7 +396,8 @@ class App {
           filePath: string | null
         }>
         if (bufferStoreList.length === 0) {
-          this._createEditorWindow()
+          // First launch (nothing to restore): greet with the welcome window.
+          this._createWelcomeWindow()
           return
         }
 
@@ -409,7 +410,8 @@ class App {
         editorBufferStore.clearBufferStoresWithAllSaved()
         this._openFilesToOpen()
       } else {
-        this._createEditorWindow()
+        // No content to open (blank start-up): welcome window.
+        this._createWelcomeWindow()
       }
     }
 
@@ -507,6 +509,82 @@ class App {
     if (this._windowManager.windowCount === 1) {
       this._accessor.menu.setActiveWindow(setting.id!)
     }
+  }
+
+  /**
+   * Create the welcome window shown when there is nothing to open at startup.
+   */
+  private _createWelcomeWindow(): void {
+    const welcome = new WelcomeWindow(this._accessor)
+    welcome.createWindow()
+    this._windowManager.add(welcome)
+    if (this._windowManager.windowCount === 1) {
+      this._accessor.menu.setActiveWindow(welcome.id!)
+    }
+  }
+
+  /**
+   * Open the about window, reusing an existing instance when present.
+   */
+  private _openAboutWindow(): void {
+    const aboutWins = this._windowManager.getWindowsByType(WindowType.ABOUT)
+    if (aboutWins.length >= 1) {
+      const browserAboutWindow = aboutWins[0].win.browserWindow!
+      if (isLinux) {
+        browserAboutWindow.focus()
+      } else {
+        browserAboutWindow.moveTop()
+      }
+      return
+    }
+    const about = new AboutWindow(this._accessor)
+    about.createWindow()
+    this._windowManager.add(about)
+    if (this._windowManager.windowCount === 1) {
+      this._accessor.menu.setActiveWindow(about.id!)
+    }
+  }
+
+  /**
+   * Close every open welcome window (after an entry action spawned editors).
+   */
+  private _closeWelcomeWindows(): void {
+    for (const { win } of this._windowManager.getWindowsByType(WindowType.WELCOME)) {
+      this._windowManager.forceCloseById(win.id as number)
+    }
+  }
+
+  /**
+   * Resolve a window id to an editor window only; non-editor windows
+   * (welcome/about) must never be cast for editor-side methods.
+   */
+  private _getEditorWindowById(windowId: number): EditorWindow | undefined {
+    const win = this._windowManager.get(windowId)
+    return win && win.type === WindowType.EDITOR ? (win as EditorWindow) : undefined
+  }
+
+  /**
+   * Recent documents for the welcome window: existing paths only, newest first.
+   */
+  private async _getWelcomeRecents(): Promise<
+    Array<{ path: string; name: string; dirname: string; mtime: number }>
+  > {
+    const recents = this._accessor.menu.getRecentlyUsedDocuments()
+    const items: Array<{ path: string; name: string; dirname: string; mtime: number }> = []
+    for (const filePath of recents.slice(0, 8)) {
+      try {
+        const stat = await fsPromises.stat(filePath)
+        items.push({
+          path: filePath,
+          name: path.basename(filePath),
+          dirname: path.dirname(filePath),
+          mtime: stat.mtimeMs
+        })
+      } catch {
+        // The file was deleted since it was recorded; skip it.
+      }
+    }
+    return items
   }
 
   private _openFilesToOpen(): void {
@@ -673,11 +751,83 @@ class App {
       this._createEditorWindow()
     })
 
-    onInternalChannel('screen-capture', async(win: BrowserWindow) => {
+    ipcMain.on('app-create-about-window', () => {
+      this._openAboutWindow()
+    })
+
+    // --- welcome window ---------------------------------------------------
+
+    // Entry action: open a blank document in a fresh editor window.
+    ipcMain.on('mt::welcome::new-doc', () => {
+      this._createEditorWindow()
+      this._closeWelcomeWindows()
+    })
+
+    // Entry action: pick markdown file(s) via the system dialog.
+    ipcMain.on('mt::welcome::open-file', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win) {
+        return
+      }
+      dialog
+        .showOpenDialog(win, {
+          properties: ['openFile', 'multiSelections'],
+          filters: [{ name: t('menu.file.openFile'), extensions: [...MARKDOWN_EXTENSIONS] }]
+        })
+        .then(({ filePaths }) => {
+          if (Array.isArray(filePaths) && filePaths.length > 0) {
+            for (const filePath of filePaths) {
+              this._createEditorWindow(null, [normalizeAndResolvePath(filePath)])
+            }
+            this._closeWelcomeWindows()
+          }
+        })
+        .catch((err) => {
+          log.error('Error on opening file dialog:', err)
+        })
+    })
+
+    // Entry action: pick a folder via the system dialog (always a new window).
+    ipcMain.on('mt::welcome::open-folder', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win) {
+        return
+      }
+      dialog
+        .showOpenDialog(win, {
+          properties: ['openDirectory', 'createDirectory']
+        })
+        .then(({ filePaths }) => {
+          const filePath = filePaths && filePaths[0]
+          if (filePath) {
+            this._createEditorWindow(normalizeAndResolvePath(filePath))
+            this._closeWelcomeWindows()
+          }
+        })
+        .catch((err) => {
+          log.error('Error on opening directory dialog:', err)
+        })
+    })
+
+    // Click on a recent document: open it in a fresh editor window.
+    ipcMain.on('mt::welcome::open-recent', (event, filePath: string) => {
+      const resolvedPath = normalizeAndResolvePath(filePath)
+      const info = normalizeMarkdownPath(resolvedPath)
+      if (info) {
+        this._createEditorWindow(null, [info.path])
+        this._closeWelcomeWindows()
+      } else {
+        log.error(`Cannot open unknown file: "${filePath}"`)
+      }
+    })
+
+    ipcMain.handle('mt::welcome::recents', () => this._getWelcomeRecents())
+
+    onInternalChannel('screen-capture', async (win: BrowserWindow) => {
       if (isOsx) {
         // Use macOs `screencapture` command line when in macOs system.
         const screenshotFileName = await this.getScreenshotFileName()
-        exec('screencapture -i -c', async(err) => {
+        exec('screencapture -i -c', async (err) => {
           if (err) {
             log.error(err)
             return
@@ -714,22 +864,27 @@ class App {
     })
 
     onInternalChannel('app-open-file-by-id', (windowId: number, filePath: string) => {
-      const openFilesInNewWindow = this._accessor.preferences.getItem<boolean>('openFilesInNewWindow')
+      const openFilesInNewWindow =
+        this._accessor.preferences.getItem<boolean>('openFilesInNewWindow')
       if (openFilesInNewWindow) {
         this._createEditorWindow(null, [filePath])
       } else {
-        const editor = this._windowManager.get(windowId) as EditorWindow | undefined
+        const editor = this._getEditorWindowById(windowId)
         if (editor) {
           editor.openTab(filePath, {}, true)
+        } else {
+          // The focused window is not an editor (e.g. welcome/about): open a new one.
+          this._createEditorWindow(null, [filePath])
         }
       }
     })
     onInternalChannel('app-open-files-by-id', (windowId: number, fileList: string[]) => {
-      const openFilesInNewWindow = this._accessor.preferences.getItem<boolean>('openFilesInNewWindow')
+      const openFilesInNewWindow =
+        this._accessor.preferences.getItem<boolean>('openFilesInNewWindow')
       if (openFilesInNewWindow) {
         this._createEditorWindow(null, fileList)
       } else {
-        const editor = this._windowManager.get(windowId) as EditorWindow | undefined
+        const editor = this._getEditorWindowById(windowId)
         if (editor) {
           editor.openTabsFromPaths(
             fileList
@@ -737,18 +892,23 @@ class App {
               .filter((i): i is PathInfo => i !== null && !i.isDir)
               .map((i) => i.path)
           )
+        } else {
+          this._createEditorWindow(null, fileList)
         }
       }
     })
 
     onInternalChannel('app-open-markdown-by-id', (windowId: number, data: string) => {
-      const openFilesInNewWindow = this._accessor.preferences.getItem<boolean>('openFilesInNewWindow')
+      const openFilesInNewWindow =
+        this._accessor.preferences.getItem<boolean>('openFilesInNewWindow')
       if (openFilesInNewWindow) {
         this._createEditorWindow(null, [], [data])
       } else {
-        const editor = this._windowManager.get(windowId) as EditorWindow | undefined
+        const editor = this._getEditorWindowById(windowId)
         if (editor) {
           editor.openUntitledTab(true, data)
+        } else {
+          this._createEditorWindow(null, [], [data])
         }
       }
     })
@@ -758,7 +918,7 @@ class App {
       (windowId: number, pathname: string, openInSameWindow: boolean) => {
         const { openFolderInNewWindow } = this._accessor.preferences.getAll()
         if (openInSameWindow || !openFolderInNewWindow) {
-          const editor = this._windowManager.get(windowId) as EditorWindow | undefined
+          const editor = this._getEditorWindowById(windowId)
           if (editor) {
             editor.openFolder(pathname)
             return
@@ -776,18 +936,19 @@ class App {
 
     ipcMain.on('mt::open-file-by-window-id', (_e, windowId: number, filePath: string) => {
       const resolvedPath = normalizeAndResolvePath(filePath)
-      const openFilesInNewWindow = this._accessor.preferences.getItem<boolean>('openFilesInNewWindow')
+      const openFilesInNewWindow =
+        this._accessor.preferences.getItem<boolean>('openFilesInNewWindow')
       if (openFilesInNewWindow) {
         this._createEditorWindow(null, [resolvedPath])
       } else {
-        const editor = this._windowManager.get(windowId) as EditorWindow | undefined
+        const editor = this._getEditorWindowById(windowId)
         if (editor) {
           editor.openTab(resolvedPath, {}, true)
         }
       }
     })
 
-    ipcMain.on('mt::select-default-directory-to-open', async(e) => {
+    ipcMain.on('mt::select-default-directory-to-open', async (e) => {
       const { preferences } = this._accessor
       const { defaultDirectoryToOpen } = preferences.getAll()
       const win = BrowserWindow.fromWebContents(e.sender)
@@ -831,7 +992,7 @@ class App {
       return { defaultKeybindings, userKeybindings }
     })
 
-    ipcMain.handle('mt::keybinding-save-user-keybindings', async(_event, userKeybindings) => {
+    ipcMain.handle('mt::keybinding-save-user-keybindings', async (_event, userKeybindings) => {
       const { keybindings, menu } = this._accessor
       const editorWindows = this._windowManager
         .getWindowsByType(WindowType.EDITOR)
@@ -848,7 +1009,7 @@ class App {
       return saved
     })
 
-    ipcMain.handle('mt::fs-trash-item', async(_event, fullPath: string) => {
+    ipcMain.handle('mt::fs-trash-item', async (_event, fullPath: string) => {
       return shell.trashItem(fullPath)
     })
   }

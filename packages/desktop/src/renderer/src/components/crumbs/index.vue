@@ -4,7 +4,7 @@
       <span class="path" :title="fullPathDisplay">{{ fullPathDisplay }}</span>
     </div>
     <span v-if="isSingleDoc" class="docname">{{ filename }}</span>
-    <button class="crumb-pbtn" title="右侧栏 / 浏览器面板（后续接入）">
+    <button class="crumb-pbtn" :title="t('sideBar.rightPanelTitle')">
       <el-icon :size="13">
         <Monitor />
       </el-icon>
@@ -17,6 +17,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/store/editor'
 import { Monitor } from '@element-plus/icons-vue'
+import { t } from '../../i18n'
 
 // 面包屑行（PHASE2-SPEC §1：28px）：
 // - 多文档态：路径+文件名（左侧）+ 右栏开关；
