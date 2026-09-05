@@ -8,15 +8,12 @@
         :pathname="pathname"
         :filename="filename"
         :active="windowActive"
-        :word-count="wordCount"
         :platform="platform"
         :is-saved="isSaved"
+        :tab-count="tabCount"
       />
 
-      <div
-        v-if="!init"
-        class="editor-placeholder"
-      />
+      <div v-if="!init" class="editor-placeholder" />
       <recent v-if="!hasCurrentFile && init" />
       <editor-with-tabs
         v-if="hasCurrentFile && init"
@@ -24,10 +21,10 @@
         :cursor="cursor"
         :muya-index-cursor="muyaIndexCursor"
         :source-code="sourceCode"
-        :show-tab-bar="showTabBar"
         :text-direction="textDirection"
         :platform="platform"
       />
+      <status-bar v-if="hasCurrentFile && init" :word-count="wordCount" :is-saved="isSaved" />
       <command-palette />
       <about-dialog />
       <export-setting-dialog />
@@ -46,6 +43,7 @@ import Recent from '@/components/recent/index.vue'
 import EditorWithTabs from '@/components/editorWithTabs/index.vue'
 import TitleBar from '@/components/titleBar/index.vue'
 import SideBar from '@/components/sideBar/index.vue'
+import StatusBar from '@/components/statusBar/index.vue'
 import AboutDialog from '@/components/about/index.vue'
 import CommandPalette from '@/components/commandPalette/index.vue'
 import ExportSettingDialog from '@/components/exportSettings/index.vue'
@@ -75,14 +73,14 @@ const notificationStore = useNotificationStore()
 const timer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const { windowActive, platform, init } = storeToRefs(mainStore)
-const { showTabBar } = storeToRefs(layoutStore)
 const { sourceCode, theme, customCss, textDirection, zoom } = storeToRefs(preferencesStore)
 const { projectTree } = storeToRefs(projectStore)
-const { currentFile } = storeToRefs(editorStore)
+const { currentFile, tabs } = storeToRefs(editorStore)
 
 const pathname = computed(() => currentFile.value?.pathname)
 const filename = computed(() => currentFile.value?.filename)
 const isSaved = computed(() => currentFile.value?.isSaved)
+const tabCount = computed(() => tabs.value.length)
 // `markdown` is read by `<editor-with-tabs>` whose prop is `required: true`.
 // In template space we render that subtree only when `hasCurrentFile` is set,
 // but vue-tsc can't see through the v-if guard — coalesce to '' so the prop

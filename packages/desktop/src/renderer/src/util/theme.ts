@@ -181,6 +181,10 @@ export const addThemeStyle = (theme: string): void => {
     document.body.classList.add('dark')
   }
 
+  // Keep the design-token dark palette (design/tokens.css `[data-theme="dark"]`)
+  // in sync with the app's theme marker.
+  document.body.dataset.theme = isDarkTheme ? 'dark' : 'light'
+
   // change CodeMirror theme
   const cm = document.querySelector('.CodeMirror')
   if (cm) {

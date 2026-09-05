@@ -1,0 +1,126 @@
+/* ============================================================
+   墨记 MoMark · 设计令牌（唯一权威源：原型 v0.14）
+   来源：原型 index.html :root 块（Claude Code 实机基准 + 墨蓝主色）
+   使用规则：pt = px × 0.75；禁用：Claude 橙/陶土/系统蓝/玻璃材质/系统灰 #ECECEC
+   ============================================================ */
+
+:root {
+  /* ── 中性色（Claude Code 实机画廊，唯一权威） ── */
+  --bg: #fcfcfb;              /* 画布：近白暖灰，绝不纯白、绝不发黄 */
+  --surface-0: #f9f9f7;       /* 面板 */
+  --surface-1: #fcfcfb;       /* 抬升面 */
+  --surface-2: #fff;          /* 卡片 */
+  --sidebar: #fafaf9;         /* 侧栏 */
+  --ink: #242422;             /* 主文字 */
+  --muted: #65645f;           /* 次级文字 */
+  --faint: #898781;           /* 弱化文字 */
+  --line: rgba(11,11,11,.10);        /* hairline */
+  --line-strong: rgba(11,11,11,.15); /* 强调描边 */
+  --hover: rgba(11,11,11,.05);       /* hover 底 */
+  --selected: rgba(11,11,11,.10);    /* 选中底 */
+  --radius: 8px;              /* 圆角统一 8px 档 */
+  --shadow: 0 1px 3px rgba(0,0,0,.07);
+  --accent: #3d5a80;          /* 墨蓝（用户定案：颜色不参考 Claude） */
+  --accent-on: #ffffff;
+  --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+  --accent-active: color-mix(in oklab, var(--accent), black 14%);
+  --success: #17a34a;
+  --warn: #eab308;
+  --danger: #b53333;
+
+  /* ── 字体 ── */
+  --font-display: "AnthropicSerif", Georgia, "Times New Roman", "Songti SC", "PingFang SC", serif;
+  --font-body: "Anthropic", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+
+  /* ── 圆角 ── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  /* ── 投影与焦点 ── */
+  --elev-flat: none;
+  --elev-ring: 0 0 0 1px var(--line);
+  --elev-raised: 0 1px 3px rgba(0, 0, 0, 0.07);
+  --focus-ring: 0 0 0 3px rgba(61, 90, 128, 0.3);
+  --shadow-pop: 0 0 0 1px rgba(11,11,11,.08), 0 1px 3px rgba(0,0,0,.07);
+  --shadow-win: 0 0 0 1px rgba(11,11,11,.10), 0 2px 10px rgba(0,0,0,.08);
+  --backdrop: rgba(24,24,23,.35);
+
+  /* ── 动效 ── */
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  /* 标签滑轨回弹 */ --ease-tab-indicator: cubic-bezier(.18,1.32,.36,1);
+  /* 面板生长回弹 */ --ease-grow: cubic-bezier(.18,1.28,.36,1);
+  /* 内容分层滑入 */ --ease-line-in: cubic-bezier(.16,1.14,.3,1);
+  /* 内容移出 */     --ease-line-out: cubic-bezier(.4,0,.8,.2);
+
+  /* ── macOS 原生红绿灯（唯一 Apple 原生例外） ── */
+  --tl-red: #ff5f57; --tl-yellow: #febc2e; --tl-green: #28c840;
+
+  /* ── 内容区（Claude Code 实机 .assistant 渲染：正文 15px/1.58） ── */
+  --c-texPri: var(--ink); --c-texSec: var(--muted); --c-texTer: var(--faint);
+  --c-codeTxt: #242422; --c-codeBg: #f0efec; --c-codeblockBg: #f9f9f7;
+  --c-codeblockBorder: rgba(11,11,11,.15);
+  --c-hr: rgba(11,11,11,.10); --c-linkUl: rgba(61,90,128,.40); --c-bg: var(--bg);
+  --c-tableBorder: rgba(11,11,11,.10); --c-tableHeadBg: #efefed; --c-tableCellBg: #efefed;
+  --c-checkBorder: #898781;
+  --c-quoteBar: #c9c7c0;
+
+  /* ── 尺寸 ── */
+  --f13: 17.33px; --f12: 16px; --f11: 14.67px;
+  --sidebar-w: 288px;
+  --editor-col-w: 720px;
+  --editor-body-size: 15px;
+  --editor-body-lh: 1.58;
+
+  /* 网址 Dock 标签底（浅灰底，选中白底+墨蓝边） */
+  --ud-bg: #f0efec;
+
+  /* HUD toast */
+  --hudbg: #2e2d2a;
+  --hudfg: #fcfcfb;
+}
+
+[data-theme="dark"] {
+  --bg: #151515; --surface-0: #111111; --surface-1: #1a1a19; --surface-2: #262624;
+  --sidebar: #111111;
+  --ink: #fcfcfb; --muted: #c4c3b2; --faint: #96948a;
+  --line: rgba(255,255,255,.08); --line-strong: rgba(255,255,255,.16);
+  --hover: rgba(255,255,255,.06); --selected: rgba(255,255,255,.09);
+  --accent: #7fa6cc; --accent-on: #12161b;
+  --accent-hover: color-mix(in oklab, var(--accent), white 8%);
+  --accent-active: color-mix(in oklab, var(--accent), white 14%);
+  --success: #58a96e; --warn: #d9a441; --danger: #c75d4e;
+  --shadow-pop: 0 0 0 1px rgba(255,255,255,.08), 0 2px 10px rgba(0,0,0,.45);
+  --shadow-win: 0 0 0 1px rgba(255,255,255,.10), 0 6px 24px rgba(0,0,0,.50);
+  --backdrop: rgba(0,0,0,.55);
+  --c-codeTxt: #e8e6dc; --c-codeBg: rgba(255,255,255,.08); --c-codeblockBg: #1a1a19;
+  --c-codeblockBorder: rgba(255,255,255,.12);
+  --c-hr: rgba(255,255,255,.10); --c-linkUl: rgba(127,166,204,.45);
+  --c-tableBorder: rgba(255,255,255,.14); --c-tableHeadBg: rgba(255,255,255,.06);
+  --c-tableCellBg: rgba(255,255,255,.06);
+  --c-checkBorder: rgba(255,255,255,.70);
+  --c-quoteBar: rgba(255,255,255,.20);
+  --ud-bg: #262624;
+}
+
+/* 动效降级（系统减少动态效果） */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── 动效补充（精确值唯一源：docs/PHASE2-SPEC.md §2，原型 v0.14. 同源） ── */
+:root {
+  /* 标签滑轨 width 过渡 */
+  --ease-tab-width: cubic-bezier(.22,1,.36,1);
+  /* 活动标签 tabSpring 关键帧 */
+  --ease-tab-spring: cubic-bezier(.2,1.35,.35,1);
+}

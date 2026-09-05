@@ -4,18 +4,9 @@
     :class="[{ typewriter: typewriter, focus: focus, source: sourceCode }]"
     :dir="textDirection"
   >
-    <div
-      ref="editorRef"
-      class="editor-component"
-    />
-    <div
-      v-show="imageViewerVisible"
-      class="image-viewer"
-    >
-      <span
-        class="icon-close"
-        @click="setImageViewerVisible(false)"
-      >
+    <div ref="editorRef" class="editor-component" />
+    <div v-show="imageViewerVisible" class="image-viewer">
+      <span class="icon-close" @click="setImageViewerVisible(false)">
         <CloseIcon />
       </span>
       <div ref="imageViewerRef" />
@@ -34,10 +25,7 @@
           {{ t('editor.insertTable.title') }}
         </div>
       </template>
-      <el-form
-        :model="tableChecker"
-        :inline="true"
-      >
+      <el-form :model="tableChecker" :inline="true">
         <el-form-item :label="t('editor.insertTable.rows')">
           <el-input-number
             ref="rowInput"
@@ -63,21 +51,23 @@
           <el-button @click="dialogTableVisible = false">
             {{ t('common.cancel') }}
           </el-button>
-          <el-button
-            type="primary"
-            @click="handleDialogTableConfirm"
-          >
+          <el-button type="primary" @click="handleDialogTableConfirm">
             {{ t('common.ok') }}
           </el-button>
         </div>
       </template>
     </el-dialog>
     <editor-search v-if="!sourceCode" />
+    <!-- 空文档第一行提示（PHASE2-SPEC §6）：墨蓝闪烁光标 + 文案，输入即消失 -->
+    <div v-if="isEmptyDoc" class="empty-doc-hint" :style="emptyHintStyle">
+      <span class="caret" />
+      <span class="text">{{ t('editor.emptyHint') }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
 import log from 'electron-log'
 import {
   Muya,
@@ -133,6 +123,7 @@ import { useProjectStore } from '@/store/project'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SyntheticHistory, type IFileHistoryLike } from './syntheticHistory'
+import { captureBlockLines, runDocumentTransition } from './transitions'
 
 // Importing the engine entrypoint auto-injects its editor CSS (the muya.ts
 // module imports its stylesheets at load time). Desktop themes still target the
@@ -255,6 +246,28 @@ const {
 
 // Editor store refs
 const { currentFile, tabs } = storeToRefs(editorStore)
+
+// 上一次引擎展示的标签 id：用于推导切换方向（右移=+1，左移=-1）。
+const lastTabId = ref<string | null>(null)
+
+const directionForSwitch = (targetId: string | undefined): 1 | -1 => {
+  const ids = tabs.value.map((tab) => tab.id)
+  const nextIndex = ids.indexOf(targetId ?? '')
+  const prevIndex = ids.indexOf(lastTabId.value ?? '')
+  if (nextIndex < 0 || prevIndex < 0) return 1
+  return nextIndex >= prevIndex ? 1 : -1
+}
+
+// 空文档：第一行显示「从这里开始写作…」（PHASE2-SPEC §6）。
+const isEmptyDoc = computed(() => {
+  const md = props.markdown ?? ''
+  return md.trim().length === 0
+})
+
+// 提示行顶距：常规 20px（mu-container padding-top）；typewriter 模式居中偏移。
+const emptyHintStyle = computed(() => ({
+  top: typewriter.value ? 'calc(50vh - 116px)' : '20px'
+}))
 
 // Project store refs
 const { projectTree } = storeToRefs(projectStore)
@@ -458,7 +471,7 @@ class SimpleImageViewer {
   _onMousemove!: (e: MouseEvent) => void
   _onMouseup!: () => void
 
-  constructor (container: HTMLElement, { url }: { url: string }) {
+  constructor(container: HTMLElement, { url }: { url: string }) {
     this.container = container
     this.scale = 1
     this.translateX = 0
@@ -469,7 +482,7 @@ class SimpleImageViewer {
     this._init(url)
   }
 
-  _init (url: string) {
+  _init(url: string) {
     this.container.innerHTML = ''
     this.img = document.createElement('img')
     this.img.src = url
@@ -480,11 +493,11 @@ class SimpleImageViewer {
     this._bindEvents()
   }
 
-  _updateTransform () {
+  _updateTransform() {
     this.img.style.transform = `translate(${this.translateX}px,${this.translateY}px) scale(${this.scale})`
   }
 
-  _bindEvents () {
+  _bindEvents() {
     this._onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const factor = e.deltaY < 0 ? 1.1 : 0.9
@@ -515,7 +528,7 @@ class SimpleImageViewer {
     document.addEventListener('mouseup', this._onMouseup)
   }
 
-  destroy () {
+  destroy() {
     this.container.removeEventListener('wheel', this._onWheel)
     this.container.removeEventListener('mousedown', this._onMousedown)
     document.removeEventListener('mousemove', this._onMousemove)
@@ -627,11 +640,14 @@ watch(sequenceTheme, (value, oldValue) => {
   }
 })
 
-watch(() => preferencesStore.plantumlServer, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ plantumlServer: value }, true)
+watch(
+  () => preferencesStore.plantumlServer,
+  (value, oldValue) => {
+    if (value !== oldValue && editor.value) {
+      editor.value.setOptions({ plantumlServer: value }, true)
+    }
   }
-})
+)
 
 watch(listIndentation, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
@@ -1469,6 +1485,7 @@ interface FileLoadedPayload {
 const setMarkdownToEditor = (payload: unknown) => {
   const { id, markdown: newMarkdown, cursor: newCursor } = (payload ?? {}) as FileLoadedPayload
   if (editor.value) {
+    lastTabId.value = id ?? null
     // `setContent` resets the document and clears the undo history; only set a
     // cursor afterwards (a freshly-opened file has no history to restore).
     editor.value.setContent(newMarkdown ?? '')
@@ -1585,7 +1602,22 @@ const handleFileChange = (payload: unknown) => {
       // per-tab) afterwards — preserves undo/redo on in-session tab switch. The
       // `history` in the payload is the synthetic desktop-shaped history used
       // for save tracking, not the engine history.
+      //
+      // 切换动效（PHASE2-SPEC §2）：替换前快照旧内容行（含渲染坐标），
+      // 替换后由 transitions 模块逐行滑出旧行、逐层滑入新行。
+      const direction = directionForSwitch(id)
+      const oldLines = captureBlockLines(
+        container,
+        container.firstElementChild as HTMLElement | null
+      )
       editor.value.setContent(newMarkdown)
+      runDocumentTransition({
+        scroller: container,
+        linesContainer: container.firstElementChild as HTMLElement | null,
+        oldLines,
+        direction
+      })
+      lastTabId.value = id ?? null
       // Tab switch swaps content without firing `json-change`, so re-seed the
       // TOC (otherwise returning to an open tab keeps the other tab's TOC).
       editorStore.UPDATE_TOC(editor.value.getTOC())
@@ -2097,6 +2129,12 @@ onBeforeUnmount(() => {
   overflow-anchor: none !important;
 }
 
+/* 编辑区聚焦环（PHASE2-SPEC §6）：聚焦时 inset 1.5px 墨蓝环，失焦移除。
+   引擎替换原容器节点时会拷贝 class，故对运行时注入的 .editor-component 同样生效。 */
+.editor-component:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
 .editor-component .mu-container {
   padding-top: 20px;
   padding-bottom: 100vh;
@@ -2105,6 +2143,43 @@ onBeforeUnmount(() => {
 .typewriter .editor-component {
   padding-top: calc(50vh - 136px);
   padding-bottom: calc(50vh - 54px);
+}
+
+/* 空文档第一行提示：墨蓝闪烁光标 + 弱化文案；纯装饰（pointer-events 穿透） */
+.empty-doc-hint {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--editor-area-width, 800px);
+  max-width: calc(100% - 100px);
+  padding: 0 50px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  color: var(--faint);
+  font-size: var(--editor-body-size, 15px);
+  line-height: var(--editor-body-lh, 1.58);
+  z-index: 0;
+}
+.empty-doc-hint .caret {
+  width: 2px;
+  height: 1.2em;
+  background: var(--accent);
+  animation: hintCaretBlink 1.1s steps(2, start) infinite;
+  flex: none;
+}
+.empty-doc-hint .text {
+  white-space: nowrap;
+}
+@keyframes hintCaretBlink {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 .image-viewer {
