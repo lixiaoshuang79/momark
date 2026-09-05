@@ -54,11 +54,11 @@
     "default": "asc"
   },
   "lastOpenedFolder": {
-    "description": "General--The last folder that was opened in MarkText.--internal",
+    "description": "General--The last folder that was opened in MoMark.--internal",
     "type": "string"
   },
   "startUpAction": {
-    "description": "General--The action after MarkText startup, open the last opened folder, open the specified folder or blank page",
+    "description": "General--The action after MoMark startup, open the last opened folder, open the specified folder or blank page",
     "enum": ["folder", "openLastFolder", "blank", "restoreAll"],
     "default": "restoreAll"
   },
@@ -67,7 +67,7 @@
     "type": "string"
   },
   "language": {
-    "description": "General--The language MarkText uses.",
+    "description": "General--The language MoMark uses.",
     "type": "string",
     "default": "en"
   },
@@ -238,7 +238,7 @@
     "default": "."
   },
   "preferHeadingStyle": {
-    "description": "Markdown--The preferred heading style in MarkText",
+    "description": "Markdown--The preferred heading style in MoMark",
     "enum": ["atx", "setext"],
     "default": "atx"
   },
@@ -289,7 +289,7 @@
     "default": "https://www.plantuml.com/plantuml"
   },
   "theme": {
-    "description": "Theme--Select the theme used in MarkText",
+    "description": "Theme--Select the theme used in MoMark",
     "type": "string",
     "default": "light"
   },

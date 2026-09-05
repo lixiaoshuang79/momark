@@ -38,7 +38,6 @@ const COMMAND_KEY_MAP: Record<string, string> = {
   // File operations
   'file.print': 'commands.file.print',
   'file.zoom': 'commands.file.zoom',
-  'file.check-update': 'commands.file.checkUpdate',
 
   // File close
   'file.close': 'commands.file.closeTab',
@@ -209,8 +208,6 @@ const COMMAND_KEY_MAP: Record<string, string> = {
   // ============================================
   // # Documentation & Help
   // ============================================
-  'docs.user-guide': 'commands.docs.userGuide',
-  'docs.markdown-syntax': 'commands.docs.markdownSyntax',
 
   // ============================================
   // # Spell Checker

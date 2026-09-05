@@ -38,7 +38,7 @@ const exceptionToString = (error: Error, type: ErrorType): string => {
   )
 }
 
-const handleError = async(title: string, error: Error, type: ErrorType): Promise<void> => {
+const handleError = async (title: string, error: Error, type: ErrorType): Promise<void> => {
   const { message, stack } = error
 
   // Write error into file
@@ -94,7 +94,7 @@ ${title}.
 
 ### Version
 
-MarkText: ${MARKTEXT_VERSION_STRING}
+MoMark: ${MARKTEXT_VERSION_STRING}
 Operating system: ${getOSInformation()}`
         )
         break
@@ -128,8 +128,8 @@ const setupExceptionHandler = (): void => {
 
   // start crashReporter to save core dumps to temporary folder
   crashReporter.start({
-    companyName: 'marktext',
-    productName: 'marktext',
+    companyName: 'MoMark',
+    productName: 'MoMark',
     submitURL: 'http://0.0.0.0/',
     uploadToServer: false,
     compress: true

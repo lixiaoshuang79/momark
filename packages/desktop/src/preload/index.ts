@@ -241,7 +241,6 @@ const electronAPI = {
     cwd: bootInfo?.paths?.cwd
   },
   paths: bootInfo?.paths || {},
-  isUpdatable: !!bootInfo?.isUpdatable,
   windowControl: windowControlAPI
 }
 
