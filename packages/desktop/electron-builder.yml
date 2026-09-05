@@ -108,6 +108,7 @@ nsis:
   perMachine: false
   include: windows/installer.nsh
 mac:
+  identity: null  # 无开发者账号：跳过签名（本地使用 xattr -cr 放行；开源分发走 CI 有账号再签）
   artifactName: 'momark-mac-${arch}-${version}.${ext}'
   entitlementsInherit: build/mac/entitlements.mac.plist
   extendInfo:
