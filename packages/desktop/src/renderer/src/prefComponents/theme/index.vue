@@ -59,16 +59,12 @@
         rows="10"
         :value="customCss"
         @change="
-          (event: Event) =>
-            onSelectChange('customCss', (event.target as HTMLTextAreaElement).value)
+          (event: Event) => onSelectChange('customCss', (event.target as HTMLTextAreaElement).value)
         "
       />
     </div>
     <separator v-show="false" />
-    <section
-      v-show="false"
-      class="import-themes ag-underdevelop"
-    >
+    <section v-show="false" class="import-themes ag-underdevelop">
       <div>
         <span>{{ t('preferences.theme.openThemesFolder') }}</span>
         <el-button size="small">
@@ -393,6 +389,20 @@ const onSelectChange = (type: keyof PreferencesState, value: unknown): void => {
       background: #faf4ed;
       & a {
         color: #907aa9;
+      }
+    }
+    &.claude-light {
+      color: #242422;
+      background: #fcfcfb;
+      & a {
+        color: #3d5a80;
+      }
+    }
+    &.claude-dark {
+      color: #c4c3b2;
+      background: #151515;
+      & a {
+        color: #7fa6cc;
       }
     }
 

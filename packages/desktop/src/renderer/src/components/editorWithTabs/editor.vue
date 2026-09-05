@@ -4,18 +4,14 @@
     :class="[{ typewriter: typewriter, focus: focus, source: sourceCode }]"
     :dir="textDirection"
   >
-    <div
-      ref="editorRef"
-      class="editor-component"
-    />
-    <div
-      v-show="imageViewerVisible"
-      class="image-viewer"
-    >
-      <span
-        class="icon-close"
-        @click="setImageViewerVisible(false)"
-      >
+    <div ref="editorRef" class="editor-component" />
+    <!-- MoMark §6：空文档占位（引擎无 placeholder 配置，壳层轻量实现；
+         只在当前文档内容为空时显示，pointer-events 透传给编辑器） -->
+    <div v-if="showPlaceholder" class="editor-placeholder" aria-hidden="true">
+      {{ PLACEHOLDER_TEXT }}
+    </div>
+    <div v-show="imageViewerVisible" class="image-viewer">
+      <span class="icon-close" @click="setImageViewerVisible(false)">
         <CloseIcon />
       </span>
       <div ref="imageViewerRef" />
@@ -34,10 +30,7 @@
           {{ t('editor.insertTable.title') }}
         </div>
       </template>
-      <el-form
-        :model="tableChecker"
-        :inline="true"
-      >
+      <el-form :model="tableChecker" :inline="true">
         <el-form-item :label="t('editor.insertTable.rows')">
           <el-input-number
             ref="rowInput"
@@ -63,10 +56,7 @@
           <el-button @click="dialogTableVisible = false">
             {{ t('common.cancel') }}
           </el-button>
-          <el-button
-            type="primary"
-            @click="handleDialogTableConfirm"
-          >
+          <el-button type="primary" @click="handleDialogTableConfirm">
             {{ t('common.ok') }}
           </el-button>
         </div>
@@ -77,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
+import { ref, reactive, watch, computed, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
 import log from 'electron-log'
 import {
   Muya,
@@ -258,6 +248,15 @@ const { currentFile, tabs } = storeToRefs(editorStore)
 
 // Project store refs
 const { projectTree } = storeToRefs(projectStore)
+
+// MoMark §6 空文档占位：引擎不支持 placeholder 配置，故在壳层实现——
+// 当前文档 markdown 为空（含首尾空白）时显示，输入即消失；源码/打字机模式隐藏。
+const PLACEHOLDER_TEXT = '从这里开始写作…'
+const showPlaceholder = computed<boolean>(() => {
+  if (sourceCode.value || typewriter.value) return false
+  const md = currentFile.value?.markdown
+  return md !== undefined && md !== null && md.trim() === ''
+})
 
 // Component state
 const defaultFontFamily = DEFAULT_EDITOR_FONT_FAMILY
@@ -458,7 +457,7 @@ class SimpleImageViewer {
   _onMousemove!: (e: MouseEvent) => void
   _onMouseup!: () => void
 
-  constructor (container: HTMLElement, { url }: { url: string }) {
+  constructor(container: HTMLElement, { url }: { url: string }) {
     this.container = container
     this.scale = 1
     this.translateX = 0
@@ -469,7 +468,7 @@ class SimpleImageViewer {
     this._init(url)
   }
 
-  _init (url: string) {
+  _init(url: string) {
     this.container.innerHTML = ''
     this.img = document.createElement('img')
     this.img.src = url
@@ -480,11 +479,11 @@ class SimpleImageViewer {
     this._bindEvents()
   }
 
-  _updateTransform () {
+  _updateTransform() {
     this.img.style.transform = `translate(${this.translateX}px,${this.translateY}px) scale(${this.scale})`
   }
 
-  _bindEvents () {
+  _bindEvents() {
     this._onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const factor = e.deltaY < 0 ? 1.1 : 0.9
@@ -515,7 +514,7 @@ class SimpleImageViewer {
     document.addEventListener('mouseup', this._onMouseup)
   }
 
-  destroy () {
+  destroy() {
     this.container.removeEventListener('wheel', this._onWheel)
     this.container.removeEventListener('mousedown', this._onMousedown)
     document.removeEventListener('mousemove', this._onMousemove)
@@ -627,11 +626,14 @@ watch(sequenceTheme, (value, oldValue) => {
   }
 })
 
-watch(() => preferencesStore.plantumlServer, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ plantumlServer: value }, true)
+watch(
+  () => preferencesStore.plantumlServer,
+  (value, oldValue) => {
+    if (value !== oldValue && editor.value) {
+      editor.value.setOptions({ plantumlServer: value }, true)
+    }
   }
-})
+)
 
 watch(listIndentation, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
@@ -2095,6 +2097,30 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   cursor: default;
   overflow-anchor: none !important;
+}
+
+/* MoMark §6 空文档占位：与内容列（720px/44px/32px）对齐的弱化提示，
+   pointer-events 透传，光标仍在第一行闪烁 */
+.editor-placeholder {
+  position: absolute;
+  top: 0;
+  left: 50%;
+
+  width: var(--editor-area-width, 720px);
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: var(--editor-pad-top, 44px) var(--editor-pad-x, 32px);
+
+  color: var(--placeholder-color, var(--faint));
+  font-family: var(--font-body);
+  font-size: var(--editor-body-size, 15px);
+  line-height: var(--editor-body-lh, 1.58);
+  white-space: nowrap;
+  overflow: hidden;
+  user-select: none;
+  pointer-events: none;
+
+  transform: translateX(-50%);
 }
 
 .editor-component .mu-container {

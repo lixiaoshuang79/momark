@@ -137,6 +137,8 @@
       "dark": "Dark",
       "followThemDisabled": "Theme selection disabled when following system theme",
       "lightThemes": "— Light Themes —",
+      "claudeLight": "Claude Light",
+      "claudeDark": "Claude Dark",
       "darkThemes": "— Dark Themes —",
       "ayuDark": "Ayu Dark",
       "ayuLight": "Ayu Light",

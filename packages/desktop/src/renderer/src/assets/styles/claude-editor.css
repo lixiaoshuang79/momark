@@ -1,0 +1,146 @@
+/* MoMark · Claude 风格编辑器渲染对齐（PHASE2-SPEC §6）。
+   仅在 claude-light / claude-dark 主题激活时生效（body 挂 .is-claude-theme，
+   见 util/theme.ts），旧主题不受影响；全部取值来自 design token 变量，
+   不硬编码。引擎会在打印时应用本样式保护（@media not print）。 */
+
+@media not print {
+  /* 内容列：720px 居中，padding 44px 32px 140px（覆盖引擎 0 50px 100px） */
+  .is-claude-theme .editor-component .mu-container {
+    padding: var(--editor-pad);
+  }
+
+  /* 墨蓝光标 + 选中底色（tokens 派生） */
+  .is-claude-theme .mu-editor {
+    caret-color: var(--caret-color);
+  }
+
+  /* H1：AnthropicSerif 30px/500，字距 -0.01em，上下 20px；
+     H2：sans 17px/680；H3：sans 16px/670 */
+  .is-claude-theme .mu-container h1 {
+    font-family: var(--h1-font);
+    font-size: var(--h1-size);
+    font-weight: var(--h1-weight);
+    letter-spacing: -0.01em;
+    margin: 20px 0;
+  }
+
+  .is-claude-theme .mu-container h2 {
+    font-family: var(--heading-font);
+    font-size: var(--h2-size);
+    font-weight: var(--h2-weight);
+  }
+
+  .is-claude-theme .mu-container h3 {
+    font-family: var(--heading-font);
+    font-size: var(--h3-size);
+    font-weight: var(--h3-weight);
+  }
+
+  /* 行内代码：mono 13px、底 c-codeBg、圆角 4px、padding 2px 4px */
+  .is-claude-theme code.mu-inline-rule {
+    padding: var(--inline-code-pad);
+
+    color: var(--c-codeTxt);
+    font-size: var(--inline-code-size);
+    font-family: var(--font-mono);
+
+    background-color: var(--c-codeBg);
+    border-radius: var(--inline-code-radius, 4px);
+  }
+
+  /* 链接：墨蓝 + 下划线（underline 色 rgba(61,90,128,.40)） */
+  .is-claude-theme a.mu-inline-rule {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-color: var(--c-linkUl);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 10%;
+  }
+
+  /* 引用：左 3px quoteBar 竖线 + 次级文字（颜色走 --blockquote-* 映射） */
+  .is-claude-theme .mu-container blockquote::before {
+    width: 3px;
+
+    /* 引擎默认 2px，规格 3px */
+    background: var(--c-quoteBar);
+  }
+
+  /* 代码块：底 c-codeblockBg、0.5px 描边、圆角 10px、mono */
+  .is-claude-theme .mu-code-block {
+    font-family: var(--font-mono);
+
+    background: var(--c-codeblockBg);
+    border: var(--code-block-border) solid var(--c-codeblockBorder);
+    border-radius: var(--code-block-radius);
+  }
+
+  /* 表格（Claude 式灰格圆角）：separate + 2px 间距，每格灰底圆角 4px，
+     无竖线无外框；表头 650 字重 + 表头底；四角外角 7px。
+     引擎限制：单元格边框由 td/th ::before 描边层绘制，本方案复用它做底，
+     跨格拖选高亮的选中层（.mu-table-cell-selected，引擎更高特异性）保持可用。 */
+  .is-claude-theme .mu-table-inner {
+    border-collapse: separate;
+    border-spacing: 2px;
+  }
+
+  .is-claude-theme .mu-table-inner tr th::before,
+  .is-claude-theme .mu-table-inner tr td::before {
+    background: var(--c-tableCellBg);
+    border: none;
+    border-radius: 4px;
+  }
+
+  .is-claude-theme .mu-table-inner tr:first-child th::before,
+  .is-claude-theme .mu-table-inner tr:first-child td::before {
+    background: var(--c-tableHeadBg);
+  }
+
+  .is-claude-theme .mu-table-inner tr:first-child td {
+    font-weight: 650;
+  }
+
+  .is-claude-theme .mu-table-inner tr:first-child td:first-child::before,
+  .is-claude-theme .mu-table-inner tr:first-child th:first-child::before {
+    border-top-left-radius: 7px;
+  }
+
+  .is-claude-theme .mu-table-inner tr:first-child td:last-child::before,
+  .is-claude-theme .mu-table-inner tr:first-child th:last-child::before {
+    border-top-right-radius: 7px;
+  }
+
+  .is-claude-theme .mu-table-inner tr:last-child td:first-child::before {
+    border-bottom-left-radius: 7px;
+  }
+
+  .is-claude-theme .mu-table-inner tr:last-child td:last-child::before {
+    border-bottom-right-radius: 7px;
+  }
+
+  /* 任务列表：方框（引擎 18px 圆形 → 4px 圆角方），勾选=墨蓝底白勾
+     （--theme-color 映射 + ::after 勾为 editor-bg 色，纯变量驱动） */
+  .is-claude-theme li.mu-task-list-item > input[type='checkbox']::before,
+  .is-claude-theme li.mu-task-list-item > span.mu-task-list-checkbox::before {
+    border-radius: 4px;
+  }
+
+  /* 分隔线：实线 hairline（引擎默认 2px 虚线 → 1px tokens c-hr） */
+  .is-claude-theme .mu-thematic-break:not(.mu-active)::before {
+    height: 1px;
+
+    border-top: 1px solid var(--c-hr);
+  }
+
+  /* 图片：tokens 圆角 */
+  .is-claude-theme .mu-inline-image,
+  .is-claude-theme .mu-image-container img {
+    border-radius: var(--radius-sm);
+  }
+
+  /* 脚注：tokens 面板底 + hairline 描边 + 圆角 */
+  .is-claude-theme .mu-container figure.mu-footnote {
+    background: var(--surface-0);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+  }
+}
