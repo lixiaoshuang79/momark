@@ -1,0 +1,155 @@
+/* ============================================================
+   墨记 MoMark · 设计令牌（项目内唯一令牌源）
+   来源：design/tokens.css（原型 v0.14 权威源，数值与其保持同步）
+   使用规则：pt = px × 0.75；禁用：Claude 橙/陶土/系统蓝/玻璃材质/系统灰 #ECECEC
+   适配说明（相对 design/tokens.css 的唯三改动）：
+   ① dark 段选择器沿用 [data-theme="dark"]，由 util/theme.ts 挂到 <html>；
+   ② 字体栈按任务规格更新（正文 Anthropic→Geist，H1/衬线 AnthropicSerif→Newsreader）；
+   ③ 追加 Element Plus 主色簇与编辑区排版令牌（PHASE2-SPEC §6），全部派生自上述原始令牌。
+   ============================================================ */
+
+:root {
+  /* ── 中性色（Claude Code 实机画廊，唯一权威） ── */
+  --bg: #fcfcfb;              /* 画布：近白暖灰，绝不纯白、绝不发黄 */
+  --surface-0: #f9f9f7;       /* 面板 */
+  --surface-1: #fcfcfb;       /* 抬升面 */
+  --surface-2: #fff;          /* 卡片 */
+  --sidebar: #fafaf9;         /* 侧栏 */
+  --ink: #242422;             /* 主文字 */
+  --muted: #65645f;           /* 次级文字 */
+  --faint: #898781;           /* 弱化文字 */
+  --line: rgba(11,11,11,.10);        /* hairline */
+  --line-strong: rgba(11,11,11,.15); /* 强调描边 */
+  --hover: rgba(11,11,11,.05);       /* hover 底 */
+  --selected: rgba(11,11,11,.10);    /* 选中底 */
+  --radius: 8px;              /* 圆角统一 8px 档 */
+  --shadow: 0 1px 3px rgba(0,0,0,.07);
+  --accent: #3d5a80;          /* 墨蓝（用户定案：颜色不参考 Claude） */
+  --accent-on: #ffffff;
+  --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+  --accent-active: color-mix(in oklab, var(--accent), black 14%);
+  --success: #17a34a;
+  --warn: #eab308;
+  --danger: #b53333;
+
+  /* ── 字体（任务规格：缺原版文件时自动落到 OFL 替代） ── */
+  --font-display: "AnthropicSerif", "Newsreader", "Songti SC", serif;
+  --font-body: "Anthropic", "Geist", -apple-system, "PingFang SC", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ── 圆角 ── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  /* ── 投影与焦点 ── */
+  --elev-flat: none;
+  --elev-ring: 0 0 0 1px var(--line);
+  --elev-raised: 0 1px 3px rgba(0, 0, 0, 0.07);
+  --focus-ring: 0 0 0 3px rgba(61, 90, 128, 0.3);
+  --shadow-pop: 0 0 0 1px rgba(11,11,11,.08), 0 1px 3px rgba(0,0,0,.07);
+  --shadow-win: 0 0 0 1px rgba(11,11,11,.10), 0 2px 10px rgba(0,0,0,.08);
+  --backdrop: rgba(24,24,23,.35);
+
+  /* ── 动效 ── */
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  /* 标签滑轨回弹 */ --ease-tab-indicator: cubic-bezier(.18,1.32,.36,1);
+  /* 面板生长回弹 */ --ease-grow: cubic-bezier(.18,1.28,.36,1);
+  /* 内容分层滑入 */ --ease-line-in: cubic-bezier(.16,1.14,.3,1);
+  /* 内容移出 */     --ease-line-out: cubic-bezier(.4,0,.8,.2);
+
+  /* ── macOS 原生红绿灯（唯一 Apple 原生例外） ── */
+  --tl-red: #ff5f57; --tl-yellow: #febc2e; --tl-green: #28c840;
+
+  /* ── 内容区（Claude Code 实机 .assistant 渲染：正文 15px/1.58） ── */
+  --c-texPri: var(--ink); --c-texSec: var(--muted); --c-texTer: var(--faint);
+  --c-codeTxt: #242422; --c-codeBg: #f0efec; --c-codeblockBg: #f9f9f7;
+  --c-codeblockBorder: rgba(11,11,11,.15);
+  --c-hr: rgba(11,11,11,.10); --c-linkUl: rgba(61,90,128,.40); --c-bg: var(--bg);
+  --c-tableBorder: rgba(11,11,11,.10); --c-tableHeadBg: #efefed; --c-tableCellBg: #efefed;
+  --c-checkBorder: #898781;
+  --c-quoteBar: #c9c7c0;
+
+  /* ── 尺寸 ── */
+  --f13: 17.33px; --f12: 16px; --f11: 14.67px;
+  --sidebar-w: 288px;
+  --editor-col-w: 720px;
+  --editor-body-size: 15px;
+  --editor-body-lh: 1.58;
+
+  /* 网址 Dock 标签底（浅灰底，选中白底+墨蓝边） */
+  --ud-bg: #f0efec;
+
+  /* HUD toast */
+  --hudbg: #2e2d2a;
+  --hudfg: #fcfcfb;
+
+  /* ── 编辑区排版（PHASE2-SPEC §6，全部派生自原始令牌） ── */
+  --editor-pad: 44px 32px 140px; --editor-pad-top: 44px; --editor-pad-x: 32px;
+  --h1-size: 30px; --h1-weight: 500; --h1-font: var(--font-display);
+  --h2-size: 17px; --h2-weight: 680;
+  --h3-size: 16px; --h3-weight: 670;
+  --heading-font: var(--font-body);
+  --inline-code-size: 13px; --inline-code-pad: 2px 4px; --inline-code-radius: 4px;
+  --code-block-radius: 10px; --code-block-border: 0.5px;
+  --caret-color: var(--accent);
+  --placeholder-color: var(--faint);
+
+  /* ── Element Plus 主色簇（过渡期壳层，随 accent 令牌联动） ── */
+  --el-color-primary: var(--accent);
+  --el-color-primary-light-3: color-mix(in oklab, var(--accent), white 30%);
+  --el-color-primary-light-5: color-mix(in oklab, var(--accent), white 50%);
+  --el-color-primary-light-7: color-mix(in oklab, var(--accent), white 70%);
+  --el-color-primary-light-8: color-mix(in oklab, var(--accent), white 80%);
+  --el-color-primary-light-9: color-mix(in oklab, var(--accent), white 90%);
+  --el-color-primary-dark-2: color-mix(in oklab, var(--accent), black 20%);
+}
+
+[data-theme="dark"] {
+  --bg: #151515; --surface-0: #111111; --surface-1: #1a1a19; --surface-2: #262624;
+  --sidebar: #111111;
+  --ink: #fcfcfb; --muted: #c4c3b2; --faint: #96948a;
+  --line: rgba(255,255,255,.08); --line-strong: rgba(255,255,255,.16);
+  --hover: rgba(255,255,255,.06); --selected: rgba(255,255,255,.09);
+  --accent: #7fa6cc; --accent-on: #12161b;
+  --accent-hover: color-mix(in oklab, var(--accent), white 8%);
+  --accent-active: color-mix(in oklab, var(--accent), white 14%);
+  --success: #58a96e; --warn: #d9a441; --danger: #c75d4e;
+  --shadow-pop: 0 0 0 1px rgba(255,255,255,.08), 0 2px 10px rgba(0,0,0,.45);
+  --shadow-win: 0 0 0 1px rgba(255,255,255,.10), 0 6px 24px rgba(0,0,0,.50);
+  --backdrop: rgba(0,0,0,.55);
+  --c-codeTxt: #e8e6dc; --c-codeBg: rgba(255,255,255,.08); --c-codeblockBg: #1a1a19;
+  --c-codeblockBorder: rgba(255,255,255,.12);
+  --c-hr: rgba(255,255,255,.10); --c-linkUl: rgba(127,166,204,.45);
+  --c-tableBorder: rgba(255,255,255,.14); --c-tableHeadBg: rgba(255,255,255,.06);
+  --c-tableCellBg: rgba(255,255,255,.06);
+  --c-checkBorder: rgba(255,255,255,.70);
+  --c-quoteBar: rgba(255,255,255,.20);
+  --ud-bg: #262624;
+
+  --el-color-primary-light-3: color-mix(in oklab, var(--accent), black 30%);
+  --el-color-primary-light-5: color-mix(in oklab, var(--accent), black 50%);
+  --el-color-primary-light-7: color-mix(in oklab, var(--accent), black 70%);
+  --el-color-primary-light-8: color-mix(in oklab, var(--accent), black 80%);
+  --el-color-primary-light-9: color-mix(in oklab, var(--accent), black 90%);
+  --el-color-primary-dark-2: color-mix(in oklab, var(--accent), white 20%);
+}
+
+/* 应用壳层（App/对话框；系统级菜单不受控）与编辑区共用令牌字体栈 */
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+}
+
+/* 动效降级（系统减少动态效果） */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

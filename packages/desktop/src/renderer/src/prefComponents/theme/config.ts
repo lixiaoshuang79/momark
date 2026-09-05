@@ -3,6 +3,8 @@ export interface ThemeDescriptor {
 }
 
 export const themes: ReadonlyArray<ThemeDescriptor> = [
+  // MoMark 默认内置（Claude 风格设计体系）
+  { name: 'claude-light' },
   // Light Themes (alphabetical)
   { name: 'ayu-light' },
   { name: 'light' },
@@ -17,6 +19,7 @@ export const themes: ReadonlyArray<ThemeDescriptor> = [
   // Dark Themes (alphabetical)
   { name: 'ayu-dark' },
   { name: 'ayu-mirage' },
+  { name: 'claude-dark' },
   { name: 'dark' },
   { name: 'catppuccin-mocha' },
   { name: 'cyberdream' },

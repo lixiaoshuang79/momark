@@ -542,6 +542,16 @@ const commands: CommandDescriptor[] = [
     id: 'window.change-theme',
     subcommands: [
       {
+        id: 'window.change-theme-claude-light',
+        description: 'Claude Light',
+        value: 'claude-light'
+      },
+      {
+        id: 'window.change-theme-claude-dark',
+        description: 'Claude Dark',
+        value: 'claude-dark'
+      },
+      {
         id: 'window.change-theme-light',
         description: 'Cadmium Light',
         value: 'light'

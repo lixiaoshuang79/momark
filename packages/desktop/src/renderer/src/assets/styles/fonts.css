@@ -1,0 +1,38 @@
+/* MoMark 字体三层体系（见任务 8 规格）：
+   ① Anthropic / AnthropicSerif（可变字重，本地文件已 gitignore，仅开发机可用；
+      缺文件时 font-family 链自动落到 ②）；
+   ② OFL 开源替代 Geist（sans）+ Newsreader（serif，已入库提交）；
+   ③ 系统/CJK 回退：PingFang SC / Songti SC。
+   四个文件均为可变字体（wght 轴），故以区间声明字重。 */
+
+@font-face {
+  font-family: 'Anthropic';
+  src: url('../fonts/Anthropic.woff2') format('woff2');
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'AnthropicSerif';
+  src: url('../fonts/AnthropicSerif.woff2') format('woff2');
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('../fonts/geist.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Newsreader';
+  src: url('../fonts/newsreader.woff2') format('woff2');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}

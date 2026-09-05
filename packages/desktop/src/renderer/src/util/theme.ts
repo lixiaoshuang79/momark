@@ -39,7 +39,10 @@ import {
   solarizedLight,
   ayuLight,
   everforestLight,
-  rosePineDawn
+  rosePineDawn,
+  // MoMark Claude 风格主题
+  claudeLight,
+  claudeDark
 } from './themeColor'
 import { isLinux } from './index'
 
@@ -171,6 +174,13 @@ export const addThemeStyle = (theme: string): void => {
     case 'rose-pine-dawn':
       themeStyleEle.innerHTML = patchTheme(rosePineDawn())
       break
+    // MoMark Claude 风格主题
+    case 'claude-light':
+      themeStyleEle.innerHTML = patchTheme(claudeLight())
+      break
+    case 'claude-dark':
+      themeStyleEle.innerHTML = patchTheme(claudeDark())
+      break
     default:
       break
   }
@@ -180,6 +190,17 @@ export const addThemeStyle = (theme: string): void => {
   if (isDarkTheme) {
     document.body.classList.add('dark')
   }
+
+  // MoMark 设计体系作用域：
+  // ① tokens.css 的深色段通过 <html data-theme="dark"> 生效（:root 级覆盖，
+  //    保证派生变量按令牌正确计算）；
+  // ② claude-editor.css 的 §6 编辑器对齐仅在 body.is-claude-theme 下生效，
+  //    旧主题渲染保持不变。
+  document.documentElement.dataset.theme = isDarkTheme ? 'dark' : 'light'
+  document.body.classList.toggle(
+    'is-claude-theme',
+    theme === 'claude-light' || theme === 'claude-dark'
+  )
 
   // change CodeMirror theme
   const cm = document.querySelector('.CodeMirror')

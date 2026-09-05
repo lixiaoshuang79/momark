@@ -11,6 +11,7 @@ const LIGHT_THEMES: ReadonlyArray<readonly [string, string]> = [
   ['ayuLight', 'ayu-light'],
   ['cadmiumLight', 'light'],
   ['catppuccinLatte', 'catppuccin-latte'],
+  ['claudeLight', 'claude-light'],
   ['everforestLight', 'everforest-light'],
   ['graphiteLight', 'graphite'],
   ['gruvboxLight', 'gruvbox-light'],
@@ -25,6 +26,7 @@ const DARK_THEMES: ReadonlyArray<readonly [string, string]> = [
   ['ayuMirage', 'ayu-mirage'],
   ['cadmiumDark', 'dark'],
   ['catppuccinMocha', 'catppuccin-mocha'],
+  ['claudeDark', 'claude-dark'],
   ['cyberdream', 'cyberdream'],
   ['dracula', 'dracula'],
   ['everforestDark', 'everforest-dark'],
@@ -46,7 +48,7 @@ const DARK_THEMES: ReadonlyArray<readonly [string, string]> = [
   ['tokyoNightStorm', 'tokyo-night-storm']
 ]
 
-export default function(userPreference: Preference): MenuItemConstructorOptions {
+export default function (userPreference: Preference): MenuItemConstructorOptions {
   const preferences = userPreference.getAll() as { theme?: string; followSystemTheme?: boolean }
   const { theme, followSystemTheme } = preferences
   const isThemeSelectionEnabled = !followSystemTheme

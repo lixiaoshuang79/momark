@@ -35,6 +35,10 @@ import ayuLightTheme from '../assets/themes/ayu-light.theme.css?inline'
 import everforestLightTheme from '../assets/themes/everforest-light.theme.css?inline'
 import rosePineDawnTheme from '../assets/themes/rose-pine-dawn.theme.css?inline'
 
+// MoMark Claude 风格主题（变量映射 → assets/styles/tokens.css 令牌）
+import claudeLightTheme from '../assets/themes/claude-light.theme.css?inline'
+import claudeDarkTheme from '../assets/themes/claude-dark.theme.css?inline'
+
 // Prism.js syntax highlighting themes
 import darkPrismTheme from '../assets/themes/prismjs/dark.theme.css?inline'
 import oneDarkPrismTheme from '../assets/themes/prismjs/one-dark.theme.css?inline'
@@ -197,4 +201,13 @@ export const everforestLight = (): string => {
 
 export const rosePineDawn = (): string => {
   return rosePineDawnTheme + '\n' + rosePineDawnPrismTheme
+}
+
+// MoMark Claude 风格主题：样式本身即令牌映射，无 Prism 补丁（代码块走 tokens）
+export const claudeLight = (): string => {
+  return claudeLightTheme
+}
+
+export const claudeDark = (): string => {
+  return claudeDarkTheme
 }
