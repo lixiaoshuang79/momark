@@ -95,7 +95,18 @@ export default defineConfig({
         }
       }
     },
-    plugins: [vue(), svgLoader()] as PluginOption[],
+    plugins: [
+      vue({
+        template: {
+          compilerOptions: {
+            // 右侧浏览器面板：<webview> 是 Electron 自定义元素（PHASE2-SPEC §5），
+            // 必须声明为 custom element，否则 Vue 会按组件解析而不渲染。
+            isCustomElement: (tag) => tag === 'webview'
+          }
+        }
+      }),
+      svgLoader()
+    ] as PluginOption[],
     css: {
       postcss: {
         plugins: [

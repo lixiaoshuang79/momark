@@ -3,10 +3,8 @@
     class="editor-with-tabs"
     :style="{ 'max-width': `calc(100vw - ${effectiveSideBarWidth}px)` }"
   >
-    <!-- 标签栏：单文档态（tabs ≤ 1）物理移除整行，多文档态渲染（PHASE2-SPEC §1/§10） -->
-    <Tabs v-if="showTabBar" />
-    <!-- 面包屑行 28px -->
-    <Crumbs />
+    <!-- 标签栏 + 面包屑已上移到 app.vue 的 .win-body 之上（PHASE2-SPEC §1：
+         全宽行；主体三栏从面包屑行之下开始）。本组件只负责编辑内容区。 -->
     <div class="container">
       <editor
         :markdown="markdown"
@@ -26,12 +24,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useLayoutStore } from '@/store/layout'
-import { useEditorStore } from '@/store/editor'
 import { storeToRefs } from 'pinia'
-import Tabs from './tabs.vue'
-import Crumbs from '../crumbs/index.vue'
+import { useLayoutStore } from '@/store/layout'
 import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
 import TabNotifications from './notifications.vue'
@@ -49,12 +43,7 @@ defineProps<{
 }>()
 
 const layoutStore = useLayoutStore()
-const editorStore = useEditorStore()
 const { effectiveSideBarWidth } = storeToRefs(layoutStore)
-const { tabs } = storeToRefs(editorStore)
-
-// 场景派生（STATE-MACHINE §1）：标签栏是否渲染完全由标签数量决定。
-const showTabBar = computed(() => tabs.value.length >= 2)
 </script>
 
 <style scoped>

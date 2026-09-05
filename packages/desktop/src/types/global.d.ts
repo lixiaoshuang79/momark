@@ -8,7 +8,8 @@ import type {
   IpcSendChannels,
   IpcSyncChannels,
   IpcMainEventChannels,
-  BootInfo
+  BootInfo,
+  BpPageState
 } from '@shared/types/ipc'
 import type { MenuTemplate, MenuPopupPosition } from '@shared/types/menu'
 import type { SerializedStat } from '@shared/types/files'
@@ -164,6 +165,22 @@ declare global {
     list(): Promise<string[]>
   }
 
+  interface BpAPI {
+    createPage(url: string): Promise<string>
+    register(id: string, webContentsId: number): Promise<void>
+    closePage(id: string): Promise<void>
+    activate(id: string): Promise<void>
+    back(id: string): Promise<void>
+    forward(id: string): Promise<void>
+    reload(id: string): Promise<void>
+    getState(id: string): Promise<BpPageState>
+    openExternal(url: string): Promise<boolean>
+    pickDoc(): Promise<{ path: string; markdown: string } | null>
+    onNewWindowRequest(
+      handler: (payload: { url: string; fromPageId: string | null }) => void
+    ): () => void
+  }
+
   interface ProcessShim {
     platform: NodeJS.Platform
     arch?: string
@@ -183,10 +200,14 @@ declare global {
     ripgrep: RipgrepAPI
     uploader: UploaderAPI
     fonts: FontsAPI
+    bp: BpAPI
     process: ProcessShim
     rgPath: string
     // Set by the legacy editor store at runtime; consumed by muya internals.
     DIRNAME: string
+    // 分屏文档标题拖回标签栏的内部拖放标记（crumbs 设置，app.vue 的
+    // window 级 dragover 据此放行内部 drop）。
+    __momarkReturnDrag?: boolean
     marktext?: {
       env?: { windowId: number; [key: string]: unknown }
       initialState?: {

@@ -226,6 +226,33 @@ const fontsAPI = {
   list: () => invoke('mt::fonts::list')
 }
 
+// 右侧浏览器面板（PHASE2-SPEC §5）：白名单桥接。webview 元素本身由渲染层
+// 创建；主进程经 bp:* 通道校验 URL、映射 guest webContents 并执行导航。
+const bpAPI = {
+  createPage: (url: string) => invoke('bp:createPage', url),
+  register: (id: string, webContentsId: number) => invoke('bp:register', id, webContentsId),
+  closePage: (id: string) => invoke('bp:closePage', id),
+  activate: (id: string) => invoke('bp:activate', id),
+  back: (id: string) => invoke('bp:back', id),
+  forward: (id: string) => invoke('bp:forward', id),
+  reload: (id: string) => invoke('bp:reload', id),
+  getState: (id: string) => invoke('bp:getState', id),
+  openExternal: (url: string) => invoke('bp:openExternal', url),
+  pickDoc: () => invoke('bp:pickDoc'),
+  onNewWindowRequest: (
+    handler: (payload: { url: string; fromPageId: string | null }) => void
+  ): (() => void) => {
+    const subscription = (
+      _event: IpcRendererEvent,
+      payload: { url: string; fromPageId: string | null }
+    ): void => {
+      handler(payload)
+    }
+    ipcRenderer.on('bp:new-window-request', subscription)
+    return () => ipcRenderer.removeListener('bp:new-window-request', subscription)
+  }
+}
+
 const electronAPI = {
   ipcRenderer: ipcWrapper,
   shell: shellAPI,
@@ -293,6 +320,7 @@ try {
   contextBridge.exposeInMainWorld('ripgrep', ripgrepAPI)
   contextBridge.exposeInMainWorld('uploader', uploaderAPI)
   contextBridge.exposeInMainWorld('fonts', fontsAPI)
+  contextBridge.exposeInMainWorld('bp', bpAPI)
 } catch (error) {
   console.error(error)
 }

@@ -17,6 +17,10 @@ export const editorWinOptions: Readonly<BrowserWindowConstructorOptions> = Objec
     spellcheck: true,
     nodeIntegration: false,
     webSecurity: false,
+    // 右侧浏览器面板（PHASE2-SPEC §5 / research 3.md）：webview 仅主编辑器窗口
+    // 开启，设置窗口不开启。guest 的安全收紧统一在 main/browserPanel.ts 的
+    // will-attach-webview / did-attach-webview 中强制注入。
+    webviewTag: true,
     preload: path.join(__dirname, '../preload/index.js')
   },
   useContentSize: true,

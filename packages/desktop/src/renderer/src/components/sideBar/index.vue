@@ -63,14 +63,15 @@ const selectTab = (tab: SideBarTab): void => {
 </script>
 
 <style scoped>
-/* 展开 288px 底 --sidebar，右侧 .5px 发丝线；收起 = v-show false，完全无占位（无 45px rail 残留） */
+/* 展开 288px 底 --sidebar，右侧 .5px 发丝线；收起 = v-show false，完全无占位（无 45px rail 残留）
+   高度随 win-body 行（PHASE2-SPEC §1：侧栏从面包屑行之下到窗口底）。 */
 .side-bar {
   display: flex;
   flex-shrink: 0;
   flex-grow: 0;
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
-  height: 100vh;
+  height: 100%;
   position: relative;
   color: var(--ink);
   user-select: none;

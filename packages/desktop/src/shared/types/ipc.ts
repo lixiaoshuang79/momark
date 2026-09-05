@@ -40,6 +40,23 @@ import type { MenuTemplate, MenuPopupPosition } from './menu'
 export interface IpcInvokeChannels {
   'mt::ask-for-image-path': { args: []; ret: string[] }
   'mt::boot-info-async': { args: []; ret: BootInfo }
+  // ── 右侧浏览器面板（PHASE2-SPEC §5，webview 主方案，见 main/browserPanel.ts）──
+  // 主进程校验 URL（http/https）后分配页面 id；渲染层再创建 <webview> 实例。
+  'bp:createPage': { args: [url: string]; ret: string }
+  // 渲染层在 webview dom-ready 后把 getWebContentsId() 回注册给主进程，
+  // 主进程据此把 pageId 映射到 guest webContents（分区统一 persist:panel，
+  // 不能按分区区分页面）。
+  'bp:register': { args: [id: string, webContentsId: number]; ret: void }
+  'bp:closePage': { args: [id: string]; ret: void }
+  'bp:activate': { args: [id: string]; ret: void }
+  'bp:back': { args: [id: string]; ret: void }
+  'bp:forward': { args: [id: string]; ret: void }
+  'bp:reload': { args: [id: string]; ret: void }
+  'bp:getState': { args: [id: string]; ret: BpPageState }
+  // 地址栏外开箭头（PHASE2-SPEC §5）：仅 http(s) 才允许 shell.openExternal。
+  'bp:openExternal': { args: [url: string]; ret: boolean }
+  // 文档模式「打开文件…」：主进程弹系统对话框并读回 Markdown 文本。
+  'bp:pickDoc': { args: []; ret: { path: string; markdown: string } | null }
   'mt::clipboard::guess-file-path': { args: []; ret: string | null }
   'mt::clipboard::read-text': { args: []; ret: string }
   'mt::cmd::exists': { args: [name: string]; ret: boolean }
@@ -188,6 +205,9 @@ export interface IpcSendChannels {
   'mt::window-tab-closed': [pathname: string]
   'mt::window-toggle-always-on-top': []
   'mt::window::drop': [payload: unknown]
+  // guest 页面发起 window.open / target=_blank（http/https）→ 渲染层在面板内新建
+  // Dock 页（setWindowOpenHandler 已 deny 掉原生新窗口）。
+  'bp:new-window-request': [payload: { url: string; fromPageId: string | null }]
   'screen-capture': [payload: unknown]
   'set-image-folder-path': [path: string]
   'set-user-preference': [partial: unknown]
@@ -301,6 +321,19 @@ export interface IpcMainEventChannels {
 export interface KeyboardInfo {
   layout: IKeyboardLayoutInfo
   keymap: IKeyboardMapping
+}
+
+/**
+ * 浏览器面板单页状态快照（bp:getState 返回；STATE-MACHINE §1 WebPage 的主进程侧视图）。
+ * canGoBack/canGoForward 来自 webContents.navigationHistory（Electron ≥ 32）。
+ */
+export interface BpPageState {
+  canGoBack: boolean
+  canGoForward: boolean
+  url: string
+  title: string
+  loading: boolean
+  error: string | null
 }
 
 export interface BootInfo {
