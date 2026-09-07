@@ -1,12 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 import Store, { type Schema } from 'electron-store'
-import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import log from 'electron-log'
 import { isWindows } from '../config'
 import { hasSameKeys } from '../utils'
 import { onInternalChannel } from '../utils/internalIpc'
-import { getSupportedLanguages, isLanguageSupported } from 'common/i18n'
 import { TypedEmitter } from '@shared/types/typedEmitter'
 import type { IUserPreferences } from '@shared/types/preferences'
 import schema from './schema.json'
@@ -64,20 +63,9 @@ class Preference extends TypedEmitter<PreferenceEvents> {
   init = (): void => {
     let defaultSettings: Record<string, unknown> | null = null
     try {
+      // 首次启动默认值以 static/preference.json 种子为唯一来源：
+      // 不按系统语言/深色主题覆盖（墨记产品默认中文 + claude-light 主题）。
       defaultSettings = JSON.parse(fs.readFileSync(this.staticPath, { encoding: 'utf8' }) || '{}')
-
-      // Set best theme on first application start.
-      if (nativeTheme.shouldUseDarkColors) {
-        defaultSettings!.theme = 'dark'
-      }
-
-      // Set system language on first application start
-      if (!this.hasPreferencesFile) {
-        const systemLanguage = this._getSystemLanguage()
-        if (systemLanguage) {
-          defaultSettings!.language = systemLanguage
-        }
-      }
     } catch (err) {
       log.error(err)
     }
@@ -190,42 +178,6 @@ class Preference extends TypedEmitter<PreferenceEvents> {
     onInternalChannel('set-user-preference', (settings: Record<string, unknown>) => {
       this.setItems(settings)
     })
-  }
-
-  /**
-   * Gets the system language, or null if it's not in the supported list
-   * @returns Supported system language code or null
-   */
-  _getSystemLanguage(): string | null {
-    try {
-      // Get the system language
-      const systemLocale = app.getLocale()
-      log.info(`System locale detected: ${systemLocale}`)
-
-      // Get the list of supported languages
-      const supportedLanguages = getSupportedLanguages()
-
-      // Directly match the full language code (e.g. zh-CN)
-      if (isLanguageSupported(systemLocale)) {
-        log.info(`Using system language: ${systemLocale}`)
-        return systemLocale
-      }
-
-      // Attempt to match the primary part of the language (e.g. zh)
-      const primaryLanguage = systemLocale.split('-')[0]!
-      const matchedLanguage = supportedLanguages.find((lang) => lang.startsWith(primaryLanguage))
-
-      if (matchedLanguage) {
-        log.info(`Using matched language: ${matchedLanguage} for system locale: ${systemLocale}`)
-        return matchedLanguage
-      }
-
-      log.info(`System language ${systemLocale} not supported, will use default language`)
-      return null
-    } catch (error) {
-      log.error('Error detecting system language:', error)
-      return null
-    }
   }
 }
 
