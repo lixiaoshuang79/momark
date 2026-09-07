@@ -6,9 +6,7 @@
       :title="t('sideBar.toggleTitle') + ' ⌘\\'"
       @click.stop="toggleSidebar"
     >
-      <el-icon :size="16">
-        <Operation />
-      </el-icon>
+      <mo-icon name="i-sidebar" />
     </button>
 
     <div ref="tabContainer" class="tabstrip">
@@ -33,9 +31,7 @@
           :title="t('tabs.closeTab')"
           @click.stop="removeFileInTab(file)"
         >
-          <el-icon :size="10">
-            <Close />
-          </el-icon>
+          <mo-icon name="i-x" />
         </button>
       </div>
       <!-- 活动标签底部独立滑轨：独立元素，不随标签重建（PHASE2-SPEC §2） -->
@@ -48,10 +44,7 @@
       :title="t('sideBar.rightPanelTitle')"
       @click.stop="toggleBpPanel"
     >
-      <el-icon :size="16">
-        <Close v-if="bpanelOpen" />
-        <Monitor v-else />
-      </el-icon>
+      <mo-icon :name="bpanelOpen ? 'i-x' : 'i-panel'" />
     </button>
     <bp-modes :shown="bpanelOpen" />
   </div>
@@ -64,7 +57,7 @@ import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
 import dragula from 'dragula'
-import { Operation, Monitor, Close } from '@element-plus/icons-vue'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { showContextMenu } from '../../contextMenu/tabs'
 import bus from '../../bus'
 import notice from '@/services/notification'
@@ -462,6 +455,11 @@ onBeforeUnmount(() => {
   background: var(--hover);
   color: var(--ink);
 }
+/* 原型：开关内图标 16px */
+.tb-toggle svg {
+  width: 16px;
+  height: 16px;
+}
 .tb-toggle.on {
   background: color-mix(in oklab, var(--accent) 10%, transparent);
   color: var(--accent);
@@ -588,6 +586,11 @@ onBeforeUnmount(() => {
 }
 .tab:hover .tclose {
   opacity: 1;
+}
+/* 原型：关闭图标 10px，墨灰 #898781 级 */
+.tab .tclose svg {
+  width: 10px;
+  height: 10px;
 }
 .tab .tclose:hover {
   background: var(--selected);

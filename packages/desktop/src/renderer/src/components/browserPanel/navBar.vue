@@ -1,19 +1,13 @@
 <template>
   <div class="bp-browserbar">
     <button title="后退" :disabled="!canGoBack" @click="goBack">
-      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6">
-        <path d="M9 2.5 4.5 7 9 11.5" />
-      </svg>
+      <mo-icon name="i-chev-left" />
     </button>
     <button title="前进" :disabled="!canGoForward" @click="goForward">
-      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6">
-        <path d="M5 2.5 9.5 7 5 11.5" />
-      </svg>
+      <mo-icon name="i-chev-right" />
     </button>
     <button title="重新加载" @click="reload">
-      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6">
-        <path d="M11.5 7a4.5 4.5 0 1 1-1.32-3.18M11.5 1.5v3h-3" />
-      </svg>
+      <mo-icon name="i-refresh" />
     </button>
     <span class="bp-location-wrap">
       <input
@@ -29,11 +23,7 @@
         aria-label="在默认浏览器中打开"
         @click.stop="openExternal"
       >
-        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4">
-          <path
-            d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v6A1.5 1.5 0 0 0 3.5 12h6a1.5 1.5 0 0 0 1.5-1.5V8M8 2h4v4M12 2 6.5 7.5"
-          />
-        </svg>
+        <mo-icon name="i-external" />
       </button>
     </span>
   </div>
@@ -42,6 +32,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { useBrowserPanelStore, resolveInput } from '@/store/browserPanel'
 
 /**

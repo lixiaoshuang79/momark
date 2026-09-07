@@ -23,9 +23,7 @@
       <!-- 底部：网址模式 = 40px 导航条；文档模式 = 「打开文件…」（36px 顶部 hairline） -->
       <nav-bar v-if="mode === 'url'" />
       <button v-else class="bp-openfile" @click="openDocFile">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M2.5 4.5v9h11v-9M2.5 4.5h11M7 4.5V2.5h5l1.5 2" />
-        </svg>
+        <mo-icon name="i-folder" />
         打开文件…
       </button>
     </div>
@@ -35,6 +33,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import { useSplitStore } from '@/store/split'
 import { useWorkspaceStore } from '@/store/workspace'

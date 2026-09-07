@@ -2,10 +2,7 @@
   <div class="bp-doc">
     <!-- 未选择文档空态（PHASE2-SPEC §5 文案） -->
     <div v-if="!hasContent" class="bp-doc-hint">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M7 2.5h7l4 4v15H7z" />
-        <path d="M14 2.5v4h4M9.5 12h6M9.5 15.5h6" />
-      </svg>
+      <mo-icon name="i-doc" />
       <p>
         从顶部标签栏拖一个标签到这里<br />
         即可双屏对照两个文档/网页
@@ -24,6 +21,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import { renderMarkdownPreview } from '@/util/browserPanel'

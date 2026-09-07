@@ -804,7 +804,7 @@
   background: var(--surface-2);
   color: var(--ink);
   font-weight: 600;
-  box-shadow: 0 0 0 1px var(--line);
+  box-shadow: 0 0 0 1px var(--line-strong);
 }
 [data-theme='dark'] .bp-modes button.on {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
@@ -836,13 +836,20 @@
     border-color 0.15s ease,
     box-shadow 0.15s ease;
 }
-.crumb-pbtn.rolled,
+.crumb-pbtn.rolled {
+  background: var(--surface-2);
+  color: var(--accent);
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+}
+/* 原型：标签栏开关 rolled = 圆 50% + 左滚 3px + 微投影；面包屑行开关不位移 */
 .tb-toggle.panel-toggle.rolled {
   background: var(--surface-2);
   color: var(--accent);
   border: 1px solid var(--line-strong);
   border-radius: 50%;
   transform: rotate(-180deg) translateX(3px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 /* ── 面包屑：分屏右侧文档名（状态点+路径，可拖回标签栏）── */

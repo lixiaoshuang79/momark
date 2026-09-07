@@ -7,10 +7,7 @@
       title="网址模式"
       @click.stop="select('url')"
     >
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="8" cy="8" r="6" />
-        <path d="M2 8h12M8 2c2 3.3 2 8.7 0 12M8 2c-2 3.3-2 8.7 0 12" />
-      </svg>
+      <mo-icon name="i-globe" />
       网址
     </button>
     <button
@@ -20,10 +17,7 @@
       title="文档模式"
       @click.stop="select('doc')"
     >
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M3 1.5h7l3 3v10H3z" />
-        <path d="M10 1.5v3h3M5.5 8h5M5.5 10.5h5" />
-      </svg>
+      <mo-icon name="i-doc" />
       文档
     </button>
   </div>
@@ -31,6 +25,7 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 
 // 网址/文档选择器（PHASE2-SPEC §5）：紧跟开关之后，无独立头部行。

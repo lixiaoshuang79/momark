@@ -16,14 +16,13 @@
       <span class="ud-bubble">{{ page.url }}</span>
     </button>
     <button type="button" class="ud-add" title="新增网页" @click.stop="openAddr">
-      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6">
-        <path d="M7 2v10M2 7h10" />
-      </svg>
+      <mo-icon name="i-plus" />
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 
 // 网址右缘 Dock（PHASE2-SPEC §5）：≥2 页显示；34×34 圆角 9px 底 --ud-bg；

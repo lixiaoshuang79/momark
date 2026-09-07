@@ -11,10 +11,7 @@
     @drop="onDrop"
   >
     <div class="drop-message">
-      <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5">
-        <rect x="2" y="2.5" width="6" height="13" rx="1" />
-        <rect x="10" y="2.5" width="6" height="13" rx="1" />
-      </svg>
+      <mo-icon name="i-partition" />
       <span>{{ blocked ? '该文件已在右侧分屏' : '拖动到此，分屏展开' }}</span>
     </div>
   </div>
@@ -22,6 +19,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { useSplitStore } from '@/store/split'
 import notice from '@/services/notification'
 

@@ -15,55 +15,17 @@
         </div>
 
         <button class="bigbtn" @click="onNewDocument">
-          <!-- 笔：极简内联 SVG（不引入新资产） -->
-          <svg
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M2.5 13.5l1.1-3.6 8.2-8.2a1.06 1.06 0 011.5 0l1 1a1.06 1.06 0 010 1.5l-8.2 8.2-3.6 1.1z"
-            />
-            <path d="M10.3 3.2l2.5 2.5" />
-          </svg>
+          <mo-icon name="i-pen" />
           <span>{{ t('welcome.newDocument') }}</span>
         </button>
 
         <button class="bigbtn" @click="onOpenFolder">
-          <!-- 文件夹 -->
-          <svg
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M1.8 4.2c0-.8.6-1.4 1.4-1.4h3l1.6 1.6h5c.8 0 1.4.6 1.4 1.4v6.4c0 .8-.6 1.4-1.4 1.4H3.2c-.8 0-1.4-.6-1.4-1.4V4.2z"
-            />
-          </svg>
+          <mo-icon name="i-folder" />
           <span>{{ t('welcome.openFolder') }}</span>
         </button>
 
         <button class="bigbtn" @click="onOpenFile">
-          <!-- 文件 -->
-          <svg
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M9.3 1.8H4.6c-.8 0-1.4.6-1.4 1.4v9.6c0 .8.6 1.4 1.4 1.4h6.8c.8 0 1.4-.6 1.4-1.4V5.3l-3.5-3.5z"
-            />
-            <path d="M9.3 1.8v3.5h3.5" />
-          </svg>
+          <mo-icon name="i-file" />
           <span>{{ t('welcome.openFile') }}</span>
         </button>
       </div>
@@ -79,19 +41,7 @@
               :title="item.path"
               @click="onOpenRecent(item.path)"
             >
-              <svg
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.3"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M9.3 1.8H4.6c-.8 0-1.4.6-1.4 1.4v9.6c0 .8.6 1.4 1.4 1.4h6.8c.8 0 1.4-.6 1.4-1.4V5.3l-3.5-3.5z"
-                />
-                <path d="M9.3 1.8v3.5h3.5" />
-              </svg>
+              <mo-icon name="i-file" />
               <div class="rn">
                 <div class="n">
                   {{ item.name }}
@@ -106,18 +56,7 @@
         </template>
 
         <div v-else class="no-recent">
-          <!-- 时钟：极简内联 SVG -->
-          <svg
-            viewBox="0 0 36 36"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="18" cy="18" r="13.5" />
-            <path d="M18 11.5v6.5l4 2.6" />
-          </svg>
+          <mo-icon name="i-clock" />
           <p>{{ t('welcome.noRecentText') }}</p>
           <button class="nr-new" @click="onNewDocument">
             {{ t('welcome.newDocument') }}
@@ -131,6 +70,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { t } from '../i18n'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { addThemeStyle } from '@/util/theme'
 import dayjs from '@/util/day'
 
@@ -280,7 +220,7 @@ onMounted(() => {
   width: 16px;
   height: 16px;
   flex: none;
-  color: var(--muted);
+  color: var(--accent);
 }
 
 /* ── 右列：最近打开列表 / 首启空态 ── */
@@ -327,10 +267,10 @@ onMounted(() => {
 }
 
 .recent-item svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   flex: none;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .recent-item .rn {
@@ -371,8 +311,8 @@ onMounted(() => {
 }
 
 .no-recent svg {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   color: var(--faint);
   opacity: 0.7;
 }

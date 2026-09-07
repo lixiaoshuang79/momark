@@ -86,6 +86,44 @@ export const FLATTENED_LEAVES = new Set([
   'file.export-file-docx'
 ])
 
+/** 命令 → 原型 symbol id（与 prototype COMMANDS 表一一对应；原型未收录的命令留空无图标）。 */
+export const PALETTE_ICONS: Record<string, string> = {
+  'file.preferences': 'i-gear',
+  'file.new-tab': 'i-plus',
+  'file.open-file': 'i-folder',
+  'file.open-folder': 'i-folder',
+  'file.save': 'i-save',
+  'file.save-as': 'i-save',
+  'file.export-file-html': 'i-export',
+  'file.export-file-pdf': 'i-export',
+  'file.export-file-docx': 'i-export',
+  'file.print': 'i-print',
+  'file.import-file': 'i-export',
+  'file.close-tab': 'i-x',
+  'file.close-window': 'i-x',
+  'edit.undo': 'i-undo',
+  'edit.redo': 'i-redo',
+  'edit.find': 'i-search',
+  'edit.replace': 'i-search',
+  'edit.find-in-folder': 'i-search',
+  'view.focus-mode': 'i-focus',
+  'view.toggle-sidebar': 'i-sidebar',
+  'view.toggle-tabbar': 'i-panel',
+  'window.change-theme': 'i-sun',
+  'file.zoom': 'i-plus',
+  'view.text-direction': 'i-abc',
+  'paragraph.heading-1': 'i-hash',
+  'format.strong': 'i-bold',
+  'format.emphasis': 'i-italic',
+  'format.strike': 'i-abc',
+  'paragraph.quote-block': 'i-quote',
+  'format.hyperlink': 'i-link',
+  'paragraph.table': 'i-table',
+  'paragraph.code-fence': 'i-code',
+  'format.image': 'i-image',
+  'paragraph.math-formula': 'i-graph'
+}
+
 export const groupLabel = (key: PaletteGroupKey): string => {
   const def = PALETTE_GROUP_DEFS.find((g) => g.key === key)
   return def ? t(def.labelKey) : key

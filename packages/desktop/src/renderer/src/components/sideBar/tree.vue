@@ -1,5 +1,6 @@
 <template>
   <div class="side-bar-files">
+    <div v-if="dirLabel" class="sb-head">文件夹 · {{ dirLabel }}</div>
     <div v-if="dirFiles.length" class="file-list">
       <div
         v-for="file of dirFiles"
@@ -9,7 +10,7 @@
         @click="handleFileClick(file.pathname)"
         @mousedown.prevent
       >
-        <file-icon :name="file.name" />
+        <mo-icon name="i-file" />
         <span class="fname">{{ file.name }}</span>
         <span v-if="isCurrentFile(file.pathname)" class="cur">{{
           t('sideBar.tree.currentFile')
@@ -23,11 +24,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/store/editor'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { t } from '../../i18n'
-import FileIcon from './icon.vue'
 
 const editorStore = useEditorStore()
 const { currentFile, tabs } = storeToRefs(editorStore)
@@ -39,6 +40,12 @@ interface DirFile {
 
 // 文件 tab：当前文档所在目录的 .md 文件列表（文件名排序，含当前文件本身）。
 const dirFiles = ref<DirFile[]>([])
+
+// 目录标签（原型 sb-head：「文件夹 · ~/path/」）
+const dirLabel = computed(() => {
+  const pathname = currentFile.value?.pathname ?? ''
+  return pathname ? window.path.dirname(pathname) : ''
+})
 
 const loadDirFiles = async (): Promise<void> => {
   const file = currentFile.value
@@ -100,6 +107,18 @@ const handleFileClick = (pathname: string): void => {
   flex-direction: column;
 }
 
+/* 原型 sb-head：「文件夹 · 路径」小标题 */
+.sb-head {
+  font-size: var(--f11);
+  color: var(--faint);
+  padding: 6px 8px 7px;
+  font-weight: 600;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sb-row {
   display: flex;
   align-items: center;
@@ -112,6 +131,14 @@ const handleFileClick = (pathname: string): void => {
   cursor: pointer;
   margin-bottom: 1px;
   transition: background 0.15s ease;
+}
+
+/* 原型：行首统一 i-file 图标 15px 墨灰 */
+.sb-row svg {
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  flex: none;
 }
 
 .sb-row:hover {

@@ -69,6 +69,7 @@
                 @mouseenter="selectedCommandIndex = item.flatIndex"
                 @click="executeItem(item)"
               >
+                <mo-icon v-if="iconOf(item.id)" :name="iconOf(item.id)!" />
                 <span class="name">
                   <template v-for="(seg, segIndex) of item.segments" :key="segIndex">
                     <mark v-if="seg.hit">{{ seg.text }}</mark>
@@ -100,11 +101,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, nextTick, onBeforeUpdate, computed } from 'vue'
 import { useCommandCenterStore } from '@/store/commandCenter'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { t } from '../../i18n'
 import log from 'electron-log'
 import bus from '../../bus'
 import notice from '../../services/notification'
-import { PALETTE_GROUP_DEFS, FLATTENED_LEAVES, groupLabel } from './grouping'
+import { PALETTE_GROUP_DEFS, FLATTENED_LEAVES, groupLabel, PALETTE_ICONS } from './grouping'
+
+// 命令 → 原型 symbol（未映射的命令无图标）。
+const iconOf = (id: string): string | undefined => PALETTE_ICONS[id]
 
 // Loose typing for command descriptors — they originate from heterogeneous
 // sources (static, runtime, quickOpen search results) and have legacy duck-
@@ -556,7 +561,6 @@ onBeforeUnmount(() => {
 .item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   height: 36px;
   padding: 0 10px;
@@ -564,6 +568,19 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: background 0.15s ease;
   user-select: none;
+}
+
+/* 原型：条目图标 15px 墨灰；选中态随文字反白 */
+.item svg {
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  flex: none;
+}
+
+.item.sel svg {
+  color: var(--accent-on);
+  opacity: 0.85;
 }
 
 .item:hover {

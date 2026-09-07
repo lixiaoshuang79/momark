@@ -9,10 +9,7 @@
     />
 
     <div v-if="urlPages.length === 0" class="bp-url-empty">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18" />
-      </svg>
+      <mo-icon name="i-globe" />
       <p>点击右上角 + 搜索或输入网址<br />即可在面板内浏览网页</p>
     </div>
 
@@ -24,10 +21,7 @@
 
     <!-- 加载失败：原因 + 重试（-3 忽略、isMainFrame 判定已在上游处理） -->
     <div v-if="activePage && activePage.error" class="bp-fail">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-        <path d="M12 9v4.5M12 16.5v.5" stroke-linecap="round" />
-        <path d="M10.3 3.7 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" />
-      </svg>
+      <mo-icon name="i-warn" />
       <p>无法打开网址</p>
       <p class="why">
         {{ activePage.error }}
@@ -49,6 +43,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import WebviewPage from './webviewPage.vue'
 import AddrWrap from './addrWrap.vue'

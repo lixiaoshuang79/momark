@@ -27,10 +27,7 @@
       :title="t('sideBar.rightPanelTitle')"
       @click.stop="toggleBpPanel"
     >
-      <el-icon :size="13">
-        <Close v-if="bpanelOpen" />
-        <Monitor v-else />
-      </el-icon>
+      <mo-icon :name="bpanelOpen ? 'i-x' : 'i-panel'" />
     </button>
     <!-- 单文档态：网址/文档选择器紧跟开关之后（多文档态在标签栏开关旁） -->
     <bp-modes v-if="isSingleDoc" :shown="bpanelOpen" />
@@ -43,7 +40,7 @@ import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/store/editor'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useBrowserPanelStore } from '@/store/browserPanel'
-import { Monitor, Close } from '@element-plus/icons-vue'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import bus from '@/bus'
 import BpModes from '@/components/browserPanel/bpModes.vue'
 import { t } from '../../i18n'
@@ -174,6 +171,7 @@ const onDocnameDragEnd = () => {
   align-items: center;
   justify-content: center;
   margin-left: auto;
+  margin-right: 8px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -182,6 +180,11 @@ const onDocnameDragEnd = () => {
   transition:
     background 0.15s ease,
     color 0.15s ease;
+}
+/* 原型：面包屑行开关图标 13px */
+.crumb-pbtn svg {
+  width: 13px;
+  height: 13px;
 }
 .crumb-pbtn:hover {
   background: var(--hover);
