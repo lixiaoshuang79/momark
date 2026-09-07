@@ -8,18 +8,35 @@
 // url() 按「页面基址」解析，`../fonts/x` 会解析到错误的 /fonts/x 而 404
 // （曾导致全 app 回退字体渲染）。`new URL(..., import.meta.url)` 在 dev 指向
 // 源文件 URL、build 时由 vite 重写为哈希资产 URL，两端都正确。
-const FACES: Array<{ family: string; url: string; weight: string }> = [
-  { family: 'Anthropic', url: '../fonts/Anthropic.woff2', weight: '300 800' },
-  { family: 'AnthropicSerif', url: '../fonts/AnthropicSerif.woff2', weight: '300 800' },
-  { family: 'Geist', url: '../fonts/geist.woff2', weight: '100 900' },
-  { family: 'Newsreader', url: '../fonts/newsreader.woff2', weight: '200 800' }
+// ⚠️ 必须传字面量路径：vite 只静态改写字面量形式；写成变量会导致 build 产物
+// 原样保留相对路径、字体文件不入包。
+const FACES: Array<{ family: string; weight: string; src: string }> = [
+  {
+    family: 'Anthropic',
+    weight: '300 800',
+    src: new URL('../fonts/Anthropic.woff2', import.meta.url).href
+  },
+  {
+    family: 'AnthropicSerif',
+    weight: '300 800',
+    src: new URL('../fonts/AnthropicSerif.woff2', import.meta.url).href
+  },
+  {
+    family: 'Geist',
+    weight: '100 900',
+    src: new URL('../fonts/geist.woff2', import.meta.url).href
+  },
+  {
+    family: 'Newsreader',
+    weight: '200 800',
+    src: new URL('../fonts/newsreader.woff2', import.meta.url).href
+  }
 ]
 
 const css = FACES.map((face) => {
-  const src = new URL(face.url, import.meta.url).href
   return (
     `@font-face{font-family:'${face.family}';` +
-    `src:url('${src}') format('woff2');` +
+    `src:url('${face.src}') format('woff2');` +
     `font-weight:${face.weight};font-style:normal;font-display:swap}`
   )
 }).join('\n')
