@@ -149,6 +149,7 @@
 body {
   font-family: var(--font-body);
   color: var(--ink);
+  transition: background 0.2s ease;
 }
 
 /* 全局元素预设（对齐原型 button{font-family:inherit}：

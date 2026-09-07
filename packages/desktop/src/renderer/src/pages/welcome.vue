@@ -136,6 +136,18 @@ onMounted(() => {
   color: var(--ink);
   font-family: var(--font-body);
   overflow: hidden;
+  /* 原型 .page.active 入场（fadein .2s ease：透明+下移 4px → 原位） */
+  animation: fadein 0.2s ease;
+}
+@keyframes fadein {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .win-titlebar {
@@ -200,7 +212,7 @@ onMounted(() => {
   font-family: var(--font-body);
   cursor: pointer;
   box-shadow: var(--elev-ring);
-  transition: background var(--motion-fast) var(--ease-standard);
+  transition: background 0.15s ease;
 }
 
 .bigbtn:hover {

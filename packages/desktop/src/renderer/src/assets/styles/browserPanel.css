@@ -272,6 +272,7 @@
   place-items: center;
   font-size: 12px;
   font-weight: 700;
+  transition: transform 0.22s ease;
 }
 .ud-ic img {
   width: 16px;
@@ -655,6 +656,49 @@
   padding: 6px 10px;
   text-align: left;
 }
+/* ── 文档切换行进出动画 = 原型 .wysiwyg>.line-enter/.line-exit 逐字复刻
+      （公式在 docMode.vue：距离/时长/延迟都按行文本长度与下标计算）── */
+.bp-doc .markdown-body > .line-enter {
+  animation:
+    docLineIn var(--line-duration, 0.72s) cubic-bezier(0.16, 1.14, 0.3, 1)
+    var(--line-delay, 0ms) both;
+  will-change: transform, opacity, filter;
+}
+.bp-doc .markdown-body > .line-exit {
+  animation:
+    docLineOut var(--line-out-duration, 0.28s) cubic-bezier(0.4, 0, 0.8, 0.2)
+    var(--line-delay, 0ms) both;
+  will-change: transform, opacity, filter;
+}
+@keyframes docLineIn {
+  0% {
+    opacity: 0;
+    transform: translateX(var(--line-x, 160px));
+    filter: blur(2px);
+  }
+  72% {
+    opacity: 1;
+    transform: translateX(calc(var(--line-x, 160px) * -0.025));
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes docLineOut {
+  0% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(var(--line-out-x, -150px));
+    filter: blur(1.5px);
+  }
+}
 /* ── 底部条：网址模式 = 40px 导航条；文档模式 = 36px 打开文件（顶部 hairline）── */
 .bp-openfile {
   flex: none;
@@ -847,13 +891,13 @@
 /* ── 右栏开关按钮滚动变圆形 X（.rolled）── */
 .crumb-pbtn,
 .tb-toggle.panel-toggle {
+  /* 原型 .tb-toggle 单规则全量列表：bg/color .22s、radius .38s、transform .48s、shadow .22s */
   transition:
-    transform 0.42s var(--ease-panel),
-    background 0.15s ease,
-    color 0.15s ease,
-    border-radius 0.42s var(--ease-panel),
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+    background 0.22s ease,
+    color 0.22s ease,
+    border-radius 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease;
 }
 .crumb-pbtn.rolled {
   background: var(--surface-2);
