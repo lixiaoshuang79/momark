@@ -107,21 +107,29 @@
   --notificationErrorBg: #ff6969;
 }
 
+/* 全局滚动条：细药丸形（9px 轨道内 5px 圆角滑块，2px 透明描边留白），
+   hover 加深；轨道透明贴合画布，替换旧版 12px 粗方条。 */
 ::-webkit-scrollbar,
 ::-webkit-scrollbar-corner {
-  background: var(--floatHoverColor);
+  width: 9px;
+  height: 9px;
+  background: transparent;
 }
 
-::-webkit-scrollbar:vertical {
-  width: 12px;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--editorColor30);
+  border-radius: 9px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--editorColor50);
+  background-clip: padding-box;
 }
 
 :focus {

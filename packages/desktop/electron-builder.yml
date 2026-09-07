@@ -1,5 +1,5 @@
 appId: com.momark.app
-productName: MoMark
+productName: 墨记
 directories:
   buildResources: build
   output: ../../dist

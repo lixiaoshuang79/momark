@@ -21,7 +21,10 @@
       <span class="path">{{ splitDocDisplay }}</span>
     </span>
 
+    <!-- 右栏开关：仅单文档态（标签栏整行不渲染），多文档/分屏态由标签栏
+         的 .tb-toggle 承接 —— 每个场景只有一个开启按钮。 -->
     <button
+      v-if="isSingleDoc"
       class="crumb-pbtn"
       :class="{ rolled: bpanelOpen }"
       :title="t('sideBar.rightPanelTitle')"

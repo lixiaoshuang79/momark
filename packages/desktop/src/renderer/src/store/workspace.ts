@@ -36,11 +36,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return editorStore.tabs.find((t) => t.id === splitStore.tabId) ?? null
   })
 
-  // 面板宽度：http://… 默认 288px；分屏激活用 split.width（240~60%），
-  // 拖拽中由分隔线实时写入。开合宽度动画在 .bpanel 上以 CSS transition 实现。
+  // 面板宽度：分屏激活用 split.width（240~60%）；网页模式用 bp.urlWidth
+  // （分隔线可拖动，默认 288px）。拖拽中由分隔线实时写入。
   const panelWidthPx = computed<number>(() => {
     if (splitStore.active) return splitStore.width
-    return 288
+    return bpStore.urlWidth
   })
 
   return {

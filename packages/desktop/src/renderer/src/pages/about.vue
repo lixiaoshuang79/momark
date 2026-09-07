@@ -4,8 +4,8 @@
 
     <div class="about-body">
       <!-- 冻结 icon-1：92px、圆角 21px -->
-      <img class="app-icon" :src="MoMarkLogo" alt="墨记 MoMark" />
-      <h2>墨记 MoMark</h2>
+      <img class="app-icon" :src="MoMarkLogo" alt="墨记" />
+      <h2>墨记</h2>
       <div class="ver">{{ t('about.version') }} {{ version }}</div>
 
       <div class="line" />

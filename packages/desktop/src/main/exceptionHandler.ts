@@ -94,7 +94,7 @@ ${title}.
 
 ### Version
 
-MoMark: ${MARKTEXT_VERSION_STRING}
+墨记: ${MARKTEXT_VERSION_STRING}
 Operating system: ${getOSInformation()}`
         )
         break
@@ -128,8 +128,8 @@ const setupExceptionHandler = (): void => {
 
   // start crashReporter to save core dumps to temporary folder
   crashReporter.start({
-    companyName: 'MoMark',
-    productName: 'MoMark',
+    companyName: '墨记',
+    productName: '墨记',
     submitURL: 'http://0.0.0.0/',
     uploadToServer: false,
     compress: true

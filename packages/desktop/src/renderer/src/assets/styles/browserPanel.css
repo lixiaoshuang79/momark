@@ -283,6 +283,39 @@
   width: 13px;
   height: 13px;
 }
+/* hover 关闭 ×：悬于图标与左侧 URL 气泡之间的小圆钮，hover 该项才出现 */
+.ud-close {
+  position: absolute;
+  left: -26px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--hudbg);
+  color: var(--hudfg);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: var(--shadow-pop);
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease;
+  z-index: 5;
+}
+.ud-close svg {
+  width: 10px;
+  height: 10px;
+}
+.ud-item:hover .ud-close {
+  opacity: 1;
+  pointer-events: auto;
+}
+.ud-close:hover {
+  background: var(--accent);
+  color: #fff;
+}
 /* 完整 URL HUD 气泡（左） */
 .ud-bubble {
   position: absolute;
@@ -823,6 +856,7 @@
   border-radius: 8px;
   padding: 2px;
   flex: none;
+  position: relative;
   transition:
     width 0.5s var(--ease-modes-grow),
     opacity 0.16s ease,
@@ -834,7 +868,33 @@
   transform: scale(1);
   pointer-events: auto;
 }
+
+/* 模式滑动滑块（与左侧栏同款回弹缓动）：白色卡片在 网页/文档 间滑动，
+   按钮只做文字颜色过渡。 */
+.bp-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 3px);
+  height: calc(100% - 4px);
+  background: var(--surface-2);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--line-strong);
+  transition: transform 0.34s cubic-bezier(0.3, 1.35, 0.4, 1);
+  z-index: 0;
+}
+
+[data-theme='dark'] .bp-slider {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.bp-slider.right {
+  transform: translateX(calc(100% + 2px));
+}
+
 .bp-modes button {
+  position: relative;
+  z-index: 1;
   border: none;
   background: transparent;
   color: var(--muted);
@@ -856,27 +916,21 @@
   transition:
     opacity 0.24s ease,
     transform 0.48s var(--ease-modes-tab),
-    background 0.15s ease,
     color 0.15s ease;
 }
 .bp-modes.shown button {
   opacity: 1;
   transform: none;
 }
-.bp-modes.shown button:nth-child(1) {
+.bp-modes.shown button:nth-child(2) {
   transition-delay: 0.08s;
 }
-.bp-modes.shown button:nth-child(2) {
+.bp-modes.shown button:nth-child(3) {
   transition-delay: 0.14s;
 }
 .bp-modes button.on {
-  background: var(--surface-2);
   color: var(--ink);
   font-weight: 600;
-  box-shadow: 0 0 0 1px var(--line-strong);
-}
-[data-theme='dark'] .bp-modes button.on {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 .bp-modes button svg {
   width: 13px;

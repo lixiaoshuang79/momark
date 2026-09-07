@@ -53,7 +53,7 @@ initializeLogger(appEnvironment)
 // Handles native level crashes
 crashReporter.start({
   companyName: '',
-  productName: 'MoMark',
+  productName: '墨记',
   uploadToServer: false, // collect locally
   compress: true
 })

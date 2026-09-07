@@ -44,8 +44,18 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   const docPath = ref<string | null>(null)
   const dockAddrOpen = ref(false)
   const dragState = ref<BpDragState>('none')
+  // 网页模式面板宽度（分隔线可拖动，240px ≤ w ≤ 60% 窗宽；会话内保持，
+  // 不落盘，重启回 288px 默认）。文档分屏的宽度归 split.width 管。
+  const urlWidth = ref(288)
 
   let unlistenNewWindow: (() => void) | null = null
+
+  function SET_URL_WIDTH(value: number): void {
+    const win = window.innerWidth
+    const min = 240
+    const max = Math.max(min, win * 0.6)
+    urlWidth.value = Math.round(Math.max(min, Math.min(max, value)))
+  }
 
   function SET_OPEN(value: boolean): void {
     open.value = value
@@ -172,6 +182,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     docPath,
     dockAddrOpen,
     dragState,
+    urlWidth,
     SET_OPEN,
     TOGGLE_PANEL,
     SET_MODE,
@@ -182,6 +193,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     SET_DOCK_ADDR_OPEN,
     SET_DRAG_STATE,
     SET_DOC_PATH,
+    SET_URL_WIDTH,
     OPEN_EXTERNAL,
     LISTEN,
     STOP_LISTENING

@@ -5,7 +5,12 @@
     @mouseleave="scheduleCollapse"
     @mouseenter="cancelCollapse"
   >
-    <div class="bp-plus" title="搜索 Google 或输入网址" @click.stop="onPlusClick">
+    <div
+      class="bp-plus"
+      title="搜索 Google 或输入网址"
+      @click.stop="onPlusClick"
+      @mouseenter="onPlusEnter"
+    >
       <mo-icon class="bp-plus-ic" name="i-plus" />
       <span class="bp-bar">
         <mo-icon class="gicon" name="i-google" />
@@ -15,6 +20,7 @@
           placeholder="搜索 Google 或输入网址"
           aria-label="搜索或输入网址"
           @keydown.enter.prevent="go"
+          @blur="onInputBlur"
         />
         <button class="bp-go" @click.stop="go">前往</button>
       </span>
@@ -30,9 +36,10 @@ import { useBrowserPanelStore, resolveInput } from '@/store/browserPanel'
 import notice from '@/services/notification'
 
 /**
- * 单页悬浮「+」胶囊（PHASE2-SPEC §5）：34×34 卡片底描边 right:6px top:8px；
- * 点击生长为网址栏 width min(320px, 100% - 12px)（.46s --ease-grow）；
- * 含 Google 彩 G 图标 + 输入框 + 前往按钮；mouseleave 自动收起。
+ * 单页「+」胶囊（PHASE2-SPEC §5）：34×34 卡片底描边 right:6px top:8px；
+ * + 与 Google 搜索栏是一个控件的两种状态 —— hover 自动展开为网址栏
+ * width min(320px, 100% - 12px)（.46s --ease-grow），移出收起；点击
+ * 仍可切换。含 Google 彩 G 图标 + 输入框 + 前往按钮。
  * 输入判断：URL（含协议/域名样式无空格）→ 自动补 https://；否则 Google 搜索。
  */
 
@@ -43,19 +50,33 @@ const inputEl = ref<HTMLInputElement | null>(null)
 const inputText = ref('')
 let leaveTimer: ReturnType<typeof setTimeout> | null = null
 
+// hover + 即展开（两个状态一个控件），展开后聚焦输入框。
+const onPlusEnter = () => {
+  cancelCollapse()
+  if (!dockAddrOpen.value) bpStore.SET_DOCK_ADDR_OPEN(true)
+  setTimeout(() => inputEl.value?.focus(), 60)
+}
+
 const onPlusClick = () => {
+  cancelCollapse()
   bpStore.SET_DOCK_ADDR_OPEN(!dockAddrOpen.value)
   if (dockAddrOpen.value) {
-    // 展开后聚焦输入框（无自动聚焦的是底部地址栏，这里展开即输入意图）。
     setTimeout(() => inputEl.value?.focus(), 60)
   }
 }
 
 const scheduleCollapse = () => {
   cancelCollapse()
+  // 正在输入时不收起（保护输入内容）。
+  if (inputText.value.trim()) return
   leaveTimer = setTimeout(() => {
     bpStore.SET_DOCK_ADDR_OPEN(false)
-  }, 180)
+  }, 220)
+}
+
+// 输入框失焦且为空时收起（点页面别处）。
+const onInputBlur = () => {
+  scheduleCollapse()
 }
 
 const cancelCollapse = () => {

@@ -105,7 +105,7 @@ const { windowActive, platform, init } = storeToRefs(mainStore)
 const { sourceCode, theme, customCss, textDirection, zoom } = storeToRefs(preferencesStore)
 const { projectTree } = storeToRefs(projectStore)
 const { currentFile, tabs } = storeToRefs(editorStore)
-const { open: bpanelOpen } = storeToRefs(bpStore)
+const { open: bpanelOpen, mode: bpanelMode } = storeToRefs(bpStore)
 const { active: splitActive, draggingSplit } = storeToRefs(splitStore)
 const { scene, tabbarVisible } = storeToRefs(workspaceStore)
 
@@ -141,7 +141,10 @@ const winBodyClasses = computed(() => ({
   'dragging-split': draggingSplit.value
 }))
 
-const showSplitter = computed(() => splitActive.value && bpanelOpen.value)
+// 分隔线：文档分屏时始终可拖；网页模式（无分屏）也允许拖动调整面板宽度。
+const showSplitter = computed(
+  () => bpanelOpen.value && (splitActive.value || bpanelMode.value === 'url')
+)
 
 // Watchers
 watch(theme, (value, oldValue) => {

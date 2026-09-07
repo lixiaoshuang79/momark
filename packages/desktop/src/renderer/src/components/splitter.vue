@@ -10,15 +10,16 @@
 <script setup lang="ts">
 import { ref, onBeforeUnmount } from 'vue'
 import { useSplitStore } from '@/store/split'
-import notice from '@/services/notification'
+import { useBrowserPanelStore } from '@/store/browserPanel'
 
 /**
- * 双屏分栏分隔线（PHASE2-SPEC §3.4）：8px 命中区、中间 1px --line
- * （hover 变 accent）；pointer capture 拖动：右栏 240px ≤ w ≤ 60% 窗宽，
- * 拖到 ≥90% 窗宽自动关闭分屏；拖动结束 toast 报告宽度。
+ * 右栏分隔线：8px 命中区、中间 1px --line（hover 变 accent）；pointer capture
+ * 拖动。两种场景共用：文档分屏（写 split.width，240px~60% 窗宽，≥90% 自动关闭）
+ * 与网页模式（写 bp.urlWidth，同一夹逼区间）。拖动结束不弹 toast。
  */
 
 const splitStore = useSplitStore()
+const bpStore = useBrowserPanelStore()
 const splitterEl = ref<HTMLElement | null>(null)
 
 let dragging = false
@@ -29,11 +30,14 @@ const panelWidthFrom = (clientX: number) => {
   if (!winBody) return
   const rect = winBody.getBoundingClientRect()
   const w = rect.right - clientX
-  splitStore.SET_SPLIT_WIDTH(w) // 内部处理 240/60% 夹逼与 ≥90% 自动关闭
+  if (splitStore.active) {
+    splitStore.SET_SPLIT_WIDTH(w) // 内部处理 240/60% 夹逼与 ≥90% 自动关闭
+  } else {
+    bpStore.SET_URL_WIDTH(w)
+  }
 }
 
 const onPointerDown = (event: PointerEvent) => {
-  if (!splitStore.active) return
   dragging = true
   splitStore.draggingSplit = true
   const el = splitterEl.value
@@ -59,13 +63,6 @@ const onPointerUp = () => {
   el?.removeEventListener('pointermove', onPointerMove)
   el?.removeEventListener('pointerup', onPointerUp)
   el?.removeEventListener('pointercancel', onPointerUp)
-  if (splitStore.active) {
-    notice.notify({
-      message: `分栏宽度已调整（${splitStore.width}px）`,
-      type: 'primary',
-      time: 2000
-    })
-  }
 }
 
 onBeforeUnmount(() => {

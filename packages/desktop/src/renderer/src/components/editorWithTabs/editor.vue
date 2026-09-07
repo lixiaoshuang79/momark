@@ -2193,12 +2193,6 @@ onBeforeUnmount(() => {
   overflow-anchor: none !important;
 }
 
-/* 编辑区聚焦环（PHASE2-SPEC §6）：聚焦时 inset 1.5px 墨蓝环，失焦移除。
-   引擎替换原容器节点时会拷贝 class，故对运行时注入的 .editor-component 同样生效。 */
-.editor-component:focus-within {
-  box-shadow: inset 0 0 0 1.5px var(--accent);
-}
-
 .editor-component .mu-container {
   padding-top: 20px;
   padding-bottom: 100vh;

@@ -1,14 +1,15 @@
 <template>
   <div class="bp-modes" :class="{ shown: shown }" role="tablist" aria-label="面板模式">
+    <span class="bp-slider" :class="{ right: mode === 'doc' }" aria-hidden="true" />
     <button
       role="tab"
       :aria-selected="mode === 'url'"
       :class="{ on: mode === 'url' }"
-      title="网址模式"
+      title="网页模式"
       @click.stop="select('url')"
     >
       <mo-icon name="i-globe" />
-      网址
+      网页
     </button>
     <button
       role="tab"

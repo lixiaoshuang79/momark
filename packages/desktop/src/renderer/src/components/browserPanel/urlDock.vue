@@ -13,6 +13,10 @@
         <img v-if="page.favicon" :src="page.favicon" alt="" />
         <span v-else class="ud-letter">{{ letterOf(page) }}</span>
       </span>
+      <!-- hover 出现的关闭按钮：位于小图标与 URL 气泡之间 -->
+      <span role="button" class="ud-close" title="关闭该网页" @click.stop="close(page.id)">
+        <mo-icon name="i-x" />
+      </span>
       <span class="ud-bubble">{{ page.url }}</span>
     </button>
     <button type="button" class="ud-add" title="新增网页" @click.stop="openAddr">
@@ -27,7 +31,7 @@ import { useBrowserPanelStore } from '@/store/browserPanel'
 
 // 网址右缘 Dock（PHASE2-SPEC §5）：≥2 页显示；34×34 圆角 9px 底 --ud-bg；
 // hover translateX(-3px) scale(1.08) + HUD 气泡；当前=白底 1.5px 墨蓝边；
-// 相邻项 scale(.96)；末尾虚线 + 新增（展开网址栏）。
+// 相邻项 scale(.96)；末尾虚线 + 新增（展开网址栏）；每项 hover 出现关闭 ×。
 defineProps<{
   pages: import('@/store/browserPanel').WebPage[]
   activePageId: string | null
@@ -37,6 +41,10 @@ const bpStore = useBrowserPanelStore()
 
 const activate = (id: string) => {
   bpStore.ACTIVATE_PAGE(id)
+}
+
+const close = (id: string) => {
+  bpStore.CLOSE_PAGE(id)
 }
 
 const openAddr = () => {

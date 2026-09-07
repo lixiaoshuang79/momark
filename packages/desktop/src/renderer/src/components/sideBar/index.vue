@@ -1,8 +1,10 @@
 <template>
   <div v-show="showSideBar" class="side-bar">
     <div class="sb-inner">
-      <!-- 顶部「大纲 / 文件」双 tab 中性胶囊：容器 hover 底圆角 8px；选中=卡片底+hairline 描边+深色文字（不用墨蓝填充） -->
+      <!-- 顶部「大纲 / 文件」双 tab：白色滑块在选中项间滑动（回弹缓动，非线性），
+           按钮自身不再换底，仅滑块位移 + 文字颜色过渡。 -->
       <div class="sb-tabs" role="tablist">
+        <span class="sb-slider" :class="{ right: activeTab === 'files' }" aria-hidden="true" />
         <button
           role="tab"
           :aria-selected="activeTab === 'outline'"
@@ -94,9 +96,35 @@ const selectTab = (tab: SideBarTab): void => {
   padding: 2px;
   margin-bottom: 10px;
   flex: none;
+  position: relative;
+}
+
+/* 滑动滑块：尺寸=单个按钮，在 padding/gap 内平移；回弹缓动（非线性，
+   超越终点后回弹的弹簧手感）。按钮内容 z-index 在滑块之上。 */
+.sb-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 3px);
+  height: calc(100% - 4px);
+  background: var(--surface-2);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--line);
+  transition: transform 0.34s cubic-bezier(0.3, 1.35, 0.4, 1);
+  z-index: 0;
+}
+
+[data-theme='dark'] .sb-slider {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.sb-slider.right {
+  transform: translateX(calc(100% + 2px));
 }
 
 .sb-tabs button {
+  position: relative;
+  z-index: 1;
   flex: 1;
   border: none;
   background: transparent;
@@ -106,20 +134,12 @@ const selectTab = (tab: SideBarTab): void => {
   padding: 5px 0;
   border-radius: 6px;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .sb-tabs button.on {
-  background: var(--surface-2);
   color: var(--ink);
   font-weight: 600;
-  box-shadow: 0 0 0 1px var(--line);
-}
-
-[data-theme='dark'] .sb-tabs button.on {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .sb-sec {
