@@ -521,6 +521,7 @@ onBeforeUnmount(() => {
 
 .tab .tname {
   font-size: var(--f11);
+  line-height: 1.45;
   font-weight: 600;
   color: var(--muted);
   white-space: nowrap;

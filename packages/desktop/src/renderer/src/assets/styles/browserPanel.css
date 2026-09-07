@@ -99,6 +99,7 @@
   color: var(--ink);
   box-shadow: var(--shadow-pop);
   font-size: var(--f12);
+  line-height: 1.45;
   font-weight: 600;
 }
 .split-drop-zone .drop-message svg {
@@ -397,6 +398,7 @@
   width: 100%;
   min-width: 0;
   padding: 0 10px;
+  line-height: 1.45;
   opacity: 0;
   transform: translateX(18px);
   pointer-events: none;
@@ -536,39 +538,67 @@
   background: var(--c-bg);
   padding: 4px 32px 90px;
 }
-.bp-doc .bp-doc-title {
-  font-size: var(--f13);
-  font-weight: 600;
-  color: var(--ink);
-  padding: 12px 0 8px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 16px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* 内容排版 = 原型 .wysiwyg 逐条复刻（Claude Code 实机 .assistant 渲染） */
 .bp-doc .markdown-body {
   font-family: var(--font-body);
-  font-size: var(--editor-body-size);
-  line-height: var(--editor-body-lh);
+  font-size: 15px;
+  line-height: 1.58;
   color: var(--c-texPri);
   word-break: break-word;
 }
-.bp-doc .markdown-body h1,
-.bp-doc .markdown-body h2,
-.bp-doc .markdown-body h3 {
-  color: var(--c-texPri);
-  font-family: var(--font-display);
-  margin: 18px 0 10px;
-}
 .bp-doc .markdown-body h1 {
-  font-size: 24px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 39px;
+  padding: 20px 0;
+  letter-spacing: -0.01em;
+  color: var(--c-texPri);
 }
 .bp-doc .markdown-body h2 {
-  font-size: 18px;
+  font-family: var(--font-body);
+  font-weight: 680;
+  font-size: 17px;
+  line-height: 1.4;
+  margin: 25px 0 7px;
+  color: var(--c-texPri);
 }
 .bp-doc .markdown-body h3 {
+  font-family: var(--font-body);
+  font-weight: 670;
   font-size: 16px;
+  line-height: 1.4;
+  margin: 23px 0 6px;
+  color: var(--c-texPri);
+}
+.bp-doc .markdown-body p {
+  margin: 8px 0;
+}
+.bp-doc .markdown-body strong {
+  font-weight: 650;
+}
+.bp-doc .markdown-body ul,
+.bp-doc .markdown-body ol {
+  padding: 0 0 0 26px;
+}
+.bp-doc .markdown-body li {
+  margin: 5px 0;
+}
+.bp-doc .markdown-body ul {
+  list-style: none;
+}
+.bp-doc .markdown-body ul > li::before {
+  content: '•';
+  display: inline-block;
+  width: 22px;
+  margin-left: -22px;
+  font-size: 15px;
+  line-height: 1.58;
+  vertical-align: -1px;
+  color: var(--c-texPri);
+}
+.bp-doc .markdown-body ol > li {
+  padding-left: 2px;
 }
 .bp-doc .markdown-body img {
   max-width: 100%;
@@ -582,23 +612,37 @@
   color: var(--c-codeTxt);
 }
 .bp-doc .markdown-body pre {
+  font-family: var(--font-mono);
+  font-size: 13.6px;
+  line-height: 20.4px;
   background: var(--c-codeblockBg);
   border: 0.5px solid var(--c-codeblockBorder);
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: 15px 44px 15px 16px;
+  margin: 8px 0;
+  color: var(--c-texPri);
   overflow-x: auto;
+  position: relative;
 }
 .bp-doc .markdown-body pre code {
   background: transparent;
   padding: 0;
+  font-size: inherit;
+  line-height: inherit;
 }
 .bp-doc .markdown-body a {
   color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--c-linkUl);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 10%;
 }
 .bp-doc .markdown-body blockquote {
   border-left: 3px solid var(--c-quoteBar);
-  margin-left: 0;
-  padding-left: 12px;
+  padding: 7px 14px;
+  margin: 16px 0;
+  font-size: 15px;
+  line-height: 1.58;
   color: var(--c-texSec);
 }
 .bp-doc .markdown-body table {
@@ -611,26 +655,6 @@
   padding: 6px 10px;
   text-align: left;
 }
-.bp-doc-hint {
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 12px;
-  height: 100%;
-  color: var(--faint);
-  text-align: center;
-  padding: 24px;
-}
-.bp-doc-hint svg {
-  width: 40px;
-  height: 40px;
-  opacity: 0.6;
-}
-.bp-doc-hint p {
-  font-size: var(--f11);
-  line-height: 1.7;
-}
-
 /* ── 底部条：网址模式 = 40px 导航条；文档模式 = 36px 打开文件（顶部 hairline）── */
 .bp-openfile {
   flex: none;
@@ -745,6 +769,7 @@
   display: flex;
   gap: 2px;
   width: 18px;
+  box-sizing: border-box;
   opacity: 0;
   transform: scaleX(0.18) scaleY(0.82);
   transform-origin: left center;
@@ -813,16 +838,10 @@
   width: 13px;
   height: 13px;
 }
-/* 选择器安放位置：多文档态紧跟标签栏开关（.editor-tabs），
-   单文档态在面包屑行开关后（.crumb，按钮内边距略小） */
+/* 选择器安放位置：只跟标签栏开关（多文档态 .editor-tabs，与原型一致；
+   单文档态面包屑行不渲染选择器） */
 .editor-tabs .bp-modes {
   margin: 0 0 0 2px;
-}
-.crumb .bp-modes {
-  margin-left: 4px;
-}
-.crumb .bp-modes button {
-  padding: 2px 9px;
 }
 
 /* ── 右栏开关按钮滚动变圆形 X（.rolled）── */

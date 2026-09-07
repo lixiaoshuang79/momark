@@ -151,6 +151,12 @@ body {
   color: var(--ink);
 }
 
+/* 全局元素预设（对齐原型 button{font-family:inherit}：
+   未复位时 Chromium UA 会给 button 套 Arial，几何随 fallback 漂移） */
+button {
+  font-family: inherit;
+}
+
 /* 动效降级（系统减少动态效果） */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -12,20 +12,17 @@
         </div>
       </div>
 
-      <!-- 单文档态：7px 墨蓝状态点 + 完整路径（多文档/分栏态标题区留空） -->
+      <!-- 单文档态：7px 墨蓝状态点 + 居中「~/目录 › 文件名」（原型 .fname 实况：
+           dot(7×7 accent 圆) + 一段 path›filename 文本，fs 17.33/600/muted） -->
       <div class="title" @dblclick.stop="toggleMaxmizeOnMacOS">
         <div v-if="isSingleDoc && (filename || pathname)" class="title-path">
           <span class="title-dot" :class="{ show: !isSaved }" />
-          <span class="title-text">
-            <span v-if="dirDisplay" class="title-dirs">{{ dirDisplay }}</span>
-            <span v-if="dirDisplay" class="title-sep">›</span>
-            <span
-              class="filename title-no-drag"
-              :class="{ isOsx: platform === 'darwin' }"
-              @click="rename"
-              >{{ filename }}</span
-            >
-          </span>
+          <span
+            class="filename title-no-drag"
+            :class="{ isOsx: platform === 'darwin' }"
+            @click="rename"
+            >{{ titleLabel }}</span
+          >
         </div>
         <div v-else-if="isSingleDoc" class="title-brand">墨记 MoMark</div>
       </div>
@@ -123,19 +120,18 @@ const { titleBarStyle } = storeToRefs(preferencesStore)
 
 const isSingleDoc = computed(() => (props.tabCount ?? 0) <= 1)
 
-// 完整路径（dirname 部分）：家目录折叠为 `~`，段间用系统分隔符连接，
-// 与文件名之间用 ` › ` 分隔（PHASE2-SPEC §1 标题区格式）。
-const dirDisplay = computed(() => {
-  if (!props.pathname) return ''
-  const sep = window.path.sep
+// 原型 .fname 文案：家目录缩写成 ~，格式「~/Documents/momark › 产品需求文档.md」。
+const titleLabel = computed(() => {
+  const name = props.filename ?? ''
+  if (!props.pathname) return name
+  const home =
+    window.electron?.process?.env?.HOME ??
+    (window.marktext?.env as { HOME?: string } | undefined)?.HOME
   const dir = window.path.dirname(props.pathname)
-  if (!dir || dir === '.') return ''
-  const home = window.marktext?.env?.HOME as string | undefined
-  let base = dir
-  if (home && (base === home || base.startsWith(home + sep))) {
-    base = '~' + base.slice(home.length)
+  if (home && (dir === home || dir.startsWith(home + window.path.sep))) {
+    return `~${dir.slice(home.length)} › ${name}`
   }
-  return base
+  return dir ? `${dir} › ${name}` : name
 })
 
 const showCustomTitleBar = computed(() => {
@@ -275,29 +271,13 @@ onBeforeUnmount(() => {
   max-width: 100%;
   min-width: 0;
   font-size: var(--f13);
+  line-height: 1.45;
   font-weight: 600;
   color: var(--muted);
 }
 
-.title-text {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  white-space: nowrap;
-}
-
-.title-dirs {
-  white-space: nowrap;
-}
-
-.title-sep {
-  color: var(--faint);
-  font-weight: 400;
-}
-
 .title-path .filename {
-  color: var(--ink);
+  color: var(--muted);
   white-space: nowrap;
 }
 

@@ -61,6 +61,7 @@ const wcTooltip = computed(() => {
   border-top: 1px solid var(--line);
   background: var(--bg);
   font-size: var(--f11);
+  line-height: 1.45;
   color: var(--muted);
   box-sizing: border-box;
 }

@@ -102,6 +102,7 @@ const selectTab = (tab: SideBarTab): void => {
   background: transparent;
   color: var(--muted);
   font-size: var(--f11);
+  line-height: 1.45;
   padding: 5px 0;
   border-radius: 6px;
   cursor: pointer;

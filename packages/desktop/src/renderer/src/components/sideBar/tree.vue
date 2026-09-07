@@ -6,6 +6,7 @@
         v-for="file of dirFiles"
         :key="file.pathname"
         class="sb-row"
+        :class="{ sel: isCurrentFile(file.pathname) }"
         :title="file.pathname"
         @click="handleFileClick(file.pathname)"
         @mousedown.prevent
@@ -110,6 +111,7 @@ const handleFileClick = (pathname: string): void => {
 /* 原型 sb-head：「文件夹 · 路径」小标题 */
 .sb-head {
   font-size: var(--f11);
+  line-height: 1.45;
   color: var(--faint);
   padding: 6px 8px 7px;
   font-weight: 600;
@@ -128,6 +130,7 @@ const handleFileClick = (pathname: string): void => {
   border-radius: 8px;
   color: var(--ink);
   font-size: var(--f12);
+  line-height: 1.45;
   cursor: pointer;
   margin-bottom: 1px;
   transition: background 0.15s ease;
@@ -143,6 +146,9 @@ const handleFileClick = (pathname: string): void => {
 
 .sb-row:hover {
   background: var(--hover);
+}
+.sb-row.sel {
+  background: var(--selected);
 }
 
 .sb-row .fname {

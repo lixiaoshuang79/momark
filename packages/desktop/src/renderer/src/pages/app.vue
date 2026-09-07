@@ -37,13 +37,15 @@
             :text-direction="textDirection"
             :platform="platform"
           />
-          <status-bar v-if="hasCurrentFile && init" :word-count="wordCount" :is-saved="isSaved" />
         </div>
 
         <splitter v-if="showSplitter" />
         <split-drop-zone />
         <browser-panel />
       </div>
+
+      <!-- 状态栏：全宽行（原型横跨整窗，含侧栏之下） -->
+      <status-bar v-if="hasCurrentFile && init" :word-count="wordCount" :is-saved="isSaved" />
 
       <command-palette />
       <export-setting-dialog />

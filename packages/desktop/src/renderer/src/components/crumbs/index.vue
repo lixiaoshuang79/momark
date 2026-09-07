@@ -29,8 +29,6 @@
     >
       <mo-icon :name="bpanelOpen ? 'i-x' : 'i-panel'" />
     </button>
-    <!-- 单文档态：网址/文档选择器紧跟开关之后（多文档态在标签栏开关旁） -->
-    <bp-modes v-if="isSingleDoc" :shown="bpanelOpen" />
   </div>
 </template>
 
@@ -42,7 +40,6 @@ import { useWorkspaceStore } from '@/store/workspace'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import bus from '@/bus'
-import BpModes from '@/components/browserPanel/bpModes.vue'
 import { t } from '../../i18n'
 
 // 面包屑行（PHASE2-SPEC §1：28px）：
@@ -120,10 +117,11 @@ const onDocnameDragEnd = () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 8px 0 16px;
+  padding: 0 16px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
   font-size: var(--f11);
+  line-height: 1.45;
   color: var(--muted);
   position: relative;
   box-sizing: border-box;
