@@ -26,10 +26,8 @@
 import { ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/store/editor'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 import FileIcon from './icon.vue'
-
-const { t } = useI18n()
 
 const editorStore = useEditorStore()
 const { currentFile, tabs } = storeToRefs(editorStore)

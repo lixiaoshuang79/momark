@@ -131,7 +131,7 @@ import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
 import { useProjectStore } from '@/store/project'
 import { storeToRefs } from 'pinia'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 import { SyntheticHistory, type IFileHistoryLike } from './syntheticHistory'
 import { captureBlockLines, runDocumentTransition } from './transitions'
 
@@ -144,7 +144,6 @@ import '@/assets/themes/codemirror/one-dark.css'
 import { Close as CloseIcon } from '@element-plus/icons-vue'
 import { type InputNumberInstance } from 'element-plus'
 
-const { t } = useI18n()
 const STANDAR_Y = 320
 
 // Map the desktop language preference to the engine's bundled locale objects.

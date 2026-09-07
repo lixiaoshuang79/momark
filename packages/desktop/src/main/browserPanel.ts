@@ -203,18 +203,22 @@ export const installBrowserPanelSecurity = (): void => {
   })
 
   // persist:panel 分区：权限请求默认全拒（摄像头/麦克风/地理位置/通知）。
-  const panelSession = session.fromPartition(BP_PARTITION)
-  panelSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    log.info('[browserPanel] permission denied by default:', permission)
-    // eslint-disable-next-line n/no-callback-literal -- Electron 契约：布尔值=是否授权，非 error-first 回调
-    callback(false)
-  })
-  panelSession.setPermissionCheckHandler((_webContents, permission) => {
-    return permission === 'clipboard-sanitized-write'
-  })
-  // 下载仅放行 http(s)（report 3.md §5.9：默认拦截非 http(s)）。
-  panelSession.on('will-download', (_event, item) => {
-    if (!isHttpUrl(item.getURL())) item.cancel()
+  // session 只能在 app ready 之后取用（过早调用会抛
+  // "Session can only be received when app is ready"），故挂到 whenReady。
+  app.whenReady().then(() => {
+    const panelSession = session.fromPartition(BP_PARTITION)
+    panelSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+      log.info('[browserPanel] permission denied by default:', permission)
+      // eslint-disable-next-line n/no-callback-literal -- Electron 契约：布尔值=是否授权，非 error-first 回调
+      callback(false)
+    })
+    panelSession.setPermissionCheckHandler((_webContents, permission) => {
+      return permission === 'clipboard-sanitized-write'
+    })
+    // 下载仅放行 http(s)（report 3.md §5.9：默认拦截非 http(s)）。
+    panelSession.on('will-download', (_event, item) => {
+      if (!isHttpUrl(item.getURL())) item.cancel()
+    })
   })
 }
 

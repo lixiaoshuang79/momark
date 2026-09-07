@@ -26,9 +26,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import bus from '../../bus'
-import { useI18n } from 'vue-i18n'
-
-const { t } = useI18n()
+import { t } from '../../i18n'
 
 const editorStore = useEditorStore()
 

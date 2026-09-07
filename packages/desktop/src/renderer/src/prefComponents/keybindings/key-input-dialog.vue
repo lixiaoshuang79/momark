@@ -1,9 +1,6 @@
 <template>
   <div class="key-input-dialog">
-    <div
-      v-if="showKeyInputDialog"
-      class="input-overlay"
-    />
+    <div v-if="showKeyInputDialog" class="input-overlay" />
     <el-dialog
       v-model="showKeyInputDialog"
       :show-close="false"
@@ -25,16 +22,13 @@
               :placeholder="placeholderText"
               @keydown="handleKeyDown"
               @keyup="handleKeyUp"
-            >
+            />
           </div>
           <div class="footer">
             <div class="descriptions">
               {{ t('preferences.keybindings.keyInputDialog.instructions') }}
             </div>
-            <div
-              v-show="!isKeybindingValid"
-              class="invalid-keybinding"
-            >
+            <div v-show="!isKeybindingValid" class="invalid-keybinding">
               {{ t('preferences.keybindings.keyInputDialog.invalidKeybinding') }}
             </div>
           </div>
@@ -51,7 +45,7 @@ import {
   getAcceleratorFromKeyboardEvent
 } from '@hfelix/electron-localshortcut'
 import { ref, watch, useTemplateRef, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 
 // Shape returned by `getAcceleratorFromKeyboardEvent`. The `@hfelix`
 // package ships untyped, so describe just the fields we consume here.
@@ -64,8 +58,6 @@ interface KeyInputDialogProps {
   onCommit: (value: string | null) => void
   showWithId?: string | null
 }
-
-const { t } = useI18n()
 
 const props = withDefaults(defineProps<KeyInputDialogProps>(), {
   showWithId: null

@@ -16,10 +16,7 @@
         :options="uploaderOptions"
         :on-change="(value) => setCurrentUploader(value)"
       />
-      <div
-        v-if="currentUploader === 'picgo'"
-        class="picgo"
-      >
+      <div v-if="currentUploader === 'picgo'" class="picgo">
         <div class="detection-status">
           <div class="detection-header">
             <h6>{{ t('preferences.image.uploader.picgoDetection') }}</h6>
@@ -48,10 +45,7 @@
                 <!-- Loading animation and status indicator -->
                 <div class="detection-animation-container">
                   <!-- Initial button (becomes animation after 0.5 seconds) -->
-                  <button
-                    v-if="showInitialButton"
-                    class="initial-button"
-                  >
+                  <button v-if="showInitialButton" class="initial-button">
                     <svg
                       width="14"
                       height="14"
@@ -60,11 +54,7 @@
                       stroke="currentColor"
                       stroke-width="2"
                     >
-                      <circle
-                        cx="12"
-                        cy="12"
-                        r="10"
-                      />
+                      <circle cx="12" cy="12" r="10" />
                       <path d="m9 12 2 2 4-4" />
                     </svg>
                   </button>
@@ -112,24 +102,15 @@
             <div class="status-text">
               {{ picgoDetectionStatus || t('preferences.image.uploader.picgoNotInstalled') }}
             </div>
-            <div
-              v-if="lastDetectionTime"
-              class="detection-time"
-            >
+            <div v-if="lastDetectionTime" class="detection-time">
               {{ t('preferences.image.uploader.lastDetectionTime') }}:
               {{ formatDetectionTime(lastDetectionTime) }}
             </div>
-            <div
-              v-if="lastSuccessTime"
-              class="success-time"
-            >
+            <div v-if="lastSuccessTime" class="success-time">
               {{ t('preferences.image.uploader.lastSuccessTime') }}: {{ getLastSuccessTime() }}
             </div>
           </div>
-          <div
-            v-if="!picgoExists"
-            class="install-commands"
-          >
+          <div v-if="!picgoExists" class="install-commands">
             <div class="install-title">
               {{ t('preferences.image.uploader.chooseInstallMethod') }}
             </div>
@@ -154,12 +135,8 @@
               </div>
             </div>
             <div class="install-link">
-              <span
-                class="link"
-                @click="open('https://github.com/PicGo/PicGo-Core')"
-              >picgo<LinkIcon
-                :size="14"
-                class="link-icon"
+              <span class="link" @click="open('https://github.com/PicGo/PicGo-Core')"
+                >picgo<LinkIcon :size="14" class="link-icon"
               /></span>
               {{ t('preferences.image.uploader.pleaseInstall') }}
             </div>
@@ -193,38 +170,25 @@
               </div>
             </div>
             <div class="usage-link">
-              <span
-                class="link"
-                @click="open('https://picgo.github.io/PicGo-Core-Doc/')"
-              >{{
-                t('preferences.image.uploader.usageGuide.documentation')
-              }}<LinkIcon
-                :size="14"
-                class="link-icon"
+              <span class="link" @click="open('https://picgo.github.io/PicGo-Core-Doc/')"
+                >{{ t('preferences.image.uploader.usageGuide.documentation')
+                }}<LinkIcon :size="14" class="link-icon"
               /></span>
             </div>
           </div>
 
-          <details
-            v-if="picgoDetectionFailed && picgoDebugInfo"
-            class="debug-info"
-          >
+          <details v-if="picgoDetectionFailed && picgoDebugInfo" class="debug-info">
             <summary>{{ t('preferences.image.uploader.debugInfo') }}</summary>
             <pre>{{ picgoDebugInfo || 'No debug info available' }}</pre>
           </details>
         </div>
       </div>
-      <div
-        v-if="currentUploader === 'cliScript'"
-        class="script"
-      >
+      <div v-if="currentUploader === 'cliScript'" class="script">
         <div class="description">
           {{ t('preferences.image.uploader.scriptDescription') }}
         </div>
         <div class="form-group">
-          <div class="label">
-            {{ t('preferences.image.uploader.scriptLocation') }}:
-          </div>
+          <div class="label">{{ t('preferences.image.uploader.scriptLocation') }}:</div>
           <el-input
             v-model="cliScript"
             :placeholder="t('preferences.image.uploader.scriptPath')"
@@ -232,11 +196,7 @@
           />
         </div>
         <div class="form-group">
-          <el-button
-            size="mini"
-            :disabled="cliScriptDisable"
-            @click="save()"
-          >
+          <el-button size="mini" :disabled="cliScriptDisable" @click="save()">
             {{ t('preferences.image.uploader.save') }}
           </el-button>
         </div>
@@ -256,7 +216,7 @@ import {
   onActivated,
   onDeactivated
 } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../../../i18n'
 import { usePreferencesStore } from '@/store/preferences'
 import getServices from './services'
 import type { UploaderServiceId } from './services'
@@ -266,8 +226,6 @@ import notice from '@/services/notification'
 import { storeToRefs } from 'pinia'
 import LinkIcon from '@/components/icons/LinkIcon.vue'
 import type { PrefSelectOption } from '@/prefComponents/common/types'
-
-const { t } = useI18n()
 
 // store
 const preferenceStore = usePreferencesStore()
@@ -303,10 +261,7 @@ const buttonTimer = ref<ReturnType<typeof setTimeout> | null>(null) // Button di
 const initialButtonTimer = ref<ReturnType<typeof setTimeout> | null>(null) // Initial button timer
 const showStandaloneRefreshButton = ref<boolean>(true) // Whether to show the standalone refresh button
 // computed
-const {
-  currentUploader,
-  cliScript: prefCliScript
-} = storeToRefs(preferenceStore)
+const { currentUploader, cliScript: prefCliScript } = storeToRefs(preferenceStore)
 
 // `isFileExecutable` is async via IPC; track the result in a ref so the
 // disabled state still updates reactively.
@@ -781,7 +736,6 @@ const testPicgo = async (): Promise<void> => {
   // Stop animation after detection completes
   stopAnimationAndButton()
 }
-
 </script>
 
 <style scoped>
@@ -1189,5 +1143,4 @@ const testPicgo = async (): Promise<void> => {
 .pref-image-uploader .button-group {
   margin-top: 30px;
 }
-
 </style>

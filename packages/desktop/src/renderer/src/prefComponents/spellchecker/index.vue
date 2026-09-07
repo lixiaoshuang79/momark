@@ -34,10 +34,7 @@
       </template>
     </compound>
 
-    <div
-      v-if="isOsx && spellcheckerEnabled"
-      class="description"
-    >
+    <div v-if="isOsx && spellcheckerEnabled" class="description">
       {{ t('preferences.spellchecker.autoDetectDescription') }}
     </div>
 
@@ -53,10 +50,7 @@
         :empty-text="t('preferences.spellchecker.customDictionary.noWordsAvailable')"
         style="width: 100%"
       >
-        <el-table-column
-          prop="word"
-          :label="t('preferences.spellchecker.customDictionary.word')"
-        />
+        <el-table-column prop="word" :label="t('preferences.spellchecker.customDictionary.word')" />
 
         <el-table-column
           fixed="right"
@@ -70,10 +64,7 @@
               :title="t('preferences.spellchecker.customDictionary.delete')"
               @click="handleDeleteClick(scope.row)"
             >
-              <Delete
-                width="16"
-                height="16"
-              />
+              <Delete width="16" height="16" />
             </el-button>
           </template>
         </el-table-column>
@@ -95,7 +86,7 @@ import { isOsx as checkIsOsx } from '@/util'
 import { SpellChecker } from '@/spellchecker'
 import { getLanguageName } from '@/spellchecker/languageMap'
 import notice from '@/services/notification'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 import { Delete } from '@element-plus/icons-vue'
 import type { PrefSelectOption } from '../common/types'
 
@@ -103,7 +94,6 @@ interface CustomDictionaryWord {
   word: string
 }
 
-const { t } = useI18n()
 const isOsx = checkIsOsx
 const availableDictionaries = ref<PrefSelectOption<string>[]>([])
 const wordsInCustomDictionary = ref<CustomDictionaryWord[]>([])
@@ -140,13 +130,12 @@ const getAvailableDictionaries = async (): Promise<PrefSelectOption<string>[]> =
   })
 }
 
-const handleSpellcheckerLanguage = async (languageCode: string | number | boolean): Promise<void> => {
+const handleSpellcheckerLanguage = async (
+  languageCode: string | number | boolean
+): Promise<void> => {
   onSelectChange('spellcheckerLanguage', languageCode)
 
-  await window.electron.ipcRenderer.invoke(
-    'mt::spellchecker-switch-language',
-    String(languageCode)
-  )
+  await window.electron.ipcRenderer.invoke('mt::spellchecker-switch-language', String(languageCode))
 }
 
 const handleSpellcheckerEnabled = (isEnabled: boolean): void => {

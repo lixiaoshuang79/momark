@@ -414,10 +414,9 @@ import FontTextBox from '@/prefComponents/common/fontTextBox/index.vue'
 import Range from '@/prefComponents/common/range/index.vue'
 import TextBox from '@/prefComponents/common/textBox/index.vue'
 import { getPageSizeList, getHeaderFooterTypes, getExportThemeList } from './exportOptions'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 import { useEditorStore } from '@/store/editor'
 
-const { t } = useI18n()
 const editorStore = useEditorStore()
 
 const exportType = ref('')

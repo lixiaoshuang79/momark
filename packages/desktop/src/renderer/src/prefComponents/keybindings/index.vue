@@ -76,9 +76,7 @@ import KeybindingConfigurator from './KeybindingConfigurator'
 import type { UiKeybinding } from './KeybindingConfigurator'
 import notice from '@/services/notification'
 import { Edit, RefreshRight, Delete } from '@element-plus/icons-vue'
-import { useI18n } from 'vue-i18n'
-
-const { t, locale } = useI18n()
+import { t, i18n } from '../../i18n'
 
 const showDebugTools = ref<boolean>(false)
 const keybindingConfigurator = ref<KeybindingConfigurator | null>(null)
@@ -93,9 +91,12 @@ const rebuildKeybindingList = (): void => {
 }
 
 // Listen for language changes to rebuild the keybinding list
-watch(locale, () => {
-  rebuildKeybindingList()
-})
+watch(
+  () => i18n.global.locale.value,
+  () => {
+    rebuildKeybindingList()
+  }
+)
 
 onMounted(() => {
   window.electron.ipcRenderer

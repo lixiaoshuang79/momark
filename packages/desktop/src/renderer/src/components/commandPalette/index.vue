@@ -100,7 +100,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, nextTick, onBeforeUpdate, computed } from 'vue'
 import { useCommandCenterStore } from '@/store/commandCenter'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 import log from 'electron-log'
 import bus from '../../bus'
 import notice from '../../services/notification'
@@ -144,7 +144,6 @@ interface VisibleGroup {
   items: PaletteEntry[]
 }
 
-const { t } = useI18n()
 const commandCenterStore = useCommandCenterStore()
 
 const showCommandPalette = ref(false)

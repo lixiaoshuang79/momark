@@ -15,17 +15,15 @@
   "lastOpenedFolder": "",
   "treePathExcludePatterns": [],
   "language": "en",
-
-  "editorFontFamily": "Open Sans",
+  "editorFontFamily": "Anthropic",
   "fontSize": 16,
   "lineHeight": 1.6,
   "codeFontSize": 14,
-  "codeFontFamily": "DejaVu Sans Mono",
+  "codeFontFamily": "SF Mono",
   "codeBlockLineNumbers": false,
   "trimUnnecessaryCodeBlockEmptyLines": true,
   "wrapCodeBlocks": false,
   "editorLineWidth": "",
-
   "autoPairBracket": true,
   "autoPairMarkdownSyntax": true,
   "autoPairQuote": true,
@@ -42,7 +40,6 @@
   "imageRelativeDirectoryName": "assets",
   "hideLinkPopup": false,
   "autoCheck": false,
-
   "preferLooseListItem": true,
   "bulletListMarker": "-",
   "orderListDelimiter": ".",
@@ -56,27 +53,22 @@
   "isGitlabCompatibilityEnabled": false,
   "sequenceTheme": "hand",
   "plantumlServer": "https://www.plantuml.com/plantuml",
-
-  "theme": "light",
+  "theme": "claude-light",
   "followSystemTheme": true,
-  "lightModeTheme": "light",
-  "darkModeTheme": "dark",
+  "lightModeTheme": "claude-light",
+  "darkModeTheme": "claude-dark",
   "customCss": "",
-
   "spellcheckerEnabled": false,
   "spellcheckerNoUnderline": false,
   "spellcheckerLanguage": "en-US",
-
-  "sideBarVisibility": false,
-  "tabBarVisibility": false,
+  "sideBarVisibility": true,
+  "tabBarVisibility": true,
   "sourceCodeModeEnabled": false,
   "openedFilesInSidebar": true,
-
   "searchExclusions": [],
   "searchMaxFileSize": "",
   "searchIncludeHidden": false,
   "searchNoIgnore": false,
   "searchFollowSymlinks": true,
-
   "watcherUsePolling": false
 }

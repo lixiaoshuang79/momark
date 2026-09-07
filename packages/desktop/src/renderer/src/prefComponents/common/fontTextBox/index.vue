@@ -34,11 +34,9 @@
 import { ref, watch, onMounted } from 'vue'
 import { ArrowDown } from '@element-plus/icons-vue'
 import LinkIcon from '@/components/icons/LinkIcon.vue'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../../i18n'
 import type { PrefControlProps } from '../types'
 import { withBundledFonts } from './bundledFonts'
-
-const { t } = useI18n()
 
 interface FontTextBoxProps extends PrefControlProps<string> {
   onlyMonospace?: boolean

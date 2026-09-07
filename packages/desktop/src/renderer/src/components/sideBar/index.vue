@@ -38,12 +38,10 @@
 import { computed } from 'vue'
 import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 
 import Tree from './tree.vue'
 import Toc from './toc.vue'
-
-const { t } = useI18n()
 
 const layoutStore = useLayoutStore()
 

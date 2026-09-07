@@ -1,9 +1,6 @@
 <template>
   <div class="search-result-item">
-    <div
-      class="search-result"
-      :title="searchResult.filePath"
-    >
+    <div class="search-result" :title="searchResult.filePath">
       <el-icon
         class="icon-arrow"
         :class="{ fold: !showSearchMatches }"
@@ -12,13 +9,11 @@
       >
         <ArrowRight />
       </el-icon>
-      <div
-        class="file-info"
-        @click.stop="toggleSearchMatches()"
-      >
+      <div class="file-info" @click.stop="toggleSearchMatches()">
         <div class="title">
           <span class="filename">
-            <span class="name">{{ filename }}</span><span class="extension">{{ extension }}</span>
+            <span class="name">{{ filename }}</span
+            ><span class="extension">{{ extension }}</span>
           </span>
           <span class="match-count">{{ matchCount }}</span>
         </div>
@@ -27,10 +22,7 @@
           </div> -->
       </div>
     </div>
-    <div
-      v-if="showSearchMatches"
-      class="matches"
-    >
+    <div v-if="showSearchMatches" class="matches">
       <ul>
         <li
           v-for="(searchMatch, index) of getMatches"
@@ -50,10 +42,7 @@
         </li>
       </ul>
       <div v-if="!allMatchesShown">
-        <div
-          class="button tiny"
-          @click="handleShowMoreMatches"
-        >
+        <div class="button tiny" @click="handleShowMoreMatches">
           {{ t('sideBar.search.showMoreMatches') }}
         </div>
       </div>
@@ -66,11 +55,9 @@ import { ref, computed } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { storeToRefs } from 'pinia'
 import bus from '../../bus'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 import { ArrowRight } from '@element-plus/icons-vue'
 import type { SearchResult, SearchMatch } from './types'
-
-const { t } = useI18n()
 
 const props = defineProps<{
   searchResult: SearchResult

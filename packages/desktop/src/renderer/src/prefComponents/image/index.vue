@@ -94,15 +94,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 import { usePreferencesStore } from '@/store/preferences'
 import type { PreferencesState } from '@/store/preferences'
 import type { PrefSelectOption } from '../common/types'
 import CurSelect from '../common/select/index.vue'
 import Bool from '../common/bool/index.vue'
 import TextBox from '../common/textBox/index.vue'
-
-const { t } = useI18n()
 
 const preferenceStore = usePreferencesStore()
 

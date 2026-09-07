@@ -118,7 +118,12 @@ class EditorWindow extends BaseWindow {
       spellcheckerEnabled,
       spellcheckerLanguage
     } = preferences.getAll()
-    const resolvedSideBarVisibility = restoreLayoutState ? !!sideBarVisibility : false
+    // QA-03 裁决（原型 L969/L985）：左侧栏默认展开。
+    // getAll() 返回裸 store（不含 schema 默认值）：首启 sideBarVisibility 为
+    // undefined，必须按「默认展开」处理，否则 false 会被回写落盘固化。
+    const resolvedSideBarVisibility =
+      !restoreLayoutState || sideBarVisibility === undefined ? true : !!sideBarVisibility
+    const resolvedTabBarVisibility = tabBarVisibility === undefined ? true : !!tabBarVisibility
 
     // Enable native or custom/frameless window and titlebar
     if (!isOsx) {
@@ -176,7 +181,7 @@ class EditorWindow extends BaseWindow {
         markdownList: this.bufferStoreInfo!.filePath ? [] : this._markdownToOpen,
         lineEnding,
         sideBarVisibility: resolvedSideBarVisibility,
-        tabBarVisibility,
+        tabBarVisibility: resolvedTabBarVisibility,
         sourceCodeModeEnabled
       })
 
@@ -486,14 +491,16 @@ class EditorWindow extends BaseWindow {
       const { preferences } = this._accessor
       const { sideBarVisibility, restoreLayoutState, tabBarVisibility, sourceCodeModeEnabled } =
         preferences.getAll()
-      const resolvedSideBarVisibility = restoreLayoutState ? !!sideBarVisibility : false
+      const resolvedSideBarVisibility =
+        !restoreLayoutState || sideBarVisibility === undefined ? true : !!sideBarVisibility
+      const resolvedTabBarVisibility = tabBarVisibility === undefined ? true : !!tabBarVisibility
       const lineEnding = preferences.getPreferredEol()
       browserWindow!.webContents.send('mt::bootstrap-editor', {
         addBlankTab: true,
         markdownList: [],
         lineEnding,
         sideBarVisibility: resolvedSideBarVisibility,
-        tabBarVisibility,
+        tabBarVisibility: resolvedTabBarVisibility,
         sourceCodeModeEnabled
       })
     })

@@ -130,7 +130,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { t } from '../i18n'
 import { addThemeStyle } from '@/util/theme'
 import dayjs from '@/util/day'
 
@@ -140,8 +140,6 @@ interface WelcomeRecent {
   dirname: string
   mtime: number
 }
-
-const { t } = useI18n()
 
 const recents = ref<WelcomeRecent[]>([])
 

@@ -1,35 +1,23 @@
 <template>
-  <div
-    v-show="showSearch"
-    class="search-bar"
-    @click.stop="noop"
-  >
-    <div
-      class="left-arrow"
-      @click="toggleSearchType"
-    >
-      <el-icon
-        :size="14"
-        :class="{ 'arrow-right': type === 'search' }"
-      >
+  <div v-show="showSearch" class="search-bar" @click.stop="noop">
+    <div class="left-arrow" @click="toggleSearchType">
+      <el-icon :size="14" :class="{ 'arrow-right': type === 'search' }">
         <ArrowDown />
       </el-icon>
     </div>
     <div class="right-controls">
       <section class="search">
-        <div
-          class="input-wrapper"
-          :class="{ error: !!searchErrorMsg }"
-        >
+        <div class="input-wrapper" :class="{ error: !!searchErrorMsg }">
           <input
             ref="search"
             v-model="searchValue"
             type="text"
             :placeholder="t('search.searchPlaceholder')"
             @keyup="handleEnterKey"
-          >
+          />
           <div class="controls">
-            <span class="search-result">{{ highlightIndex + 1 }} /
+            <span class="search-result"
+              >{{ highlightIndex + 1 }} /
               {{ highlightCount }}
             </span>
             <span
@@ -57,42 +45,30 @@
               <FindRegexIcon aria-hidden="true" />
             </span>
           </div>
-          <div
-            v-if="searchErrorMsg"
-            class="error-msg"
-          >
+          <div v-if="searchErrorMsg" class="error-msg">
             {{ searchErrorMsg }}
           </div>
         </div>
         <div class="button-group">
-          <button
-            class="button right"
-            @click="find('prev')"
-          >
+          <button class="button right" @click="find('prev')">
             <el-icon :size="14">
               <ArrowUp />
             </el-icon>
           </button>
-          <button
-            class="button"
-            @click="find('next')"
-          >
+          <button class="button" @click="find('next')">
             <el-icon :size="14">
               <ArrowDown />
             </el-icon>
           </button>
         </div>
       </section>
-      <section
-        v-if="type === 'replace'"
-        class="replace"
-      >
+      <section v-if="type === 'replace'" class="replace">
         <div class="input-wrapper replace-input">
           <input
             v-model="replaceValue"
             type="text"
             :placeholder="t('search.replacementPlaceholder')"
-          >
+          />
         </div>
         <div class="button-group">
           <el-tooltip
@@ -103,10 +79,7 @@
             :visible-arrow="false"
             :open-delay="1000"
           >
-            <button
-              class="button right"
-              @click="replace(false)"
-            >
+            <button class="button right" @click="replace(false)">
               <el-icon :size="14">
                 <RefreshRight />
               </el-icon>
@@ -120,10 +93,7 @@
             :visible-arrow="false"
             :open-delay="1000"
           >
-            <button
-              class="button"
-              @click="replace(true)"
-            >
+            <button class="button" @click="replace(true)">
               <el-icon :size="14">
                 <Switch />
               </el-icon>
@@ -143,11 +113,9 @@ import FindWordIcon from '@/assets/icons/searchIcons/iconWord.svg'
 import FindRegexIcon from '@/assets/icons/searchIcons/iconRegex.svg'
 import { useEditorStore } from '@/store/editor'
 import { storeToRefs } from 'pinia'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 import debounce from 'lodash/debounce'
 import { ArrowDown, ArrowUp, RefreshRight, Switch } from '@element-plus/icons-vue'
-
-const { t } = useI18n()
 
 const editorStore = useEditorStore()
 

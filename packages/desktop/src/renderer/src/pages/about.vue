@@ -30,12 +30,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { t } from '../i18n'
 import { useMainStore } from '@/store'
 import { addThemeStyle } from '@/util/theme'
 import MoMarkLogo from '@/assets/images/logo.png'
-
-const { t } = useI18n()
 
 const mainStore = useMainStore()
 const version = computed(() => mainStore.appVersion || '0.1.0')

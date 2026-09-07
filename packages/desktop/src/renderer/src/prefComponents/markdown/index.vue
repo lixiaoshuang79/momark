@@ -129,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 import Compound from '../common/compound/index.vue'
 import { usePreferencesStore } from '@/store/preferences'
 import type { PreferencesState } from '@/store/preferences'
@@ -145,8 +145,6 @@ import {
   getSequenceThemeOptions
 } from './config'
 import { storeToRefs } from 'pinia'
-
-const { t } = useI18n()
 
 const preferenceStore = usePreferencesStore()
 

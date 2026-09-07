@@ -184,7 +184,7 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { useI18n } from 'vue-i18n'
+import { t } from '../../i18n'
 import { usePreferencesStore } from '@/store/preferences'
 import type { PreferencesState } from '@/store/preferences'
 import Compound from '../common/compound/index.vue'
@@ -201,7 +201,6 @@ import {
   getDefaultEncodingOptions
 } from './config'
 
-const { t } = useI18n()
 const preferenceStore = usePreferencesStore()
 
 const defaultEncodingOptions = getDefaultEncodingOptions()
