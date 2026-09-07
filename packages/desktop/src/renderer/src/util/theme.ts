@@ -6,7 +6,6 @@ import {
   railscastsThemes
 } from '../config'
 import {
-  dark,
   graphite,
   materialDark,
   oneDark,
@@ -71,13 +70,17 @@ export const addThemeStyle = (theme: string): void => {
   }
 
   switch (theme) {
+    // 遗留默认主题 light/dark 一律渲染为墨记设计主题：
+    // 老 marktext 默认样式体系已废弃，存量用户资料里的 light/dark
+    // 也必须呈现 claude-light/claude-dark 的设计效果（chrome / 面板 /
+    // 字体令牌 / 编辑器对齐），不再保留旧渲染。
     case 'light':
-      themeStyleEle.innerHTML = patchTheme(
-        ':root {\n  --link-color: var(--linkColor);\n  --blockquote-border-color: var(--blockquoteBorderColor);\n}'
-      )
+    case 'claude-light':
+      themeStyleEle.innerHTML = patchTheme(claudeLight())
       break
     case 'dark':
-      themeStyleEle.innerHTML = patchTheme(dark())
+    case 'claude-dark':
+      themeStyleEle.innerHTML = patchTheme(claudeDark())
       break
     case 'material-dark':
       themeStyleEle.innerHTML = patchTheme(materialDark())
@@ -174,13 +177,6 @@ export const addThemeStyle = (theme: string): void => {
     case 'rose-pine-dawn':
       themeStyleEle.innerHTML = patchTheme(rosePineDawn())
       break
-    // MoMark Claude 风格主题
-    case 'claude-light':
-      themeStyleEle.innerHTML = patchTheme(claudeLight())
-      break
-    case 'claude-dark':
-      themeStyleEle.innerHTML = patchTheme(claudeDark())
-      break
     default:
       break
   }
@@ -194,15 +190,15 @@ export const addThemeStyle = (theme: string): void => {
   // MoMark 设计体系作用域（合并裁决：html+body 双标记都挂）：
   // ① tokens.css 的深色段 [data-theme="dark"] 由 html 标记驱动；
   // ② chrome 样式读取 body[data-theme]（feat/chrome 实现）；
-  // ③ claude-editor.css 的 §6 编辑器对齐仅在 body.is-claude-theme 下生效，
-  //    旧主题渲染保持不变。
-  const darkMarker = isDarkTheme ? 'dark' : 'light'
+  // ③ claude-editor.css 的 §6 编辑器对齐仅在 body.is-claude-theme 下生效；
+  // 遗留默认主题 light/dark 已并入设计主题（见上方 switch），
+  // 其余历史主题（gogh 等）保持原渲染。
+  const isMoMarkTheme =
+    theme === 'light' || theme === 'dark' || theme === 'claude-light' || theme === 'claude-dark'
+  const darkMarker = isDarkTheme || theme === 'dark' || theme === 'claude-dark' ? 'dark' : 'light'
   document.documentElement.dataset.theme = darkMarker
   document.body.dataset.theme = darkMarker
-  document.body.classList.toggle(
-    'is-claude-theme',
-    theme === 'claude-light' || theme === 'claude-dark'
-  )
+  document.body.classList.toggle('is-claude-theme', isMoMarkTheme)
 
   // change CodeMirror theme
   const cm = document.querySelector('.CodeMirror')
