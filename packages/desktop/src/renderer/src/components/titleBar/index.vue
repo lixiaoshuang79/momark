@@ -65,13 +65,6 @@
         </div>
       </div>
     </div>
-
-    <!-- DeepSeek 角标：右上角三角形底 + 官方鲸鱼 logo（区分开发 agent 来源，
-         纯装饰，pointer-events 穿透不影响拖拽与点击）。 -->
-    <div v-if="showTitleBar" class="agent-badge" aria-hidden="true">
-      <span class="agent-triangle" />
-      <img class="agent-whale" :src="whaleUrl" alt="" />
-    </div>
   </div>
 </template>
 
@@ -80,7 +73,6 @@ import { usePreferencesStore } from '@/store/preferences.js'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { minimizePath, restorePath, maximizePath, closePath } from '../../assets/window-controls.js'
-import whaleUrl from '@/assets/deepseek-whale.svg?url'
 import { isOsx as isOsxPlatform } from '@/util'
 import { shouldShowInAppTitleBar } from './visibility'
 import { useEditorStore } from '@/store/editor'
@@ -293,36 +285,6 @@ onBeforeUnmount(() => {
   font-size: var(--f13);
   font-weight: 600;
   color: var(--faint);
-}
-
-/* DeepSeek 角标：右上角 56×56 直角三角形底（卡片白 + 发丝描边 + 轻投影），
-   官方蓝鲸 logo 沿斜边摆放；fixed 锚定窗口角，pointer-events 穿透。 */
-.agent-badge {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 56px;
-  height: 56px;
-  z-index: 30;
-  pointer-events: none;
-}
-
-.agent-triangle {
-  position: absolute;
-  inset: 0;
-  background: var(--card);
-  clip-path: polygon(0 0, 100% 0, 100% 100%);
-  box-shadow: -2px 2px 6px rgba(0, 0, 0, 0.1);
-}
-
-.agent-whale {
-  position: absolute;
-  width: 26px;
-  height: auto;
-  left: 15px;
-  top: 17px;
-  transform: rotate(-45deg);
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.14));
 }
 
 /* 未保存状态点（PHASE2-SPEC §2：7px 墨蓝，保存成功即移除） */
