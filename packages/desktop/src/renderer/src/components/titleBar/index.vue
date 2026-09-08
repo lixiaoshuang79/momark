@@ -15,9 +15,9 @@
       <!-- 左右侧栏开关已统一到标签条两端（tabs.vue，单/多文档同位），
            顶栏不再放置任何面板开关。 -->
 
-      <!-- 标题区：任何场景都显示「…/目录/文件名」（面包屑行已取消）；
-           路径最多往上 3 级、分隔符统一 /；单击折叠为仅文件名，双击原地重命名；
-           文字过长时按标题长度自适应缩小字号。 -->
+      <!-- 标题区：「文件A | 文件B」——右侧栏有文档（分屏第二文档 / 预览文档）
+           时以竖线分隔显示在窗口顶栏；右文档名可拖回标签栏（分屏=回标签集合、
+           预览=建成标签），× 关闭右栏文档。平时仍为「…/目录/文件名」。 -->
       <div class="title" @dblclick.stop="toggleMaxmizeOnMacOS">
         <div v-if="filename || pathname" class="title-path" :style="titleFontStyle">
           <span class="title-dot" :class="{ show: !isSaved }" />
@@ -29,6 +29,26 @@
             @dblclick.stop="rename"
             >{{ titleLabel }}</span
           >
+          <template v-if="rightDocName">
+            <span class="title-sep" aria-hidden="true">|</span>
+            <span
+              class="filename right-doc title-no-drag"
+              draggable="true"
+              :title="rightDocTitle"
+              @dragstart="onRightDragStart"
+              @dragend="onRightDragEnd"
+              @click.stop
+              @dblclick.stop
+              >{{ rightDocName }}</span
+            >
+            <button
+              class="right-doc-close"
+              :title="t('sideBar.rightPanelCloseDoc')"
+              @click.stop="closeRightDoc"
+            >
+              <mo-icon name="i-x" />
+            </button>
+          </template>
         </div>
         <div v-else class="title-brand">墨记</div>
       </div>
@@ -77,11 +97,16 @@
 <script setup lang="ts">
 import { usePreferencesStore } from '@/store/preferences.js'
 import { useEditorStore } from '@/store/editor'
+import { useBrowserPanelStore } from '@/store/browserPanel'
+import { useSplitStore } from '@/store/split'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { minimizePath, restorePath, maximizePath, closePath } from '../../assets/window-controls.js'
 import { isOsx as isOsxPlatform } from '@/util'
 import { shouldShowInAppTitleBar } from './visibility'
+import { t } from '../../i18n'
+import bus from '../../bus'
+import MoIcon from '@/components/icons/MoIcon.vue'
 
 interface ProjectInfo {
   name?: string
@@ -101,6 +126,8 @@ const props = defineProps<{
 
 const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
+const bpStore = useBrowserPanelStore()
+const splitStore = useSplitStore()
 
 const isOsx = isOsxPlatform
 const windowIconMinimize = minimizePath
@@ -135,6 +162,47 @@ watch(
 
 const MAX_DIR_LEVELS = 3
 
+// 「文件A | 文件B」的右文档指示：分屏第二文档优先，其次右栏预览文档。
+const rightDocName = computed(() => {
+  if (splitStore.active) {
+    const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
+    return tab?.filename ?? ''
+  }
+  const path = bpStore.docPath
+  return path ? window.path.basename(path) : ''
+})
+
+const rightDocTitle = computed(() => {
+  if (splitStore.active) {
+    const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
+    return tab?.pathname ?? rightDocName.value
+  }
+  return bpStore.docPath ?? ''
+})
+
+// 顶栏右文档名拖回标签栏：标记内部拖放（app.vue 的 window dragover 据此放行），
+// 高亮标签条/顶部行，drop 时按来源落地（drop 处理在 tabs.vue onReturnDrop）。
+const onRightDragStart = (event: DragEvent) => {
+  if (!rightDocName.value) return
+  event.dataTransfer?.setData('application/x-momark-split-doc', rightDocName.value)
+  window.__momarkReturnDrag = true
+  bus.emit('split:return-drag-start')
+}
+
+const onRightDragEnd = () => {
+  window.__momarkReturnDrag = false
+  bus.emit('split:return-drag-end')
+}
+
+// × 关闭右栏文档：分屏 = 文档回左侧标签集合；预览 = 清空回到最近列表。
+const closeRightDoc = () => {
+  if (splitStore.active) {
+    splitStore.RETURN_SPLIT_TO_TABS(false)
+  } else if (bpStore.docPath) {
+    bpStore.SET_DOC_PATH(null)
+  }
+}
+
 // 标题文案：家目录缩写成 ~；目录最多保留 3 级，超出前缀 …/。
 const titleLabel = computed(() => {
   const name = props.filename ?? ''
@@ -162,7 +230,8 @@ const toggleCollapse = () => {
 // 标题文字过长时自适应缩小字号（多文档时分屏 tab 数多、可用宽度小，
 // 避免顶栏溢出挤压）：按 titleLabel 长度阶梯降级 14 → 13 → 12 → 11px。
 const titleFontStyle = computed(() => {
-  const len = titleLabel.value.length
+  const rightLen = rightDocName.value ? rightDocName.value.length + 4 : 0
+  const len = titleLabel.value.length + rightLen
   if (len > 76) return { fontSize: '11px' }
   if (len > 56) return { fontSize: '12px' }
   if (len > 40) return { fontSize: '13px' }
@@ -320,6 +389,53 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+
+/* 「文件A | 文件B」：竖线分隔淡色、右文档名可拖回标签栏、× 关闭右栏文档 */
+.title-sep {
+  color: var(--faint);
+  font-weight: 400;
+  padding: 0 1px;
+  flex: none;
+}
+.title-path .filename.right-doc {
+  max-width: 240px;
+  flex: none;
+  cursor: grab;
+}
+.title-path .filename.right-doc:active {
+  cursor: grabbing;
+}
+.title-path .filename.right-doc:hover {
+  color: var(--ink);
+}
+.right-doc-close {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+.title-path:hover .right-doc-close {
+  opacity: 1;
+}
+.right-doc-close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.right-doc-close svg {
+  width: 11px;
+  height: 11px;
 }
 
 .title-brand {

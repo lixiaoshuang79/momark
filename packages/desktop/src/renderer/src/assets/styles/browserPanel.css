@@ -139,11 +139,14 @@
   margin: 10px 10px 10px 0;
   background: var(--surface-2);
   border-radius: 13px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  /* 用户拍板：只留向下大柔投影——侧向晕影（旧 0 2px 8px）在浅色画布上
+     沿卡片左缘形成一条淡灰「竖线」，两次验收都被点名。y 向下 8px +
+     spread 内收 + 大 blur，左右缘几乎无可见晕影。 */
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
 [data-theme='dark'] .bp-inner {
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
 }
 
 /* ── 主体：输入区 / 内容区 ── */

@@ -65,19 +65,12 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     }
   }
 
-  // 右栏开关收起（PHASE2-SPEC §10 关闭分屏路径之一：右栏开关收起）。
-  // 分屏激活时收起面板 = 关闭分屏（文档静默还回标签集合）。
+  // 右栏开关只做视觉收起/展开：不影响面板内的内容与状态——
+  // 分屏文档、网页、预览文档在收起后保持（用户拍板：关闭右侧边栏
+  // 或切换网页/文档模式都不影响里面的内容和状态）。分屏的关闭走
+  // 顶栏右文档名 × / 拖回标签栏。
   function TOGGLE_PANEL(): void {
-    if (open.value) {
-      const splitStore = useSplitStore()
-      if (splitStore.active) {
-        splitStore.CLOSE_SPLIT()
-        return
-      }
-      SET_OPEN(false)
-      return
-    }
-    SET_OPEN(true)
+    SET_OPEN(!open.value)
   }
 
   function SET_MODE(next: BpMode): void {

@@ -96,20 +96,25 @@ const selectTab = (tab: SideBarTab): void => {
 .sb-inner {
   width: auto;
   align-self: stretch;
+  /* 高度不做内容自适应：列容器内 flex:1 撑满窗口高度（与右栏卡片一致，
+     用户拍板——否则卡片会缩成内容高度的一小块）。 */
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   box-sizing: border-box;
   margin: 10px 0 10px 10px;
   background: var(--surface-2);
-  /* 用户拍板：去掉发丝边框，只留投影+圆角，整体更简洁 */
+  /* 用户拍板：去掉发丝边框，只留向下大柔投影+圆角（与右栏一致，
+     旧侧向晕影在浅色画布上呈淡灰竖线） */
   border-radius: 13px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.12);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 10px 8px 12px;
 }
 [data-theme='dark'] .sb-inner {
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
 }
 
 .sb-tabs {

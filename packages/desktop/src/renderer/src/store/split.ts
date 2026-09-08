@@ -86,7 +86,6 @@ export const useSplitStore = defineStore('split', () => {
    */
   function RETURN_SPLIT_TO_TABS(showToast: boolean = true): void {
     const editorStore = useEditorStore()
-    const bpStore = useBrowserPanelStore()
     const id = tabId.value
     const tab = id ? editorStore.tabs.find((t) => t.id === id) : null
     if (tab) {
@@ -103,7 +102,8 @@ export const useSplitStore = defineStore('split', () => {
     active.value = false
     kind.value = 'doc'
     tabId.value = null
-    bpStore.SET_OPEN(false)
+    // 拖回只取消分屏本身：面板保持当前开合与内容状态
+    // （用户拍板：关闭右侧边栏/切换模式都不影响里面的内容和状态）。
   }
 
   /**

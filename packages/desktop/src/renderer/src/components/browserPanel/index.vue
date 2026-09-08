@@ -16,13 +16,15 @@
         <!-- 顶部 2px 墨蓝进度线（任何激活页加载中即显示，滑动动画） -->
         <div class="bp-track" :class="{ show: activePageLoading }" />
 
-        <url-mode v-if="mode === 'url'" />
-        <doc-mode v-else ref="docModeRef" />
+        <!-- 两种模式内容常驻挂载（v-show）：切换网页/文档、收起再展开面板
+             都不影响里面的内容与状态（网页滚动/登录态、预览文档保持）。 -->
+        <url-mode v-show="mode === 'url'" />
+        <doc-mode v-show="mode === 'doc'" ref="docModeRef" />
       </div>
 
       <!-- 底部：网址模式 = 40px 导航条；文档模式 = 「打开文件…」（36px 顶部 hairline） -->
-      <nav-bar v-if="mode === 'url'" />
-      <button v-else class="bp-openfile" @click="openDocFile">
+      <nav-bar v-show="mode === 'url'" />
+      <button v-show="mode === 'doc'" class="bp-openfile" @click="openDocFile">
         <mo-icon name="i-folder" />
         打开文件…
       </button>

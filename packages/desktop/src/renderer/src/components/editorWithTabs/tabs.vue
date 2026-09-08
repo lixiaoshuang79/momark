@@ -38,27 +38,8 @@
       <span ref="indicator" class="tab-indicator" />
     </div>
 
-    <!-- 右栏文档指示（用户拍板：文件名显示在 app 顶部，形如「文件A | 文件B」，
-         右栏内容与左侧文档顶对齐）：分屏第二文档 / 右栏预览文档统一在此呈现，
-         可拖回标签栏（分屏=回标签集合；预览=建成标签），× 关闭右栏文档。 -->
-    <div
-      v-if="rightDocName"
-      class="split-doc-chip"
-      draggable="true"
-      :title="rightDocTitle"
-      @dragstart="onChipDragStart"
-      @dragend="onChipDragEnd"
-    >
-      <span class="chip-dot" />
-      <span class="chip-name">{{ rightDocName }}</span>
-      <button
-        class="chip-close"
-        :title="t('sideBar.rightPanelCloseDoc')"
-        @click.stop="closeRightDoc"
-      >
-        <mo-icon name="i-x" />
-      </button>
-    </div>
+    <!-- 右栏文档指示已移到窗口顶栏（titleBar，「文件A | 文件B」竖线分隔、
+         可拖回标签栏）。 -->
 
     <button
       class="tb-toggle panel-toggle"
@@ -73,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
@@ -127,9 +108,9 @@ const toggleBpPanel = () => {
   bpStore.TOGGLE_PANEL()
 }
 
-// 标签拖回标签栏（顶部 split-doc-chip 的 return-drag，PHASE2-SPEC §3.4）：
+// 标签拖回标签栏（顶栏右文档名的 return-drag，PHASE2-SPEC §3.4）：
 // dragstart 时高亮投放区——多文档态=标签条（accentSoft 底 + accent 环）；
-// 单文档态无标签条，整行可投放，chip 本体加 accent 环提示。
+// 单文档态无标签条，整行可投放（editor-tabs 根挂 .return-target）。
 const onReturnDragStart = () => {
   tabContainer.value?.classList.add('return-target')
   tabsRoot.value?.classList.add('return-target')
@@ -138,47 +119,6 @@ const onReturnDragStart = () => {
 const onReturnDragEnd = () => {
   tabContainer.value?.classList.remove('return-target')
   tabsRoot.value?.classList.remove('return-target')
-}
-
-// 顶部「文件A | 文件B」的右文档指示：分屏第二文档优先，其次右栏预览文档。
-const rightDocName = computed(() => {
-  if (splitStore.active) {
-    const tab = tabs.value.find((item) => item.id === splitStore.tabId)
-    return tab?.filename ?? ''
-  }
-  const path = bpStore.docPath
-  return path ? window.path.basename(path) : ''
-})
-
-const rightDocTitle = computed(() => {
-  if (splitStore.active) {
-    const tab = tabs.value.find((item) => item.id === splitStore.tabId)
-    return tab?.pathname ?? rightDocName.value
-  }
-  return bpStore.docPath ?? ''
-})
-
-// chip 拖回标签栏：标记内部拖放（app.vue 的 window dragover 据此放行），
-// tabstrip 高亮，drop 时按来源落地。
-const onChipDragStart = (event: DragEvent) => {
-  if (!rightDocName.value) return
-  event.dataTransfer?.setData('application/x-momark-split-doc', rightDocName.value)
-  window.__momarkReturnDrag = true
-  bus.emit('split:return-drag-start')
-}
-
-const onChipDragEnd = () => {
-  window.__momarkReturnDrag = false
-  bus.emit('split:return-drag-end')
-}
-
-// × 关闭右栏文档：分屏 = 文档回左侧标签集合；预览 = 清空回到最近列表。
-const closeRightDoc = () => {
-  if (splitStore.active) {
-    splitStore.RETURN_SPLIT_TO_TABS(false)
-  } else if (bpStore.docPath) {
-    bpStore.SET_DOC_PATH(null)
-  }
 }
 
 const onReturnDragOver = (event: DragEvent) => {
@@ -198,12 +138,15 @@ const onReturnDrop = (event: DragEvent) => {
     splitStore.RETURN_SPLIT_TO_TABS(true)
   } else if (bpStore.docPath) {
     // 预览文档拖回标签栏：已在该标签集合则直接聚焦（不重复建标签），
-    // 否则建成真实标签。
+    // 否则建成真实标签。路径比对做 macOS /private 前缀归一（pathe.resolve
+    // 不解 symlink，/tmp 与 /private/tmp 是同一文件但字符串不等）。
+    const canon = (p: string) => {
+      const n = window.path.normalize(p)
+      return n.startsWith('/private/') ? n.slice('/private'.length) : n
+    }
     const path = bpStore.docPath
     bpStore.SET_DOC_PATH(null)
-    const existing = tabs.value.find(
-      (t) => window.path.resolve(t.pathname) === window.path.resolve(path)
-    )
+    const existing = tabs.value.find((t) => canon(t.pathname) === canon(path))
     if (existing) {
       editorStore.UPDATE_CURRENT_FILE(existing)
     } else {
@@ -694,79 +637,6 @@ onBeforeUnmount(() => {
 /* 单文档态无标签，右开关靠 margin 顶到右端（与多文档位置一致） */
 .editor-tabs.single .tb-toggle.panel-toggle {
   margin-left: auto;
-}
-
-/* 顶部右栏文档指示（「文件A | 文件B」的右文档名）：可拖回标签栏，× 关闭。
-   tabstrip flex:1 时贴标签条右端（多文档/分屏），单文档态由 margin-left:auto
-   推到右开关旁——所有场景都在 app 顶部同一行。 */
-.split-doc-chip {
-  flex: none;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 26px;
-  padding: 0 6px 0 10px;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink);
-  background: var(--hover);
-  cursor: grab;
-  user-select: none;
-  transition: background 0.15s ease;
-}
-.split-doc-chip:hover {
-  background: var(--selected);
-}
-.split-doc-chip:active {
-  cursor: grabbing;
-}
-/* chip 存在时由 chip 的 margin-left:auto 负责把右控件组推到右端，
-   右开关不再抢剩余空间（否则两个 auto margin 平分，chip 会居中）。 */
-.editor-tabs:has(.split-doc-chip) .tb-toggle.panel-toggle {
-  margin-left: 0;
-}
-/* 拖回投放提示：多文档态高亮标签条（return-target 既有样式）；
-   单文档态整行可投放时 chip 加 accent 环。 */
-.editor-tabs.single.return-target .split-doc-chip {
-  box-shadow: 0 0 0 2px var(--accent);
-}
-.chip-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex: none;
-}
-.chip-name {
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.chip-close {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.chip-close:hover {
-  background: var(--hover);
-  color: var(--ink);
-}
-.chip-close svg {
-  width: 12px;
-  height: 12px;
 }
 
 .tabstrip {
