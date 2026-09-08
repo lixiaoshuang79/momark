@@ -253,12 +253,10 @@ class App {
     }
 
     // We should NOT restore the previous buffer or open a folder if the user just wants to double click to open a file
-    let isRestorePathway = false
     if (_openFilesCache.length === 0) {
-      if (startUpAction === 'restoreAll') {
-        // Restore based off the previous buffer
-        isRestorePathway = true
-      } else if (startUpAction === 'folder' && defaultDirectoryToOpen) {
+      // MoMark：冷启动固定进欢迎页（'restoreAll' 分支有意移除——恢复上次
+      // 会话会把残留缓冲的 md 直接打开，与「打开即欢迎页」的产品预期冲突）。
+      if (startUpAction === 'folder' && defaultDirectoryToOpen) {
         const info = normalizeMarkdownPath(defaultDirectoryToOpen)
         if (info) {
           _openFilesCache.unshift(info as PathInfo)
@@ -382,24 +380,7 @@ class App {
     }
 
     const createWindow = (): void => {
-      if (isRestorePathway) {
-        // We will restore based off the previous buffer, one window per buffer store file
-        const bufferStores = editorBufferStore.getAll()
-        const bufferStoreList = Object.values(bufferStores) as Array<{
-          id: string
-          filePath: string | null
-        }>
-        if (bufferStoreList.length === 0) {
-          // First launch (nothing to restore): greet with the welcome window.
-          this._createWelcomeWindow()
-          return
-        }
-
-        bufferStoreList.forEach((bufferStoreInfo) => {
-          // Read the buffer store file and pass the content
-          this._createEditorWindow(null, [], [], {}, bufferStoreInfo)
-        })
-      } else if (_openFilesCache.length) {
+      if (_openFilesCache.length) {
         // We should wipe the buffer store if not it will keep creating new windows whenever we open files via double click in the file manager
         editorBufferStore.clearBufferStoresWithAllSaved()
         this._openFilesToOpen()
