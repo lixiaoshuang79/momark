@@ -863,7 +863,7 @@
     transform 0.5s var(--ease-modes-grow);
 }
 .bp-modes.shown {
-  width: 154px;
+  width: 170px;
   opacity: 1;
   transform: scale(1);
   pointer-events: auto;
@@ -899,13 +899,14 @@
   background: transparent;
   color: var(--muted);
   font-size: var(--f11);
-  padding: 4px 8px;
+  /* 用户反馈「切换组件有点挤」：加宽容器 + 增大内边距与图标文字间距 */
+  padding: 5px 10px;
   border-radius: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 5px;
   white-space: nowrap;
   flex: 1 0 auto;
   min-width: 0;
@@ -933,8 +934,8 @@
   font-weight: 600;
 }
 .bp-modes button svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
 }
 /* 选择器安放位置：紧跟各场景的右栏开关（PHASE2-SPEC §5，与原型一致）——
    标签栏（多文档/分屏）与标题栏（单文档）都渲染。 */

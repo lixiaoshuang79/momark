@@ -127,6 +127,14 @@
     border-spacing: 2px;
   }
 
+  /* 灰格底画在 td/th ::before 覆盖层（absolute inset:0）上，会把 static 定位的
+     单元格文字压到下面——文字与底色同色系时直接"看不见"。把单元格内容层
+     抬到覆盖层之上（选中高亮层 z-index:1 与内容同层、DOM 顺序在后，仍可见）。 */
+  .is-claude-theme .mu-table-cell-content {
+    position: relative;
+    z-index: 1;
+  }
+
   .is-claude-theme .mu-table-inner tr th::before,
   .is-claude-theme .mu-table-inner tr td::before {
     background: var(--c-tableCellBg);

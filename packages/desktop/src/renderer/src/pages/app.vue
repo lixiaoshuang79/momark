@@ -60,6 +60,7 @@
 import { computed, watch, nextTick, onMounted, ref } from 'vue'
 import { useMainStore } from '@/store'
 import { storeToRefs } from 'pinia'
+import { wordCount as wordCountFromMarkdown } from '@muyajs/core'
 import { addStyles, addThemeStyle, addCustomStyle, type AddStylesOptions } from '@/util/theme'
 import Recent from '@/components/recent/index.vue'
 import EditorWithTabs from '@/components/editorWithTabs/index.vue'
@@ -122,7 +123,16 @@ const titleTabCount = computed(() => (scene.value === 'single' ? tabs.value.leng
 // type is `string`. The `<editor-with-tabs>` mount is still gated.
 const markdown = computed<string>(() => currentFile.value?.markdown ?? '')
 const cursor = computed(() => currentFile.value?.cursor)
-const wordCount = computed(() => currentFile.value?.wordCount)
+const wordCount = computed(() => {
+  const wc = currentFile.value?.wordCount
+  // 恢复的 tab（启动还原/切换路径不触发 json-change）wordCount 为空对象或缺失：
+  // 用文档 markdown 现算兜底，避免状态栏恒显「字符 0」。正常编辑路径
+  // json-change 会写入 wordCount，此分支不再计算。
+  if (wc && (wc.word !== undefined || wc.character !== undefined)) return wc
+  const md = currentFile.value?.markdown
+  if (typeof md !== 'string' || md.length === 0) return wc ?? null
+  return wordCountFromMarkdown(md)
+})
 // `muyaIndexCursor` is loosely typed as `unknown` on the editor store; the
 // downstream prop expects `Object | undefined`. Cast at the boundary.
 const muyaIndexCursor = computed<Record<string, unknown> | undefined>(

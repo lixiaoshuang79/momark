@@ -10,7 +10,7 @@
 
     <div v-if="urlPages.length === 0" class="bp-url-empty">
       <mo-icon name="i-globe" />
-      <p>点击右上角 + 搜索或输入网址<br />即可在面板内浏览网页</p>
+      <p>点击右上角分屏按钮搜索或输入网址<br />即可在面板内浏览网页</p>
     </div>
 
     <!-- 单页悬浮胶囊 / Dock 新增时展开的网址栏 -->

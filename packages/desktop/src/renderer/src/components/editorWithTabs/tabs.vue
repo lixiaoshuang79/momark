@@ -44,7 +44,7 @@
       :title="t('sideBar.rightPanelTitle')"
       @click.stop="toggleBpPanel"
     >
-      <mo-icon :name="bpanelOpen ? 'i-x' : 'i-panel'" />
+      <mo-icon :name="bpanelOpen ? 'i-x' : 'i-partition'" />
     </button>
     <bp-modes :shown="bpanelOpen" />
   </div>

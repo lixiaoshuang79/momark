@@ -12,8 +12,17 @@
         </div>
       </div>
 
-      <!-- 单文档态：7px 墨蓝状态点 + 居中「…/目录/文件名」（原型 .fname 实况：
-           dot(7×7 accent 圆) + 一段 path/filename 文本，fs 17.33/600/muted）。
+      <!-- 左栏开关：红绿灯右侧常驻（单/多文档态均显示），点击开合侧边栏。 -->
+      <button
+        class="title-sidebar-btn title-no-drag"
+        :class="{ on: showSideBar }"
+        :title="t('sideBar.toggleTitle')"
+        @click.stop="toggleSideBar"
+      >
+        <mo-icon name="i-sidebar" />
+      </button>
+
+      <!-- 单文档态：7px 墨蓝状态点 + 居中「…/目录/文件名」。
            路径最多往上 3 级、分隔符统一 /；单击折叠为仅文件名，双击原地重命名 -->
       <div class="title" @dblclick.stop="toggleMaxmizeOnMacOS">
         <div v-if="isSingleDoc && (filename || pathname)" class="title-path">
@@ -38,7 +47,7 @@
           :title="t('sideBar.rightPanelTitle')"
           @click.stop="toggleBpPanel"
         >
-          <mo-icon :name="bpanelOpen ? 'i-x' : 'i-panel'" />
+          <mo-icon :name="bpanelOpen ? 'i-x' : 'i-partition'" />
         </button>
         <bp-modes :shown="bpanelOpen" />
       </div>
@@ -93,6 +102,7 @@ import { minimizePath, restorePath, maximizePath, closePath } from '../../assets
 import { isOsx as isOsxPlatform } from '@/util'
 import { shouldShowInAppTitleBar } from './visibility'
 import { useEditorStore } from '@/store/editor'
+import { useLayoutStore } from '@/store/layout'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import BpModes from '@/components/browserPanel/bpModes.vue'
 import { t } from '../../i18n'
@@ -116,8 +126,14 @@ const props = defineProps<{
 const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
 const bpStore = useBrowserPanelStore()
+const layoutStore = useLayoutStore()
 
 const { open: bpanelOpen } = storeToRefs(bpStore)
+const { showSideBar } = storeToRefs(layoutStore)
+
+const toggleSideBar = () => {
+  layoutStore.TOGGLE_LAYOUT_ENTRY('showSideBar')
+}
 
 const isOsx = isOsxPlatform
 const windowIconMinimize = minimizePath
@@ -318,7 +334,8 @@ onBeforeUnmount(() => {
   gap: 8px;
   max-width: 100%;
   min-width: 0;
-  font-size: var(--f13);
+  /* 用户反馈：--f13(17.33px) 偏大，缩到 14px（缩约 3.3px ≈ 两个字号级别） */
+  font-size: 14px;
   line-height: 1.45;
   font-weight: 600;
   color: var(--muted);
@@ -330,9 +347,41 @@ onBeforeUnmount(() => {
 }
 
 .title-brand {
-  font-size: var(--f13);
+  font-size: 14px;
   font-weight: 600;
   color: var(--faint);
+}
+
+/* 左栏开关按钮：红绿灯右侧 28×28，hover 浮出、开合状态着色 */
+.title-sidebar-btn {
+  position: absolute;
+  left: 78px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.title-sidebar-btn:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.title-sidebar-btn.on {
+  color: var(--accent);
+}
+.title-sidebar-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* 未保存状态点（PHASE2-SPEC §2：7px 墨蓝，保存成功即移除） */
@@ -384,8 +433,8 @@ onBeforeUnmount(() => {
   color: var(--ink);
 }
 .title-pbtn svg {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
 }
 
 .left-toolbar {
