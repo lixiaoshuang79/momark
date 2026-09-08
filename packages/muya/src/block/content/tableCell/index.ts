@@ -80,21 +80,43 @@ class TableCellContent extends Format {
         return true;
     }
 
-    /** 剥除后把 DOM 与 state 对齐：组合期间浏览器写进文本节点的前导 \u200B，
-     *  增量 op 可能不触发重渲染，此处显式 patch 一次并兜底清掉残留字符。 */
+    /** 剥除后把 DOM 与 state 对齐：组合期间浏览器把提交文本写进占位
+     *  文本节点（Chromium：\u200B 在前或残留尾部），增量 op 可能不触发
+     *  重渲染，此处显式 patch 一次并剥掉两端残留的 \u200B。
+     *  空文本时保留（或补回）占位，组合锚点继续固定格内。 */
     private _reconcilePlaceholderDom() {
         this.update();
         const { domNode, text } = this;
-        if (!domNode || !text || !domNode.textContent?.startsWith('\u200B'))
+        if (!domNode)
             return;
 
-        const first = domNode.firstChild;
-        if (
-            first
-            && first.nodeType === Node.TEXT_NODE
-            && first.textContent?.startsWith('\u200B')
-        ) {
-            first.textContent = first.textContent.replace(/^\u200B+/, '');
+        if (!text) {
+            this._ensureZeroWidthPlaceholder();
+            return;
+        }
+
+        // 有真实文本：两端 \u200B 都是提交残留，全剥
+        const texts: Text[] = [];
+        const collect = (node: Node) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+                texts.push(node as Text);
+            }
+            else {
+                node.childNodes.forEach(collect);
+            }
+        };
+        collect(domNode);
+        if (texts.length === 0)
+            return;
+
+        const first = texts[0];
+        const last = texts[texts.length - 1];
+        if (first === last) {
+            first.textContent = (first.textContent ?? '').replace(/\u200B/g, '');
+        }
+        else {
+            first.textContent = (first.textContent ?? '').replace(/^\u200B+/, '');
+            last.textContent = (last.textContent ?? '').replace(/\u200B+$/, '');
         }
     }
 
@@ -119,9 +141,11 @@ class TableCellContent extends Format {
             return;
         if ('isComposing' in event && (event as InputEvent).isComposing)
             return;
-        // ASCII/删除等非组合输入也可能把占位 \u200B 并入 state，统一剔除；
+        // ASCII/删除等非组合输入也可能把占位 \u200B 并入 state，统一两端剔除：
+        // 光标在占位文本节点 offset 0 处插入（如 insertText/粘贴）会让
+        // \u200B 落在提交文本之后（尾部残留），与组合路径同规则两端剥。
         // 剔除触发的重渲染会把光标快照回放回块级起点，与组合输入同样落位兜底。
-        if (this._stripZeroWidth(false)) {
+        if (this._stripZeroWidth(true)) {
             this._reconcilePlaceholderDom();
             this._settleCaretAtEnd();
         }
@@ -376,10 +400,11 @@ class TableCellContent extends Format {
             // （Safari 老路径：\u200B 在后），DOM 同步回 state 后两端都剥；
             // 变更渲染回调会在本次任务后重放组合前的光标快照，故光标落位
             // 延后一拍且直接落 DOM 选区，保证最终停在提交文本末尾。
-            if (this._stripZeroWidth(true)) {
-                this._reconcilePlaceholderDom();
-                this._settleCaretAtEnd();
-            }
+            // reconcile 不做返回值门控：state 可能已由 input 事件清干净，
+            // 但 DOM 仍残留尾部 \u200B，必须无条件对齐一次。
+            this._stripZeroWidth(true);
+            this._reconcilePlaceholderDom();
+            this._settleCaretAtEnd();
         }
     }
 }

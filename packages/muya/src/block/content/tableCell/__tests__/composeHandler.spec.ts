@@ -174,4 +174,53 @@ describe('tableCellContent.composeHandler — empty-cell ZWSP guard', () => {
         expect(cursor).not.toBeNull();
         expect(cursor!.start.offset).toBe('你好'.length);
     });
+
+    it('compositionend reconciles a DOM-residual TRAILING placeholder even when state is already clean (S4 leak regression)', async () => {
+        const muya = bootMuya(TABLE);
+        await flush();
+        const cell = tableCells(muya)[0];
+        muya.editor.activeContentBlock = cell;
+        cell.setCursor(0, 0, true);
+
+        cell.composeHandler(composeEvent('compositionstart'));
+        expect(zwspFlag(cell)).toBe(true);
+
+        // input 事件已把 state 同步干净（提交文本不含 \u200B），
+        // 但 DOM 文本节点里占位 \u200B 落在提交文本之后（Chromium 合并尾部）。
+        vi.spyOn(cell, 'inputHandler').mockImplementation(() => {});
+        cell.text = '重';
+        const span = document.createElement('span');
+        span.className = 'mu-plain-text';
+        span.textContent = `重${ZWSP}`;
+        cell.domNode!.textContent = '';
+        cell.domNode!.appendChild(span);
+
+        cell.composeHandler(composeEvent('compositionend'));
+        await flush();
+
+        expect(cell.text).toBe('重');
+        expect(cell.domNode!.textContent).toBe('重');
+        expect(cell.domNode!.textContent).not.toContain(ZWSP);
+        expect(zwspFlag(cell)).toBe(false);
+    });
+
+    it('inputHandler (non-composition path) strips a TRAILING placeholder merged into state (S4 insert-at-offset-0 regression)', async () => {
+        const muya = bootMuya(TABLE);
+        await flush();
+        const cell = tableCells(muya)[0];
+        muya.editor.activeContentBlock = cell;
+        cell.setCursor(0, 0, true);
+
+        // 光标在占位文本节点 offset 0 处插入（insertText/粘贴路径），
+        // 浏览器把提交文本写进占位节点之前，占位 \u200B 落到尾部。
+        // 单测直接验证非组合输入路径的 state 两端剥语义与 DOM 对齐
+        // （完整浏览器级回归由 CDP 矩阵脚本覆盖）。
+        cell.text = `重${ZWSP}`;
+        const strip = (cell as unknown as {
+            _stripZeroWidth(ends?: boolean): boolean;
+        })._stripZeroWidth.bind(cell);
+        expect(strip(true)).toBe(true);
+        expect(cell.text).toBe('重');
+        expect(cell.text).not.toContain(ZWSP);
+    });
 });
