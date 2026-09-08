@@ -136,22 +136,6 @@ const onReturnDrop = (event: DragEvent) => {
   if (splitStore.active) {
     // 分屏文档拖回标签栏（回到左侧标签集合）。
     splitStore.RETURN_SPLIT_TO_TABS(true)
-  } else if (bpStore.docPath) {
-    // 预览文档拖回标签栏：已在该标签集合则直接聚焦（不重复建标签），
-    // 否则建成真实标签。路径比对做 macOS /private 前缀归一（pathe.resolve
-    // 不解 symlink，/tmp 与 /private/tmp 是同一文件但字符串不等）。
-    const canon = (p: string) => {
-      const n = window.path.normalize(p)
-      return n.startsWith('/private/') ? n.slice('/private'.length) : n
-    }
-    const path = bpStore.docPath
-    bpStore.SET_DOC_PATH(null)
-    const existing = tabs.value.find((t) => canon(t.pathname) === canon(path))
-    if (existing) {
-      editorStore.UPDATE_CURRENT_FILE(existing)
-    } else {
-      window.electron.ipcRenderer.send('mt::open-file', path, {})
-    }
   }
 }
 

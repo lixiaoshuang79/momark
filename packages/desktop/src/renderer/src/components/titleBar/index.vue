@@ -97,7 +97,6 @@
 <script setup lang="ts">
 import { usePreferencesStore } from '@/store/preferences.js'
 import { useEditorStore } from '@/store/editor'
-import { useBrowserPanelStore } from '@/store/browserPanel'
 import { useSplitStore } from '@/store/split'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -126,7 +125,6 @@ const props = defineProps<{
 
 const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
-const bpStore = useBrowserPanelStore()
 const splitStore = useSplitStore()
 
 const isOsx = isOsxPlatform
@@ -162,14 +160,14 @@ watch(
 
 const MAX_DIR_LEVELS = 3
 
-// 「文件A | 文件B」的右文档指示：分屏第二文档优先，其次右栏预览文档。
+// 「文件A | 文件B」的右文档指示：分屏第二文档（round8 起右侧文档为真编辑器，
+// 无独立预览文档路径）。
 const rightDocName = computed(() => {
   if (splitStore.active) {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     return tab?.filename ?? ''
   }
-  const path = bpStore.docPath
-  return path ? window.path.basename(path) : ''
+  return ''
 })
 
 const rightDocTitle = computed(() => {
@@ -177,7 +175,7 @@ const rightDocTitle = computed(() => {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     return tab?.pathname ?? rightDocName.value
   }
-  return bpStore.docPath ?? ''
+  return ''
 })
 
 // 顶栏右文档名拖回标签栏：标记内部拖放（app.vue 的 window dragover 据此放行），
@@ -194,12 +192,10 @@ const onRightDragEnd = () => {
   bus.emit('split:return-drag-end')
 }
 
-// × 关闭右栏文档：分屏 = 文档回左侧标签集合；预览 = 清空回到最近列表。
+// × 关闭右栏文档：分屏 = 文档回左侧标签集合。
 const closeRightDoc = () => {
   if (splitStore.active) {
     splitStore.RETURN_SPLIT_TO_TABS(false)
-  } else if (bpStore.docPath) {
-    bpStore.SET_DOC_PATH(null)
   }
 }
 

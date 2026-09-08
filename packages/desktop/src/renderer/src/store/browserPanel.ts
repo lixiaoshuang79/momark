@@ -41,7 +41,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   const mode = ref<BpMode>('url')
   const urlPages = ref<WebPage[]>([])
   const activePageId = ref<string | null>(null)
-  const docPath = ref<string | null>(null)
   const dockAddrOpen = ref(false)
   const dragState = ref<BpDragState>('none')
   // 网页模式面板宽度（分隔线可拖动，240px ≤ w ≤ 60% 窗宽；会话内保持，
@@ -138,10 +137,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     dragState.value = value
   }
 
-  function SET_DOC_PATH(path: string | null): void {
-    docPath.value = path
-  }
-
   // 地址栏外开箭头：仅 http(s) 允许 shell.openExternal（主进程二次校验）。
   async function OPEN_EXTERNAL(url: string): Promise<void> {
     const ok = await window.bp.openExternal(url)
@@ -172,7 +167,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     mode,
     urlPages,
     activePageId,
-    docPath,
     dockAddrOpen,
     dragState,
     urlWidth,
@@ -185,7 +179,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     UPDATE_PAGE_STATE,
     SET_DOCK_ADDR_OPEN,
     SET_DRAG_STATE,
-    SET_DOC_PATH,
     SET_URL_WIDTH,
     OPEN_EXTERNAL,
     LISTEN,

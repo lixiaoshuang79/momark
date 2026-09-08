@@ -1,8 +1,9 @@
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import notice from '@/services/notification'
 import { useEditorStore } from './editor'
 import { useBrowserPanelStore } from './browserPanel'
+import { useLayoutStore } from './layout'
 
 /**
  * 拖拽分屏状态（STATE-MACHINE §1 SplitState，PHASE2-SPEC §3）。
@@ -25,6 +26,23 @@ export const useSplitStore = defineStore('split', () => {
   const dragTabId = ref<string | null>(null)
   // 分隔线拖动中（win-body 挂 .dragging-split，禁用面板宽度过渡 + 全局 col-resize）。
   const draggingSplit = ref(false)
+
+  // round8（用户拍板）：左右文档平等——右栏宽 = 可用编辑区（窗宽 − 左侧栏）的
+  // 一半，左侧文档区天然同宽；侧栏开合时跟随重算。最小 240px（极窄窗口下
+  // 无法物理等分时保底）。
+  const layoutStore = useLayoutStore()
+  const equalSplitWidth = computed<number>(() => {
+    const avail = window.innerWidth - layoutStore.effectiveSideBarWidth
+    return Math.max(240, Math.round(avail / 2))
+  })
+  watch(
+    () => layoutStore.effectiveSideBarWidth,
+    () => {
+      if (active.value && kind.value === 'doc') {
+        width.value = equalSplitWidth.value
+      }
+    }
+  )
 
   function SET_KIND(next: SplitKind): void {
     kind.value = next
@@ -51,7 +69,8 @@ export const useSplitStore = defineStore('split', () => {
     active.value = true
     kind.value = 'doc'
     tabId.value = id
-    width.value = Math.max(240, Math.min(480, window.innerWidth * 0.6))
+    // round8（用户拍板）：左右文档平等——右栏宽 = 可用编辑区的一半。
+    width.value = equalSplitWidth.value
 
     bpStore.SET_OPEN(true)
     bpStore.SET_MODE('doc')
@@ -108,15 +127,16 @@ export const useSplitStore = defineStore('split', () => {
 
   /**
    * 分隔线拖动（STATE-MACHINE setSplitWidth）：
-   * 240px ≤ 右栏 ≤ 60% 窗宽；拖到 ≥90% 窗宽自动关闭分屏。
+   * 240px ≤ 右栏 ≤ 等宽值（可用编辑区一半，round8 用户拍板左右平等）；
+   * 拖到 ≥90% 可用宽度自动关闭分屏。
    */
   function SET_SPLIT_WIDTH(widthPx: number): void {
-    const winWidth = window.innerWidth
-    if (widthPx >= winWidth * 0.9) {
+    const avail = window.innerWidth - layoutStore.effectiveSideBarWidth
+    if (widthPx >= avail * 0.9) {
       RETURN_SPLIT_TO_TABS(false)
       return
     }
-    width.value = Math.round(Math.max(240, Math.min(widthPx, winWidth * 0.6)))
+    width.value = Math.round(Math.max(240, Math.min(widthPx, avail / 2)))
   }
 
   // 关闭分屏（右栏开关收起等路径），文档静默还回。
