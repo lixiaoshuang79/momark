@@ -32,6 +32,10 @@
     >
       <mo-icon :name="bpanelOpen ? 'i-x' : 'i-panel'" />
     </button>
+
+    <!-- 网址/文档选择器：紧跟开关之后（PHASE2-SPEC §5）——单文档态由面包屑行渲染，
+         多文档/分屏态由标签栏的 bp-modes 承接。 -->
+    <bp-modes v-if="isSingleDoc" :shown="bpanelOpen" />
   </div>
 </template>
 
@@ -42,6 +46,7 @@ import { useEditorStore } from '@/store/editor'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import MoIcon from '@/components/icons/MoIcon.vue'
+import BpModes from '@/components/browserPanel/bpModes.vue'
 import bus from '@/bus'
 import { t } from '../../i18n'
 
@@ -167,12 +172,15 @@ const onDocnameDragEnd = () => {
 }
 .crumb-pbtn {
   display: flex;
-  width: 26px;
+  /* 与标签栏 .tb-toggle 一致：正方形，rolled 时 border-radius:50% 才是正圆 */
+  width: 22px;
   height: 22px;
   align-items: center;
   justify-content: center;
   margin-left: auto;
-  margin-right: 8px;
+  /* 右距交给其后的 bp-modes（容器 gap 8px 提供间距）；
+     panel 关闭时 bp-modes 仍以 18px 收起态存在 */
+  margin-right: 0;
   border: none;
   border-radius: 6px;
   background: transparent;

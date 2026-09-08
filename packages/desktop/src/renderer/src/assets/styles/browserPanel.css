@@ -936,10 +936,13 @@
   width: 13px;
   height: 13px;
 }
-/* 选择器安放位置：只跟标签栏开关（多文档态 .editor-tabs，与原型一致；
-   单文档态面包屑行不渲染选择器） */
+/* 选择器安放位置：紧跟各场景的右栏开关（PHASE2-SPEC §5，与原型一致）——
+   标签栏（多文档/分屏）与面包屑行（单文档）都渲染。 */
 .editor-tabs .bp-modes {
   margin: 0 0 0 2px;
+}
+.crumb .bp-modes {
+  margin: 0 8px 0 0;
 }
 
 /* ── 右栏开关按钮滚动变圆形 X（.rolled）── */
