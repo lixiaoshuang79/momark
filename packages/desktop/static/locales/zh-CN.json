@@ -1041,12 +1041,11 @@
       "errorSwitchingLanguage": "切换拼写检查语言时出错 {languageCode}",
       "languageMissing": "拼写检查语言缺失 {languageCode}",
       "switchError": "{languageCode} 拼写检查切换错误，{error}"
-    },
-    "emptyHint": "从这里开始写作…"
+    }
   },
   "statusBar": {
     "saved": "已保存",
-    "unsaved": "未保存的更改",
+    "unsaved": "未保存",
     "words": "字数",
     "paragraphs": "段落",
     "characters": "字符"

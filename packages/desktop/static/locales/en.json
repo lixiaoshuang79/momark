@@ -1041,8 +1041,7 @@
       "languageMissing": "Spellcheck language missing {languageCode}",
       "switchError": "Spellcheck switch error for {languageCode}, {error}",
       "title": "Spellcheck"
-    },
-    "emptyHint": "Start writing here…"
+    }
   },
   "statusBar": {
     "saved": "Saved",

@@ -130,7 +130,21 @@ export class ParagraphFrontButton {
                     && (ele[BLOCK_DOM_PROPERTY] as Parent).isOutMostBlock,
             );
             if (outMostElement) {
-                this.show(outMostElement[BLOCK_DOM_PROPERTY] as Parent);
+                const block = outMostElement[BLOCK_DOM_PROPERTY] as Parent;
+                // 标题在左侧沟槽已有自己的 hover 图标（🔗 复制锚点链接，
+                // `.mu-copy-header-link`，CSS :hover 显示）。两个都是行首
+                // gutter 悬停元素，标题上同时显示会互相重叠（用户反馈：
+                // 「段落类型会和链接 icon 重合」）。标题 hover 时把沟槽让给
+                // 链接 icon，徽标只用于非标题块（段落/列表/引用等）。
+                // `atx-heading` / `setext-heading` 与标题块一一对应。
+                if (
+                    block
+                    && (block.blockName === 'atx-heading' || block.blockName === 'setext-heading')
+                ) {
+                    this.hide();
+                    return;
+                }
+                this.show(block);
                 this.render();
             }
             else {

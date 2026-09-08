@@ -125,8 +125,8 @@ export const runDocumentTransition = (opts: {
     oldLines.forEach(({ el, left, top, width }, index) => {
       const length = (el.textContent || '').trim().length
       const distance = 120 + Math.min(150, length * 1.35)
-      const duration = 220 + Math.min(120, length * 1.3)
-      const delay = index * 8 + (length % 4) * 5
+      const duration = 180 + Math.min(60, length * 0.8)
+      const delay = Math.min(index * 8, 200) + (length % 4) * 4
       outEnd = Math.max(outEnd, duration + delay)
       // 清理上一轮被打断的入场动画残留（class 与 CSS 变量），避免与退场冲突。
       clearLineAnimation(el)
@@ -151,8 +151,10 @@ export const runDocumentTransition = (opts: {
   newLines.forEach(({ el }, index) => {
     const length = (el.textContent || '').trim().length
     const distance = 120 + Math.min(170, length * 1.5)
-    const duration = 560 + Math.min(360, length * 2.8)
-    const delay = index * 22 + (length % 6) * 8
+    // 入场压缩到 320-420ms、错峰封顶 300ms：总预算 <500ms（MD3 时序表），
+    // 逐行 560-920ms 的老参数在长文档上拖沓且掉帧。
+    const duration = 320 + Math.min(100, length * 0.9)
+    const delay = Math.min(index * 14, 300) + (length % 6) * 4
     el.style.setProperty('--line-x', `${direction * distance}px`)
     el.style.setProperty('--line-duration', `${duration}ms`)
     el.style.setProperty('--line-delay', `${delay}ms`)

@@ -70,6 +70,13 @@ class LinkTools extends BaseFloat {
             if (reference) {
                 this._linkInfo = linkInfo ?? null;
                 this._linkBlock = block ?? null;
+                // 从链接 A 快速移到链接 B 时，A 的 mouseout 已排了 500ms 的
+                // 隐藏定时器；不取消它，B 刚显示的浮层会在 500ms 后被 A 的
+                // 定时器误杀。新 show 必须作废待执行的 hide。
+                if (this._hideTimer) {
+                    clearTimeout(this._hideTimer);
+                    this._hideTimer = null;
+                }
                 setTimeout(() => {
                     this.show(reference);
                     this.render();

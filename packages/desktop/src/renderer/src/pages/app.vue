@@ -11,14 +11,11 @@
         :tab-count="titleTabCount"
       />
 
-      <!-- 标签栏 + 面包屑：win-body 之上的全宽行（PHASE2-SPEC §1：
-           标题栏 40px / 标签栏 40px（single 整行移除）/ 面包屑 28px）。
-           single 场景连面包屑行一并移除（路径居中显示在标题栏，右栏开关
-           +选择器在标题栏右侧）；唯一标签被拖出到分屏时 currentFile 为空，
-           仍渲染面包屑行以保留 bp-docname（拖回）。 -->
+      <!-- 标签栏：win-body 之上的全宽行（PHASE2-SPEC §1：标题栏 40px /
+            标签栏 40px，single 整行移除）。面包屑行已按用户要求取消——
+            路径信息只在顶栏显示（≤3 级目录，多文档自适应字号）。 -->
       <div v-if="(hasCurrentFile || splitActive) && init" class="editor-chrome">
         <editor-tabs v-if="tabbarVisible" />
-        <crumbs v-if="scene !== 'single'" />
       </div>
 
       <!-- 主体三栏：侧栏 / 编辑区列 / 分隔线 / 右侧浏览器面板
@@ -65,7 +62,6 @@ import { addStyles, addThemeStyle, addCustomStyle, type AddStylesOptions } from 
 import Recent from '@/components/recent/index.vue'
 import EditorWithTabs from '@/components/editorWithTabs/index.vue'
 import EditorTabs from '@/components/editorWithTabs/tabs.vue'
-import Crumbs from '@/components/crumbs/index.vue'
 import TitleBar from '@/components/titleBar/index.vue'
 import SideBar from '@/components/sideBar/index.vue'
 import StatusBar from '@/components/statusBar/index.vue'
@@ -107,13 +103,19 @@ const { windowActive, platform, init } = storeToRefs(mainStore)
 const { sourceCode, theme, customCss, textDirection, zoom } = storeToRefs(preferencesStore)
 const { projectTree } = storeToRefs(projectStore)
 const { currentFile, tabs } = storeToRefs(editorStore)
-const { open: bpanelOpen, mode: bpanelMode } = storeToRefs(bpStore)
+const { open: bpanelOpen } = storeToRefs(bpStore)
 const { active: splitActive, draggingSplit } = storeToRefs(splitStore)
 const { scene, tabbarVisible } = storeToRefs(workspaceStore)
 
 const pathname = computed(() => currentFile.value?.pathname)
 const filename = computed(() => currentFile.value?.filename)
-const isSaved = computed(() => currentFile.value?.isSaved)
+// 未命名文档从未保存过：展示层一律视为「未保存」（store 内 isSaved 仍为 true，
+// 保证空白 untitled 关闭不弹保存框；一旦修改 json-change 会置 false 走弹窗路径）。
+const isSaved = computed(() => {
+  const f = currentFile.value
+  if (!f) return undefined
+  return !!f.pathname && f.isSaved
+})
 // 标题区（PHASE2-SPEC §1/§10）：仅 single 场景显示状态点+完整路径；
 // multi / split-* 场景标题区留空 —— 用 tabCount>1 的既有判定表达。
 const titleTabCount = computed(() => (scene.value === 'single' ? tabs.value.length : 2))
@@ -125,11 +127,15 @@ const markdown = computed<string>(() => currentFile.value?.markdown ?? '')
 const cursor = computed(() => currentFile.value?.cursor)
 const wordCount = computed(() => {
   const wc = currentFile.value?.wordCount
-  // 恢复的 tab（启动还原/切换路径不触发 json-change）wordCount 为空对象或缺失：
-  // 用文档 markdown 现算兜底，避免状态栏恒显「字符 0」。正常编辑路径
-  // json-change 会写入 wordCount，此分支不再计算。
-  if (wc && (wc.word !== undefined || wc.character !== undefined)) return wc
   const md = currentFile.value?.markdown
+  const storedUsable =
+    !!wc &&
+    (wc.word !== undefined || wc.character !== undefined) &&
+    (wc.word > 0 || wc.character > 0 || wc.paragraph > 0 || wc.all > 0)
+  // 打开已有内容的文档时 stored 种子是全 0（setContent 不触发 json-change），
+  // 全 0 视为「未激活」：有 markdown 就现算兜底；真实编辑后 json-change 写入
+  // 非零值走 stored，空文档（md 为空）则如实显示 0。
+  if (storedUsable) return wc
   if (typeof md !== 'string' || md.length === 0) return wc ?? null
   return wordCountFromMarkdown(md)
 })
@@ -152,10 +158,9 @@ const winBodyClasses = computed(() => ({
   'dragging-split': draggingSplit.value
 }))
 
-// 分隔线：文档分屏时始终可拖；网页模式（无分屏）也允许拖动调整面板宽度。
-const showSplitter = computed(
-  () => bpanelOpen.value && (splitActive.value || bpanelMode.value === 'url')
-)
+// 分隔线：面板展开即显示——文档分屏、网页模式、文档模式空态均可拖动调整宽度
+// （用户反馈：文档 TAB 未打开文档时分栏宽度也要能调）。
+const showSplitter = computed(() => bpanelOpen.value)
 
 // Watchers
 watch(theme, (value, oldValue) => {

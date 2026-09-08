@@ -56,11 +56,17 @@
   --motion-fast: 150ms;
   --motion-base: 200ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  /* 标签滑轨回弹 */ --ease-tab-indicator: cubic-bezier(.18,1.32,.36,1);
+  /* 标签滑轨（S 型零过冲：Flutter fastOutSlowIn / Chromium FAST_OUT_SLOW_IN 同款） */
+  --ease-tab-indicator: cubic-bezier(0.4, 0, 0.2, 1);
   /* 面板生长回弹 */ --ease-grow: cubic-bezier(.18,1.28,.36,1);
-  /* 标签滑轨 width 过渡 */ --ease-tab-width: cubic-bezier(.22,1,.36,1);
-  /* 活动标签 tabSpring 关键帧 */ --ease-tab-spring: cubic-bezier(.2,1.35,.35,1);
-  /* 内容分层滑入 */ --ease-line-in: cubic-bezier(.16,1.14,.3,1);
+  /* 标签滑轨 width 过渡（已由 WAAPI 接管，保留兼容值） */ --ease-tab-width: cubic-bezier(0.4, 0, 0.2, 1);
+  /* 标签文字退场（ease-in）/入场（S 型 ease-out）：退场=入场 65-75%（MD3） */
+  --ease-tab-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-tab-enter: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-tab-indicator: 300ms;
+  --dur-tab-exit: 240ms;
+  --dur-tab-enter: 280ms;
+  /* 内容分层滑入（S 型零过冲） */ --ease-line-in: cubic-bezier(0.2, 0, 0, 1);
   /* 内容移出 */     --ease-line-out: cubic-bezier(.4,0,.8,.2);
   /* 右侧面板开合（PHASE2-SPEC §5 显式宽度动画） */ --ease-panel: cubic-bezier(.22,1,.36,1);
   /* 网址/文档选择器生长回弹（PHASE2-SPEC §5） */ --ease-modes-grow: cubic-bezier(.18,1.42,.36,1);

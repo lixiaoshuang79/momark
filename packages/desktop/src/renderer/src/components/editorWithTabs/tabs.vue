@@ -139,6 +139,13 @@ const removeFileInTab = (file: IFileState) => {
 
 // 滑轨（PHASE2-SPEC §2）：width = max(18px, active.offsetWidth - 20px)，
 // transform = translateX(active.offsetLeft + 10px)。
+// S 型动效（用户反馈去掉回弹）：width 瞬切 + WAAPI 在 transform 层做
+// translateX+scaleX 补偿动画，全程只动画合成层属性，无逐帧 layout。
+let indicatorAnim: Animation | null = null
+const REDUCED_MOTION =
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 const moveIndicator = (animate: boolean): void => {
   const strip = tabContainer.value
   const ind = indicator.value
@@ -148,20 +155,77 @@ const moveIndicator = (animate: boolean): void => {
     ind.style.opacity = '0'
     return
   }
-  if (!animate) {
-    ind.style.transition = 'none'
+  const targetW = Math.max(18, active.offsetWidth - 20)
+  const targetX = active.offsetLeft + 10
+  if (indicatorAnim) {
+    indicatorAnim.cancel()
+    indicatorAnim = null
   }
-  ind.style.width = `${Math.max(18, active.offsetWidth - 20)}px`
-  ind.style.transform = `translateX(${active.offsetLeft + 10}px)`
+  if (!animate || REDUCED_MOTION) {
+    ind.style.width = `${targetW}px`
+    ind.style.transform = `translateX(${targetX}px)`
+    ind.style.opacity = '1'
+    return
+  }
+  // 起点 = 当前视觉位置（含 scroll）；终点 = 内容坐标（CSS 层自动减 scroll）。
+  const stripRect = strip.getBoundingClientRect()
+  const curRect = ind.getBoundingClientRect()
+  const curX = curRect.left - stripRect.left
+  const curW = curRect.width
+  const startX = curW > 0 ? curX : targetX
+  const startSx = curW > 0 ? targetW / curW : 1
+  ind.style.width = `${targetW}px`
   ind.style.opacity = '1'
-  if (!animate) {
-    // 双 rAF 后再恢复过渡，防止首帧闪现（PHASE2-SPEC §2）。
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        ind.style.transition = ''
-      })
-    })
+  indicatorAnim = ind.animate(
+    [
+      { transform: `translateX(${startX}px) scaleX(${startSx})` },
+      { transform: `translateX(${targetX}px) scaleX(1)` }
+    ],
+    {
+      duration: 300,
+      easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      fill: 'forwards'
+    }
+  )
+  indicatorAnim.onfinish = () => {
+    ind.style.transform = `translateX(${targetX}px)`
+    ind.style.width = `${targetW}px`
+    indicatorAnim = null
   }
+}
+
+// 标签文字真实行程动效（用户反馈：被换走的文字要穿过界面边缘）：
+// 退场标签文字沿切换方向平移一个容器全宽（被 overflow 裁剪，视觉穿出边缘），
+// 新激活标签文字从对侧全宽处滑入；方向 = 新旧标签在 tabs 中的索引比较。
+let labelToken = 0
+
+const animateTabLabels = (prevId: string | undefined, nextId: string): void => {
+  const strip = tabContainer.value
+  if (!strip || REDUCED_MOTION || !prevId || prevId === nextId) return
+  const ids = tabs.value.map((tab) => tab.id)
+  const ni = ids.indexOf(nextId)
+  const oi = ids.indexOf(prevId)
+  const dir = ni >= 0 && oi >= 0 && ni >= oi ? 1 : -1
+  const oldEl = strip.querySelector<HTMLElement>(`.tab[data-id="${prevId}"]`)
+  const newEl = strip.querySelector<HTMLElement>(`.tab[data-id="${nextId}"]`)
+  const w = strip.clientWidth
+  const token = ++labelToken
+  strip.style.setProperty('--tab-exit-x', `${-dir * w}px`)
+  if (oldEl && oldEl !== newEl) {
+    oldEl.classList.remove('tab-exit')
+    // offsetWidth 读取触发强制同步重排,保证类名重加时移除已提交,过渡才能重新触发
+    oldEl.offsetWidth && oldEl.classList.add('tab-exit')
+  }
+  if (newEl) {
+    newEl.classList.remove('tab-enter')
+    newEl.offsetWidth && newEl.classList.add('tab-enter')
+  }
+  window.setTimeout(() => {
+    if (token !== labelToken) return
+    strip.style.removeProperty('--tab-exit-x')
+    oldEl?.classList.remove('tab-exit')
+    newEl?.classList.remove('tab-enter')
+  }, 400)
 }
 
 // Keep the active tab visible when the selection changes by something other
@@ -247,10 +311,11 @@ const handleContextMenu = (event: MouseEvent, tab: IFileState) => {
 
 watch(
   () => currentFile.value?.id,
-  () => {
+  (id, prevId) => {
     nextTick(() => {
       scrollActiveTabIntoView()
       moveIndicator(true)
+      animateTabLabels(prevId ?? undefined, id ?? '')
     })
   }
 )
@@ -497,7 +562,6 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   transition:
     background 0.22s ease,
-    transform 0.46s var(--ease-tab-spring),
     box-shadow 0.22s ease;
 }
 .tab:hover {
@@ -505,17 +569,38 @@ onBeforeUnmount(() => {
 }
 .tab.active {
   background: var(--surface-2);
-  animation: tabSpring 0.52s var(--ease-tab-spring);
 }
-@keyframes tabSpring {
-  0% {
-    transform: translateY(2px) scale(0.96);
-  }
-  55% {
-    transform: translateY(-1.5px) scale(1.018);
-  }
-  100% {
+
+/* 切换标签的文字行程动效（真实穿过 tabstrip 边缘，由 overflow 裁剪）：
+   退场标签文字沿切换方向平移一个容器全宽，新激活标签从对侧滑入；
+   方向变量 --tab-exit-x 由 JS 写入 tabstrip（保证任何宽度都完整穿出）。 */
+.tab.tab-exit .tname {
+  animation: tabLabelExit var(--dur-tab-exit) var(--ease-tab-exit) both;
+}
+.tab.tab-enter .tname {
+  animation: tabLabelEnter var(--dur-tab-enter) var(--ease-tab-enter) both;
+}
+.tab.dragging .tname {
+  animation: none;
+}
+@keyframes tabLabelExit {
+  from {
     transform: none;
+    opacity: 1;
+  }
+  to {
+    transform: translateX(var(--tab-exit-x, -999px));
+    opacity: 0.3;
+  }
+}
+@keyframes tabLabelEnter {
+  from {
+    transform: translateX(calc(var(--tab-exit-x, 999px) * -1));
+    opacity: 0.3;
+  }
+  to {
+    transform: none;
+    opacity: 1;
   }
 }
 
@@ -534,7 +619,9 @@ onBeforeUnmount(() => {
   color: var(--ink);
 }
 
-/* 活动标签底部独立滑轨（独立元素，不随标签重建） */
+/* 活动标签底部独立滑轨（独立元素，不随标签重建）。
+   transform/width 由 moveIndicator 的 WAAPI 动画接管（S 型 300ms 零过冲），
+   CSS 不再对两者做 transition，避免瞬写被过渡拖慢。 */
 .tab-indicator {
   position: absolute;
   left: 0;
@@ -546,11 +633,7 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 3;
   opacity: 0;
-  transition:
-    transform 0.58s var(--ease-tab-indicator),
-    width 0.48s var(--ease-tab-width),
-    opacity 0.16s ease;
-  will-change: transform, width;
+  transition: opacity 0.16s ease;
 }
 
 /* 未保存圆点：7px 墨蓝，文件名之后；保存成功即移除 */

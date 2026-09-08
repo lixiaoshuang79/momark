@@ -1,5 +1,7 @@
 <template>
-  <div v-show="showSideBar" class="side-bar">
+  <!-- 开合动效：外层宽度 0↔288px 以 --ease-panel（.22,1,.36,1 零过冲非线性）过渡，
+       内层固定 288px 随展开淡入右移，收起反向。不用 v-show（无动画可衔接）。 -->
+  <div class="side-bar" :class="{ open: showSideBar }">
     <div class="sb-inner">
       <!-- 顶部「大纲 / 文件」双 tab：白色滑块在选中项间滑动（回弹缓动，非线性），
            按钮自身不再换底，仅滑块位移 + 文字颜色过渡。 -->
@@ -63,20 +65,30 @@ const selectTab = (tab: SideBarTab): void => {
 </script>
 
 <style scoped>
-/* 展开 288px 底 --sidebar，右侧 .5px 发丝线；收起 = v-show false，完全无占位（无 45px rail 残留）
-   高度随 win-body 行（PHASE2-SPEC §1：侧栏从面包屑行之下到窗口底）。 */
+/* 展开 288px 底 --sidebar，右侧 .5px 发丝线；收起 = 宽度 0（常驻挂载，
+   无 45px rail 残留）。开合 = 显式宽度动画 + 内容淡入右移（--ease-panel，
+   非线性零过冲）。高度随 win-body 行。 */
 .side-bar {
   display: flex;
   flex-shrink: 0;
   flex-grow: 0;
-  width: var(--sidebar-w);
-  min-width: var(--sidebar-w);
+  width: 0;
+  min-width: 0;
   height: 100%;
   position: relative;
   color: var(--ink);
   user-select: none;
   background: var(--sidebar);
-  border-right: 0.5px solid var(--line);
+  border-right: 0.5px solid transparent;
+  overflow: hidden;
+  transition:
+    width 0.36s var(--ease-panel),
+    border-color 0.24s ease;
+}
+.side-bar.open {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  border-right-color: var(--line);
 }
 
 .sb-inner {
@@ -86,6 +98,15 @@ const selectTab = (tab: SideBarTab): void => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  opacity: 0;
+  transform: translateX(-14px);
+  transition:
+    opacity 0.22s ease,
+    transform 0.36s var(--ease-panel);
+}
+.side-bar.open .sb-inner {
+  opacity: 1;
+  transform: none;
 }
 
 .sb-tabs {

@@ -6,6 +6,7 @@ import log from 'electron-log'
 import { app, BrowserWindow, clipboard, dialog, nativeTheme, shell, ipcMain } from 'electron'
 import type { BrowserWindowConstructorOptions } from 'electron'
 import { isChildOfDirectory, MARKDOWN_EXTENSIONS } from 'common/filesystem/paths'
+import { isFile2 } from 'common/filesystem'
 import type { IUserPreferences } from '@shared/types/preferences'
 import { isLinux, isOsx, isWindows } from '../config'
 import parseArgs from '../cli/parser'
@@ -544,7 +545,21 @@ class App {
   private async _getWelcomeRecents(): Promise<
     Array<{ path: string; name: string; dirname: string; mtime: number }>
   > {
-    const recents = this._accessor.menu.getRecentlyUsedDocuments()
+    // macOS 上菜单层从不写 recently-used-documents.json（addRecentlyUsedDocument
+    // 只调用系统 app.addRecentDocument 后即返回），getRecentlyUsedDocuments 永远为空，
+    // 导致欢迎页/文档面板的「最近打开」列表空无一物。
+    // 兜底：读取系统最近文档清单（app.getRecentDocuments），过滤仍存在的文件。
+    let recents = this._accessor.menu.getRecentlyUsedDocuments()
+    if (recents.length === 0 && isOsx) {
+      recents = (app.getRecentDocuments() as string[]).filter((f) => {
+        if (!f) return false
+        try {
+          return isFile2(f)
+        } catch {
+          return false
+        }
+      })
+    }
     const items: Array<{ path: string; name: string; dirname: string; mtime: number }> = []
     for (const filePath of recents.slice(0, 8)) {
       try {

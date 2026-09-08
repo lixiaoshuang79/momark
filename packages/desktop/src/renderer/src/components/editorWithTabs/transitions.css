@@ -1,5 +1,7 @@
 /* 标签切换内容动效（PHASE2-SPEC §2 / 原型 .line-enter .line-exit 同源）。
-   关键帧作用于引擎渲染出的块级节点，必须全局（组件 scoped 样式不会命中运行时注入的节点）。 */
+   关键帧作用于引擎渲染出的块级节点，必须全局（组件 scoped 样式不会命中运行时注入的节点）。
+   用户反馈后收紧：去掉 72% 过冲帧与 blur 滤镜（逐行 filter 昂贵易掉帧），
+   只动画 transform/opacity（合成层），入场走 --ease-line-in S 型零过冲。 */
 
 .doc-swap-overlay {
   position: absolute;
@@ -21,32 +23,25 @@
 }
 
 .doc-line-enter {
-  animation: docLineIn var(--line-duration, 0.72s) var(--ease-line-in, cubic-bezier(0.16, 1.14, 0.3, 1))
+  animation: docLineIn var(--line-duration, 0.4s) var(--ease-line-in, cubic-bezier(0.2, 0, 0, 1))
     var(--line-delay, 0ms) both;
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
 }
 
 .doc-line-exit {
-  animation: docLineOut var(--line-out-duration, 0.28s)
+  animation: docLineOut var(--line-out-duration, 0.24s)
     var(--ease-line-out, cubic-bezier(0.4, 0, 0.8, 0.2)) var(--line-delay, 0ms) both;
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
 }
 
 @keyframes docLineIn {
   0% {
     opacity: 0;
     transform: translateX(var(--line-x, 160px));
-    filter: blur(2px);
-  }
-  72% {
-    opacity: 1;
-    transform: translateX(calc(var(--line-x, 160px) * -0.025));
-    filter: blur(0);
   }
   100% {
     opacity: 1;
     transform: none;
-    filter: none;
   }
 }
 
@@ -54,11 +49,9 @@
   0% {
     opacity: 1;
     transform: none;
-    filter: none;
   }
   100% {
     opacity: 0;
     transform: translateX(var(--line-out-x, -150px));
-    filter: blur(1.5px);
   }
 }

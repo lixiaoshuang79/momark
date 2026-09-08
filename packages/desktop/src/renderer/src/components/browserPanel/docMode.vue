@@ -1,19 +1,40 @@
 <template>
-  <!-- 原型 .bp-doc：无标题行、无空态提示——有内容渲染 .wysiwyg 等价体，
-       空态就是空白画布 + 底部「打开文件…」条。 -->
+  <!-- 原型 .bp-doc：无标题行——有内容渲染 .wysiwyg 等价体；
+       空态 = 最近打开列表（点击立即在当前窗口打开为标签）+ 底部「打开文件…」条。 -->
   <div class="bp-doc">
     <div v-if="hasContent" ref="docBody" v-html="previewHtml" />
+    <div v-else class="bp-doc-empty">
+      <div class="bp-recents-title">
+        {{ t('welcome.recentTitle') }}
+      </div>
+      <div class="bp-recents">
+        <button
+          v-for="item in recents"
+          :key="item.path"
+          class="bp-recent-item"
+          :title="item.path"
+          @click="openRecent(item.path)"
+        >
+          <span class="bp-recent-name">{{ item.name }}</span>
+          <span class="bp-recent-dir">{{ item.dirname }}</span>
+        </button>
+        <div v-if="recents.length === 0" class="bp-recents-none">
+          {{ t('welcome.noRecentText') }}
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import { useEditorStore } from '@/store/editor'
 import { useSplitStore } from '@/store/split'
 import { renderMarkdownPreview } from '@/util/browserPanel'
+import { t } from '../../i18n'
 
 /**
  * 文档模式（PHASE2-SPEC §5）：分屏第二文档 = split.tabId 对应文档的实时预览；
@@ -40,6 +61,27 @@ const pickedMarkdown = ref<{ path: string; markdown: string } | null>(null)
 const docBody = ref<HTMLElement | null>(null)
 
 const hasContent = computed(() => !!splitDocTab.value || !!docPath.value)
+
+// 空态最近打开列表：主进程系统级最近文档（同欢迎页数据源，≤8 条）。
+type RecentItem = { path: string; name: string; dirname: string; mtime: number }
+const recents = ref<RecentItem[]>([])
+
+const loadRecents = async () => {
+  try {
+    recents.value = (await window.electron.ipcRenderer.invoke(
+      'mt::welcome::recents'
+    )) as RecentItem[]
+  } catch {
+    recents.value = []
+  }
+}
+
+const openRecent = (filePath: string) => {
+  // 与侧栏文件树一致：当前窗口内打开为标签（不新开窗口）。
+  window.electron.ipcRenderer.send('mt::open-file', filePath, {})
+}
+
+onMounted(loadRecents)
 
 const docBaseDir = (path: string | null): string => (path ? window.path.dirname(path) : '')
 

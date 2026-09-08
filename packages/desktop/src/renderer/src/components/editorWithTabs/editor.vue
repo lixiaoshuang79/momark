@@ -59,21 +59,11 @@
       </template>
     </el-dialog>
     <editor-search v-if="!sourceCode" />
-    <!-- 空文档第一行提示（PHASE2-SPEC §6）：墨蓝闪烁光标 + 弱化文案；
-         聚焦后隐藏、清空后显示；源码模式隐藏 -->
-    <div
-      v-if="isEmptyDoc && !sourceCode && !editorFocused"
-      class="empty-doc-hint"
-      :style="emptyHintStyle"
-    >
-      <span class="caret" />
-      <span class="text">{{ t('editor.emptyHint') }}</span>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
+import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
 import log from 'electron-log'
 import {
   Muya,
@@ -267,20 +257,8 @@ const directionForSwitch = (targetId: string | undefined): 1 | -1 => {
   return nextIndex >= prevIndex ? 1 : -1
 }
 
-// 空文档：第一行显示「从这里开始写作…」（PHASE2-SPEC §6）。
-const isEmptyDoc = computed(() => {
-  const md = props.markdown ?? ''
-  return md.trim().length === 0
-})
-
-// 编辑区是否聚焦（聚焦时隐藏空态提示，避免与真实光标重影）。
-const editorFocused = ref(false)
-let teardownFocusTracking: (() => void) | null = null
-
-// 提示行顶距：常规 20px（mu-container padding-top）；typewriter 模式居中偏移。
-const emptyHintStyle = computed(() => ({
-  top: typewriter.value ? 'calc(50vh - 116px)' : '20px'
-}))
+// 空文档占位提示已交由引擎（muya）渲染：空段落聚焦时显示
+// 「从这里开始写作，输入 / 插入段落」（zh-CN locale 合并句），不再叠加桌面层。
 
 // Project store refs
 const { projectTree } = storeToRefs(projectStore)
@@ -1782,22 +1760,6 @@ onMounted(() => {
   const ele = editorRef.value
   if (!ele) return
 
-  // 空态提示的聚焦跟踪：引擎会替换 .editor-component 节点，因此监听
-  // 外层稳定的 .editor-wrapper（focusin/focusout 冒泡）。
-  const wrapper = wrapperRef.value
-  const onFocusIn = (): void => {
-    editorFocused.value = true
-  }
-  const onFocusOut = (): void => {
-    editorFocused.value = false
-  }
-  wrapper?.addEventListener('focusin', onFocusIn)
-  wrapper?.addEventListener('focusout', onFocusOut)
-  teardownFocusTracking = () => {
-    wrapper?.removeEventListener('focusin', onFocusIn)
-    wrapper?.removeEventListener('focusout', onFocusOut)
-  }
-
   // Register the engine UI plugins once per renderer process (see
   // `muyaPluginsRegistered`). The image-edit tool receives the desktop's image
   // callbacks; LinkTools receives the ctrl/cmd-click jump handler.
@@ -2112,11 +2074,6 @@ onBeforeUnmount(() => {
 
   document.removeEventListener('keyup', keyup)
 
-  if (teardownFocusTracking) {
-    teardownFocusTracking()
-    teardownFocusTracking = null
-  }
-
   // Remove the manual scroll listener; engine `on(...)` listeners are torn down
   // by `destroy()` → `eventCenter.unsubscribeAll()`.
   if (scrollHandler && editor.value) {
@@ -2203,42 +2160,7 @@ onBeforeUnmount(() => {
   padding-bottom: calc(50vh - 54px);
 }
 
-/* 空文档第一行提示：墨蓝闪烁光标 + 弱化文案；纯装饰（pointer-events 穿透） */
-.empty-doc-hint {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: var(--editor-area-width, 800px);
-  max-width: calc(100% - 100px);
-  padding: 0 50px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-  color: var(--faint);
-  font-size: var(--editor-body-size, 15px);
-  line-height: var(--editor-body-lh, 1.58);
-  z-index: 0;
-}
-.empty-doc-hint .caret {
-  width: 2px;
-  height: 1.2em;
-  background: var(--accent);
-  animation: hintCaretBlink 1.1s steps(2, start) infinite;
-  flex: none;
-}
-.empty-doc-hint .text {
-  white-space: nowrap;
-}
-@keyframes hintCaretBlink {
-  0% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
+/* 空文档占位提示已交由引擎渲染，桌面侧样式移除。 */
 
 .image-viewer {
   position: fixed;

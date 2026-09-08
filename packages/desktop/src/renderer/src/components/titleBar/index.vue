@@ -22,10 +22,11 @@
         <mo-icon name="i-sidebar" />
       </button>
 
-      <!-- 单文档态：7px 墨蓝状态点 + 居中「…/目录/文件名」。
-           路径最多往上 3 级、分隔符统一 /；单击折叠为仅文件名，双击原地重命名 -->
+      <!-- 标题区：任何场景都显示「…/目录/文件名」（面包屑行已取消）；
+           路径最多往上 3 级、分隔符统一 /；单击折叠为仅文件名，双击原地重命名；
+           文字过长时按标题长度自适应缩小字号。 -->
       <div class="title" @dblclick.stop="toggleMaxmizeOnMacOS">
-        <div v-if="isSingleDoc && (filename || pathname)" class="title-path">
+        <div v-if="filename || pathname" class="title-path" :style="titleFontStyle">
           <span class="title-dot" :class="{ show: !isSaved }" />
           <span
             class="filename title-no-drag"
@@ -36,7 +37,7 @@
             >{{ titleLabel }}</span
           >
         </div>
-        <div v-else-if="isSingleDoc" class="title-brand">墨记</div>
+        <div v-else class="title-brand">墨记</div>
       </div>
 
       <!-- 单文档态右栏控件（面包屑行已整行移除）：开关 + 网页/文档选择器 -->
@@ -194,6 +195,16 @@ const toggleCollapse = () => {
   collapsed.value = !collapsed.value
 }
 
+// 标题文字过长时自适应缩小字号（多文档时分屏 tab 数多、可用宽度小，
+// 避免顶栏溢出挤压）：按 titleLabel 长度阶梯降级 14 → 13 → 12 → 11px。
+const titleFontStyle = computed(() => {
+  const len = titleLabel.value.length
+  if (len > 76) return { fontSize: '11px' }
+  if (len > 56) return { fontSize: '12px' }
+  if (len > 40) return { fontSize: '13px' }
+  return { fontSize: '14px' }
+})
+
 const toggleBpPanel = () => {
   bpStore.TOGGLE_PANEL()
 }
@@ -334,7 +345,9 @@ onBeforeUnmount(() => {
   gap: 8px;
   max-width: 100%;
   min-width: 0;
-  /* 用户反馈：--f13(17.33px) 偏大，缩到 14px（缩约 3.3px ≈ 两个字号级别） */
+  overflow: hidden;
+  /* 基础字号 14px（用户反馈 --f13 17.33px 偏大）；超长时由 titleFontStyle
+     内联按阶梯缩小（14→13→12→11px）。 */
   font-size: 14px;
   line-height: 1.45;
   font-weight: 600;
@@ -344,6 +357,9 @@ onBeforeUnmount(() => {
 .title-path .filename {
   color: var(--muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .title-brand {
@@ -352,12 +368,14 @@ onBeforeUnmount(() => {
   color: var(--faint);
 }
 
-/* 左栏开关按钮：红绿灯右侧 28×28，hover 浮出、开合状态着色 */
+/* 左栏开关按钮：红绿灯右侧 28×28，hover 浮出、开合状态着色。
+   z-index 必须高于 .title（inset:0 全铺层），否则点击被拖拽区吞掉。 */
 .title-sidebar-btn {
   position: absolute;
   left: 78px;
   top: 50%;
   transform: translateY(-50%);
+  z-index: 10;
   width: 28px;
   height: 28px;
   display: flex;

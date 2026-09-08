@@ -40,7 +40,7 @@ export const zhCN = {
         'diagrams': '图表',
         'No result': '无结果',
         'Search keyword...': '搜索关键字...',
-        'Type / to insert...': '输入 / 插入段落',
+        'Type / to insert...': '从这里开始写作，输入 / 插入段落',
         'Copy anchor link to this heading': '复制此标题的锚点链接',
         'Click to add an image': '点击添加图片',
         'Load image failed': '图片加载失败',
