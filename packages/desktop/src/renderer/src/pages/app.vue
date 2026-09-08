@@ -13,11 +13,12 @@
 
       <!-- 标签栏 + 面包屑：win-body 之上的全宽行（PHASE2-SPEC §1：
            标题栏 40px / 标签栏 40px（single 整行移除）/ 面包屑 28px）。
-           唯一标签被拖出到分屏时 currentFile 为空，仍渲染面包屑行以保留
-           bp-docname（拖回）与右栏开关。 -->
+           single 场景连面包屑行一并移除（路径居中显示在标题栏，右栏开关
+           +选择器在标题栏右侧）；唯一标签被拖出到分屏时 currentFile 为空，
+           仍渲染面包屑行以保留 bp-docname（拖回）。 -->
       <div v-if="(hasCurrentFile || splitActive) && init" class="editor-chrome">
         <editor-tabs v-if="tabbarVisible" />
-        <crumbs />
+        <crumbs v-if="scene !== 'single'" />
       </div>
 
       <!-- 主体三栏：侧栏 / 编辑区列 / 分隔线 / 右侧浏览器面板

@@ -11,20 +11,23 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useBrowserPanelStore } from '@/store/browserPanel'
+import { useEditorStore } from '@/store/editor'
+import { useSplitStore } from '@/store/split'
 import { renderMarkdownPreview } from '@/util/browserPanel'
 
 /**
  * 文档模式（PHASE2-SPEC §5）：分屏第二文档 = split.tabId 对应文档的实时预览；
- * 「打开文件…」= docPath 的静态预览。两者都走 引擎 MarkdownToHtml →
- * DOMPurify（FORBID iframe/object/embed/form/input/button），图片相对路径
- * 按文档目录解析。排版完全复刻原型 .wysiwyg（browserPanel.css）。
+ * 「打开文件…」= 建真实文档标签并进入分屏（keepCurrent：左栏编辑、右栏实时预览）。
+ * 排版完全复刻原型 .wysiwyg（browserPanel.css）。
  *
- * 行进出动画 = 原型 animateDocumentLines/退出公式逐字复刻：
+ * 行进出动画 = 原型 animateDocumentLines/退出公式复刻：
  *   进入 distance=120+min(170,len*1.5)  duration=560+min(360,len*2.8)
  *         delay=index*22+(len%6)*8    --line-x=direction*distance
  *   退出 distance=120+min(150,len*1.35) duration=220+min(120,len*1.3)
  *         delay=index*8+(len%4)*5     --line-out-x=-direction*distance
  *   换文档 = 旧行 line-exit 全部结束后再渲染新行 line-enter；首屏只进不退。
+ * 规模护栏：块数 > MAX_ANIM_LINES 或 prefers-reduced-motion 时跳过逐行动画
+ * （原实现逐行 offsetWidth 强制重排 + 无界 setTimeout 会让大文档卡死主线程）。
  */
 
 const workspaceStore = useWorkspaceStore()
@@ -44,6 +47,13 @@ const docBaseDir = (path: string | null): string => (path ? window.path.dirname(
 let motionToken = 0
 let enterTimers: number[] = []
 
+const REDUCED_MOTION =
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+// 逐行动画规模护栏：超过即整页瞬时渲染，不做逐行进出动画。
+const MAX_ANIM_LINES = 80
+
 // renderMarkdownPreview 自带 <div class="markdown-body"> 包裹，行动画作用在
 // 包裹层内的顶层块元素上（原型 #wysiwyg > * 同构）。
 const linesRoot = (): HTMLElement | null => {
@@ -53,11 +63,21 @@ const linesRoot = (): HTMLElement | null => {
   return inner ?? el
 }
 
+const clearEnterTimers = () => {
+  enterTimers.forEach((t) => window.clearTimeout(t))
+  enterTimers = []
+}
+
 const animateLinesIn = (direction: number) => {
   const el = linesRoot()
   if (!el) return
   const lines = [...el.children] as HTMLElement[]
-  lines.forEach((line, index) => {
+  if (REDUCED_MOTION || lines.length === 0 || lines.length > MAX_ANIM_LINES) return
+
+  clearEnterTimers()
+
+  // 先写样式（不触发布局）→ 一次读（单次 flush）→ 再挂动画类，避免逐行强制重排。
+  const params = lines.map((line, index) => {
     const length = (line.textContent || '').trim().length
     const distance = 120 + Math.min(170, length * 1.5)
     const duration = 560 + Math.min(360, length * 2.8)
@@ -66,8 +86,13 @@ const animateLinesIn = (direction: number) => {
     line.style.setProperty('--line-x', `${direction * distance}px`)
     line.style.setProperty('--line-duration', `${duration}ms`)
     line.style.setProperty('--line-delay', `${delay}ms`)
-    // 强制重排后再挂动画类（与原型 void line.offsetWidth 同效）
-    line.offsetWidth // eslint-disable-line no-unused-expressions
+    return { line, duration, delay }
+  })
+
+  // 单次强制重排，样式写完后统一 flush（避免逐行 offsetWidth）
+  el.offsetWidth // eslint-disable-line no-unused-expressions
+
+  params.forEach(({ line, duration, delay }) => {
     line.classList.add('line-enter')
     enterTimers.push(
       window.setTimeout(() => line.classList.remove('line-enter'), duration + delay + 80)
@@ -83,8 +108,12 @@ const animateLinesOut = (direction: number): Promise<void> =>
       return
     }
     const lines = [...el.children] as HTMLElement[]
+    if (REDUCED_MOTION || lines.length > MAX_ANIM_LINES) {
+      resolve()
+      return
+    }
     let outEnd = 0
-    lines.forEach((line, index) => {
+    const params = lines.map((line, index) => {
       const length = (line.textContent || '').trim().length
       const distance = 120 + Math.min(150, length * 1.35)
       const duration = 220 + Math.min(120, length * 1.3)
@@ -94,9 +123,10 @@ const animateLinesOut = (direction: number): Promise<void> =>
       line.style.setProperty('--line-out-x', `${-direction * distance}px`)
       line.style.setProperty('--line-out-duration', `${duration}ms`)
       line.style.setProperty('--line-delay', `${delay}ms`)
-      line.offsetWidth // eslint-disable-line no-unused-expressions
-      line.classList.add('line-exit')
+      return { line }
     })
+    el.offsetWidth // eslint-disable-line no-unused-expressions
+    params.forEach(({ line }) => line.classList.add('line-exit'))
     window.setTimeout(resolve, outEnd + 12)
   })
 
@@ -170,17 +200,40 @@ watch(
   { immediate: true }
 )
 
-// 「打开文件…」由 index.vue 底部条调用：主进程系统对话框 → 读文件 → 预览。
+// 「打开文件…」由 index.vue 底部条调用：主进程系统对话框 → 读文件 →
+// 建真实文档标签并进入分屏（标签栏/可拖分隔线随之出现；左栏编辑、右栏实时预览）。
 const openFile = async () => {
   const result = await window.bp.pickDoc()
   if (!result) return
-  pickedMarkdown.value = result
-  bpStore.SET_DOC_PATH(result.path)
+  const { path, markdown } = result
+
+  const editorStore = useEditorStore()
+  const splitStore = useSplitStore()
+
+  editorStore.NEW_TAB_WITH_CONTENT({
+    markdownDocument: {
+      markdown,
+      filename: window.path.basename(path),
+      pathname: path,
+      encoding: 'utf8',
+      lineEnding: 'lf',
+      adjustLineEndingOnSave: true,
+      trimTrailingNewline: false,
+      isMixedLineEndings: false
+    } as never,
+    selected: true
+  })
+
+  const tab = editorStore.tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, path))
+  if (tab) {
+    bpStore.SET_OPEN(true)
+    bpStore.SET_MODE('doc')
+    splitStore.DRAG_TO_SPLIT(tab.id, { keepCurrent: true })
+  }
 }
 
 onBeforeUnmount(() => {
-  enterTimers.forEach((t) => window.clearTimeout(t))
-  enterTimers = []
+  clearEnterTimers()
 })
 
 defineExpose({ openFile })

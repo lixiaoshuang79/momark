@@ -35,7 +35,7 @@ export const useSplitStore = defineStore('split', () => {
    * 已在右屏 → 返回 false（blocked，投放区 dropEffect none）；
    * 右屏已有其它文档 → 先静默还回，再开新文档窗格 min(480px, 60%)。
    */
-  function DRAG_TO_SPLIT(id: string): boolean {
+  function DRAG_TO_SPLIT(id: string, opts?: { keepCurrent?: boolean }): boolean {
     const editorStore = useEditorStore()
     const bpStore = useBrowserPanelStore()
 
@@ -59,7 +59,9 @@ export const useSplitStore = defineStore('split', () => {
     // 若拖出的是活动标签：左编辑器落到相邻标签（原型 takeTabIntoSplit 语义）；
     // 无可落标签（唯一标签被拖出）→ 左编辑区空出（与 CLOSE_TABS 的空态一致），
     // 避免同一文档同时出现在两侧。
-    if (editorStore.currentFile?.id === id) {
+    // keepCurrent（右栏「打开文件…」路径）：保持当前标签在左编辑器，
+    // 右栏同步实时预览（编辑+预览对照）。
+    if (editorStore.currentFile?.id === id && !opts?.keepCurrent) {
       const visible = editorStore.tabs.filter((t) => t.id !== id)
       const next = visible[Math.min(index, visible.length - 1)] ?? null
       if (next) {

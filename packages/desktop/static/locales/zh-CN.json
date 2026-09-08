@@ -1066,7 +1066,7 @@
   "welcome": {
     "windowTitle": "欢迎使用墨记",
     "hi": "欢迎",
-    "hiSub": "原生 macOS 所见即所得 Markdown 编辑器\nClaude Code 基准 · 内容即界面",
+    "hiSub": "所见即所得的 Markdown 编辑体验\n优雅分屏浏览 · 专注沉浸写作",
     "newDocument": "新建文档",
     "openFolder": "打开文件夹",
     "openFile": "打开文件",

@@ -12,19 +12,35 @@
         </div>
       </div>
 
-      <!-- 单文档态：7px 墨蓝状态点 + 居中「~/目录 › 文件名」（原型 .fname 实况：
-           dot(7×7 accent 圆) + 一段 path›filename 文本，fs 17.33/600/muted） -->
+      <!-- 单文档态：7px 墨蓝状态点 + 居中「…/目录/文件名」（原型 .fname 实况：
+           dot(7×7 accent 圆) + 一段 path/filename 文本，fs 17.33/600/muted）。
+           路径最多往上 3 级、分隔符统一 /；单击折叠为仅文件名，双击原地重命名 -->
       <div class="title" @dblclick.stop="toggleMaxmizeOnMacOS">
         <div v-if="isSingleDoc && (filename || pathname)" class="title-path">
           <span class="title-dot" :class="{ show: !isSaved }" />
           <span
             class="filename title-no-drag"
             :class="{ isOsx: platform === 'darwin' }"
-            @click="rename"
+            :title="titleLabel"
+            @click.stop="toggleCollapse"
+            @dblclick.stop="rename"
             >{{ titleLabel }}</span
           >
         </div>
         <div v-else-if="isSingleDoc" class="title-brand">墨记</div>
+      </div>
+
+      <!-- 单文档态右栏控件（面包屑行已整行移除）：开关 + 网页/文档选择器 -->
+      <div v-if="isSingleDoc && (filename || pathname)" class="title-controls title-no-drag">
+        <button
+          class="title-pbtn"
+          :class="{ rolled: bpanelOpen }"
+          :title="t('sideBar.rightPanelTitle')"
+          @click.stop="toggleBpPanel"
+        >
+          <mo-icon :name="bpanelOpen ? 'i-x' : 'i-panel'" />
+        </button>
+        <bp-modes :shown="bpanelOpen" />
       </div>
 
       <div
@@ -70,12 +86,16 @@
 
 <script setup lang="ts">
 import { usePreferencesStore } from '@/store/preferences.js'
+import { useBrowserPanelStore } from '@/store/browserPanel'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { minimizePath, restorePath, maximizePath, closePath } from '../../assets/window-controls.js'
 import { isOsx as isOsxPlatform } from '@/util'
 import { shouldShowInAppTitleBar } from './visibility'
 import { useEditorStore } from '@/store/editor'
+import MoIcon from '@/components/icons/MoIcon.vue'
+import BpModes from '@/components/browserPanel/bpModes.vue'
+import { t } from '../../i18n'
 
 interface ProjectInfo {
   name?: string
@@ -95,6 +115,9 @@ const props = defineProps<{
 
 const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
+const bpStore = useBrowserPanelStore()
+
+const { open: bpanelOpen } = storeToRefs(bpStore)
 
 const isOsx = isOsxPlatform
 const windowIconMinimize = minimizePath
@@ -120,19 +143,44 @@ const { titleBarStyle } = storeToRefs(preferencesStore)
 
 const isSingleDoc = computed(() => (props.tabCount ?? 0) <= 1)
 
-// 原型 .fname 文案：家目录缩写成 ~，格式「~/Documents/momark › 产品需求文档.md」。
+// 单击折叠：路径最多往上 3 级，分隔符统一 /；切换文档时重置为完整路径。
+const collapsed = ref(false)
+watch(
+  () => props.filename,
+  () => {
+    collapsed.value = false
+  }
+)
+
+const MAX_DIR_LEVELS = 3
+
+// 标题文案：家目录缩写成 ~；目录最多保留 3 级，超出前缀 …/。
 const titleLabel = computed(() => {
   const name = props.filename ?? ''
   if (!props.pathname) return name
+  if (collapsed.value) return name
   const home =
     window.electron?.process?.env?.HOME ??
     (window.marktext?.env as { HOME?: string } | undefined)?.HOME
   const dir = window.path.dirname(props.pathname)
+  let rel = dir
   if (home && (dir === home || dir.startsWith(home + window.path.sep))) {
-    return `~${dir.slice(home.length)} › ${name}`
+    rel = '~' + dir.slice(home.length)
   }
-  return dir ? `${dir} › ${name}` : name
+  if (!rel || rel === '.') return name
+  const segs = rel.split('/').filter(Boolean)
+  const truncated = segs.length > MAX_DIR_LEVELS
+  const kept = truncated ? segs.slice(-MAX_DIR_LEVELS) : segs
+  return `${truncated ? '…/' : ''}${kept.join('/')}/${name}`
 })
+
+const toggleCollapse = () => {
+  collapsed.value = !collapsed.value
+}
+
+const toggleBpPanel = () => {
+  bpStore.TOGGLE_PANEL()
+}
 
 const showCustomTitleBar = computed(() => {
   return titleBarStyle.value === 'custom' && !isOsx
@@ -303,6 +351,41 @@ onBeforeUnmount(() => {
 
 .title-bar .title .filename.isOsx:hover {
   color: var(--accent);
+}
+
+/* 单文档态右栏控件：开关 28×28 + 网页/文档选择器（rolled 圆态走全局 browserPanel.css） */
+.title-controls {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.title-pbtn {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.title-pbtn:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.title-pbtn svg {
+  width: 15px;
+  height: 15px;
 }
 
 .left-toolbar {

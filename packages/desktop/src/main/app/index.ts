@@ -711,6 +711,13 @@ class App {
       }
     }
 
+    // 外部打开（Finder/CLI/second-instance）落位到编辑器窗口后，收掉遗留的
+    // 欢迎窗——欢迎窗只在欢迎页自身入口动作里自关，外部打开文件时不应残留
+    // 成“第二个应用”。
+    if (_windowManager.getActiveEditorId() !== null) {
+      this._closeWelcomeWindows()
+    }
+
     // Empty the file list
     pathsToOpen.length = 0
   }

@@ -937,16 +937,13 @@
   height: 13px;
 }
 /* 选择器安放位置：紧跟各场景的右栏开关（PHASE2-SPEC §5，与原型一致）——
-   标签栏（多文档/分屏）与面包屑行（单文档）都渲染。 */
+   标签栏（多文档/分屏）与标题栏（单文档）都渲染。 */
 .editor-tabs .bp-modes {
   margin: 0 0 0 2px;
 }
-.crumb .bp-modes {
-  margin: 0 8px 0 0;
-}
 
 /* ── 右栏开关按钮滚动变圆形 X（.rolled）── */
-.crumb-pbtn,
+.title-pbtn,
 .tb-toggle.panel-toggle {
   /* 原型 .tb-toggle 单规则全量列表：bg/color .22s、radius .38s、transform .48s、shadow .22s */
   transition:
@@ -956,13 +953,13 @@
     transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.22s ease;
 }
-.crumb-pbtn.rolled {
+.title-pbtn.rolled {
   background: var(--surface-2);
   color: var(--accent);
   border: 1px solid var(--line-strong);
   border-radius: 50%;
 }
-/* 原型：标签栏开关 rolled = 圆 50% + 左滚 3px + 微投影；面包屑行开关不位移 */
+/* 原型：标签栏开关 rolled = 圆 50% + 左滚 3px + 微投影；标题栏开关不位移 */
 .tb-toggle.panel-toggle.rolled {
   background: var(--surface-2);
   color: var(--accent);
