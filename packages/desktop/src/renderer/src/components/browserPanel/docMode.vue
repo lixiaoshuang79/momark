@@ -78,8 +78,10 @@ const loadRecents = async () => {
 }
 
 const openRecent = (filePath: string) => {
-  // 用户拍板：最近文件点击直接在右侧面板打开（文档模式预览，不建标签）。
+  // 用户拍板：最近文件点击直接在右侧面板打开（文档模式预览，不建标签）；
+  // 面板收起时点击同样应展开面板呈现预览。
   bpStore.SET_DOC_PATH(filePath)
+  bpStore.SET_OPEN(true)
 }
 
 onMounted(loadRecents)

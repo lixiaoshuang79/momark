@@ -90,7 +90,6 @@ const selectTab = (tab: SideBarTab): void => {
 }
 .side-bar.open {
   width: var(--sidebar-w);
-  min-width: var(--sidebar-w);
 }
 
 .sb-inner {
@@ -104,17 +103,16 @@ const selectTab = (tab: SideBarTab): void => {
   box-sizing: border-box;
   margin: 10px 0 10px 10px;
   background: var(--surface-2);
-  /* 用户拍板：去掉发丝边框，只留向下大柔投影+圆角（与右栏一致，
-     旧侧向晕影在浅色画布上呈淡灰竖线） */
+  /* 用户拍板：去掉发丝边框，只留投影+圆角，整体更简洁 */
   border-radius: 13px;
-  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 10px 8px 12px;
 }
 [data-theme='dark'] .sb-inner {
-  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
 .sb-tabs {

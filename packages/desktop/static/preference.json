@@ -61,7 +61,7 @@
   "spellcheckerEnabled": false,
   "spellcheckerNoUnderline": false,
   "spellcheckerLanguage": "en-US",
-  "sideBarVisibility": false,
+  "sideBarVisibility": true,
   "tabBarVisibility": true,
   "sourceCodeModeEnabled": false,
   "openedFilesInSidebar": true,
