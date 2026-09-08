@@ -326,10 +326,11 @@
   background: var(--accent);
   color: #fff;
 }
-/* 完整 URL HUD 气泡（左） */
+/* 完整 URL HUD 气泡（左）：右缘停在 × 按钮左侧 8px 处（× 占 -26..-8px，
+   气泡右缘 -34px），气泡 | × | 图标 三者分离，× 居中且始终高于气泡。 */
 .ud-bubble {
   position: absolute;
-  right: calc(100% + 8px);
+  right: calc(100% + 34px);
   top: 50%;
   transform: translateY(-50%);
   background: var(--hudbg);
@@ -342,6 +343,7 @@
   box-shadow: var(--shadow-pop);
   opacity: 0;
   pointer-events: none;
+  z-index: 4;
   transition: opacity 0.15s ease 0.05s;
 }
 .ud-item:hover .ud-bubble {
