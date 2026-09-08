@@ -1,8 +1,15 @@
 <template>
-  <!-- 原型 .bp-doc：无标题行——有内容渲染 .wysiwyg 等价体；
-       空态 = 最近打开列表（点击立即在当前窗口打开为标签）+ 底部「打开文件…」条。 -->
+  <!-- 原型 .bp-doc：预览态有 43px 头部（文件名 + 关闭回到最近列表）；
+       无内容时 = 最近打开列表（点击直接在右侧面板打开，不建标签）
+       + 底部「打开文件…」条。 -->
   <div class="bp-doc">
-    <div v-if="hasContent" ref="docBody" v-html="previewHtml" />
+    <div v-if="docPath && !splitDocTab" class="bp-doc-head">
+      <span class="bp-doc-title">{{ docName }}</span>
+      <button class="bp-doc-close" title="关闭预览，回到最近打开" @click="closePicked">
+        <mo-icon name="i-x" />
+      </button>
+    </div>
+    <div v-if="hasContent" ref="docBody" class="bp-doc-body" v-html="previewHtml" />
     <div v-else class="bp-doc-empty">
       <div class="bp-recents-title">
         {{ t('welcome.recentTitle') }}
@@ -29,6 +36,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import MoIcon from '@/components/icons/MoIcon.vue'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import { useEditorStore } from '@/store/editor'
@@ -57,10 +65,18 @@ const { docPath } = storeToRefs(bpStore)
 const { splitDocTab } = storeToRefs(workspaceStore)
 
 const previewHtml = ref('')
-const pickedMarkdown = ref<{ path: string; markdown: string } | null>(null)
 const docBody = ref<HTMLElement | null>(null)
 
 const hasContent = computed(() => !!splitDocTab.value || !!docPath.value)
+
+const docName = computed(() => {
+  const path = docPath.value
+  return path ? window.path.basename(path) : ''
+})
+
+const closePicked = () => {
+  bpStore.SET_DOC_PATH(null)
+}
 
 // 空态最近打开列表：主进程系统级最近文档（同欢迎页数据源，≤8 条）。
 type RecentItem = { path: string; name: string; dirname: string; mtime: number }
@@ -77,8 +93,8 @@ const loadRecents = async () => {
 }
 
 const openRecent = (filePath: string) => {
-  // 与侧栏文件树一致：当前窗口内打开为标签（不新开窗口）。
-  window.electron.ipcRenderer.send('mt::open-file', filePath, {})
+  // 用户拍板：最近文件点击直接在右侧面板打开（文档模式预览，不建标签）。
+  bpStore.SET_DOC_PATH(filePath)
 }
 
 onMounted(loadRecents)
@@ -179,8 +195,13 @@ const renderSplitDoc = async () => {
 }
 
 const renderPickedDoc = async (path: string) => {
-  const content = pickedMarkdown.value?.path === path ? pickedMarkdown.value.markdown : ''
-  previewHtml.value = await renderMarkdownPreview(content, docBaseDir(path))
+  // 最近打开点击：按路径直读（bp:readDoc），失败渲染空内容。
+  try {
+    const result = (await window.bp.readDoc(path)) as { path: string; markdown: string } | null
+    previewHtml.value = await renderMarkdownPreview(result?.markdown ?? '', docBaseDir(path))
+  } catch {
+    previewHtml.value = ''
+  }
 }
 
 // 等待 v-html 落到 DOM（Vue patch 完成后 children 才存在）。

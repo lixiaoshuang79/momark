@@ -1,57 +1,40 @@
-/* 标签切换内容动效（PHASE2-SPEC §2 / 原型 .line-enter .line-exit 同源）。
-   关键帧作用于引擎渲染出的块级节点，必须全局（组件 scoped 样式不会命中运行时注入的节点）。
-   用户反馈后收紧：去掉 72% 过冲帧与 blur 滤镜（逐行 filter 昂贵易掉帧），
-   只动画 transform/opacity（合成层），入场走 --ease-line-in S 型零过冲。 */
+/* 标签切换正文动效（用户拍板方向，替代旧逐行分层动效）：
+   切换时正文容器整体沿切换方向滑出软件窗口边缘（±100vw，跨过
+   侧栏区域真实穿出），新内容从对侧滑入。零回弹：退出 = 加速曲线
+   cubic-bezier(.4,0,1,1)，入场 = fastOutSlowIn；只动画
+   transform/opacity（合成层，不掉帧）。
+   方向变量 --doc-x 由 tabs.vue 写入（= -dir * 100vw）。 */
 
-.doc-swap-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  overflow: hidden;
-  z-index: 1;
-}
-
-/* 覆盖层重置：抵消 .mu-container 的排版盒（定位由行内 left/top/width 控制） */
-.mu-editor .mu-container.doc-swap-overlay {
-  max-width: none;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-}
-
-.doc-line-enter {
-  animation: docLineIn var(--line-duration, 0.4s) var(--ease-line-in, cubic-bezier(0.2, 0, 0, 1))
-    var(--line-delay, 0ms) both;
+.doc-panel-exit {
+  animation: docPanelOut var(--dur-doc-out, 200ms) var(--ease-doc-out, cubic-bezier(0.4, 0, 1, 1))
+    both;
   will-change: transform, opacity;
 }
 
-.doc-line-exit {
-  animation: docLineOut var(--line-out-duration, 0.24s)
-    var(--ease-line-out, cubic-bezier(0.4, 0, 0.8, 0.2)) var(--line-delay, 0ms) both;
+.doc-panel-enter {
+  animation: docPanelIn var(--dur-doc-in, 280ms) var(--ease-doc-in, cubic-bezier(0.4, 0, 0.2, 1))
+    both;
   will-change: transform, opacity;
 }
 
-@keyframes docLineIn {
-  0% {
-    opacity: 0;
-    transform: translateX(var(--line-x, 160px));
-  }
-  100% {
-    opacity: 1;
+@keyframes docPanelOut {
+  from {
     transform: none;
+    opacity: 1;
+  }
+  to {
+    transform: translateX(var(--doc-x, -100vw));
+    opacity: 0.2;
   }
 }
 
-@keyframes docLineOut {
-  0% {
-    opacity: 1;
-    transform: none;
+@keyframes docPanelIn {
+  from {
+    transform: translateX(calc(var(--doc-x, 100vw) * -1));
+    opacity: 0.2;
   }
-  100% {
-    opacity: 0;
-    transform: translateX(var(--line-out-x, -150px));
+  to {
+    transform: none;
+    opacity: 1;
   }
 }

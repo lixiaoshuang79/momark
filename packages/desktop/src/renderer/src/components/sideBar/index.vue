@@ -1,6 +1,6 @@
 <template>
-  <!-- 开合动效：外层宽度 0↔288px 以 --ease-panel（.22,1,.36,1 零过冲非线性）过渡，
-       内层固定 288px 随展开淡入右移，收起反向。不用 v-show（无动画可衔接）。 -->
+  <!-- 开合动效：外层宽度 0↔288px 以 --ease-panel（.22,1,.36,1 零过冲非线性）
+       过渡，与右侧面板完全一致；内层 dock-panel 悬浮卡片随宽度显隐。 -->
   <div class="side-bar" :class="{ open: showSideBar }">
     <div class="sb-inner">
       <!-- 顶部「大纲 / 文件」双 tab：白色滑块在选中项间滑动（回弹缓动，非线性），
@@ -65,9 +65,11 @@ const selectTab = (tab: SideBarTab): void => {
 </script>
 
 <style scoped>
-/* 展开 288px 底 --sidebar，右侧 .5px 发丝线；收起 = 宽度 0（常驻挂载，
-   无 45px rail 残留）。开合 = 显式宽度动画 + 内容淡入右移（--ease-panel，
-   非线性零过冲）。高度随 win-body 行。 */
+/* 展开 288px 卡片化侧栏（dock-panel 规格，与右侧面板一致）：
+   画布（--bg）透出，本体 = 悬浮卡片（白底、.5px 发丝边、13px 圆角、轻投影），
+   距窗口左/上/下缘 10px、贴内容侧。收起 = 宽度 0（常驻挂载，无 rail 残留）。
+   开合 = 纯显式宽度动画（--ease-panel 非线性零过冲，时长与右侧面板一致
+   .42s——用户要求左右开合效果保持一致）。 */
 .side-bar {
   display: flex;
   flex-shrink: 0;
@@ -78,35 +80,33 @@ const selectTab = (tab: SideBarTab): void => {
   position: relative;
   color: var(--ink);
   user-select: none;
-  background: var(--sidebar);
-  border-right: 0.5px solid transparent;
+  background: transparent;
   overflow: hidden;
-  transition:
-    width 0.36s var(--ease-panel),
-    border-color 0.24s ease;
+  transition: width 0.42s var(--ease-panel);
 }
 .side-bar.open {
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
-  border-right-color: var(--line);
 }
 
 .sb-inner {
-  width: var(--sidebar-w);
-  height: 100%;
-  padding: 10px 8px 12px;
+  width: auto;
+  align-self: stretch;
+  min-width: 0;
   box-sizing: border-box;
+  margin: 10px 0 10px 10px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--line);
+  border-radius: 13px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  opacity: 0;
-  transform: translateX(-14px);
-  transition:
-    opacity 0.22s ease,
-    transform 0.36s var(--ease-panel);
+  padding: 10px 8px 12px;
 }
-.side-bar.open .sb-inner {
-  opacity: 1;
-  transform: none;
+[data-theme='dark'] .sb-inner {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
 .sb-tabs {

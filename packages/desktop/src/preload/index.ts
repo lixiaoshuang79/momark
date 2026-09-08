@@ -239,6 +239,7 @@ const bpAPI = {
   getState: (id: string) => invoke('bp:getState', id),
   openExternal: (url: string) => invoke('bp:openExternal', url),
   pickDoc: () => invoke('bp:pickDoc'),
+  readDoc: (path: string) => invoke('bp:readDoc', path),
   onNewWindowRequest: (
     handler: (payload: { url: string; fromPageId: string | null }) => void
   ): (() => void) => {

@@ -108,35 +108,43 @@
   color: var(--accent);
 }
 
-/* ── 右侧浏览器面板（默认收起宽 0；展开 288px；分屏文档态 min(480px,60%)）── */
+/* ── 右侧浏览器面板（默认收起宽 0；展开 288px；分屏文档态 min(480px,60%)）──
+   dock-panel 卡片化（用户拍板，参考 claude-visual-gallery section.dock-panel）：
+   画布（--bg）透出，面板本体 = 悬浮卡片（白底、.5px 发丝边、13px 圆角、轻投影）。 */
 .bpanel {
   flex: none;
-  border-left: 0.5px solid var(--line);
-  background: var(--sidebar);
+  background: transparent;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
   /* 开合动画 .42s cubic-bezier(.22,1,.36,1)：显式宽度动画（内联 width 驱动） */
-  transition:
-    width 0.42s var(--ease-panel),
-    border-color 0.24s ease;
+  transition: width 0.42s var(--ease-panel);
 }
-.bpanel.collapsed {
-  border-left: none;
-}
-.bpanel.drop-ok {
+.bpanel.drop-ok .bp-inner {
   outline: 2px dashed var(--accent);
   outline-offset: -3px;
 }
+/* 卡片本体：贴内容侧、距窗口右/上/下缘 10px */
 .bp-inner {
-  min-width: 240px;
-  width: 100%;
+  width: auto;
+  align-self: stretch;
+  min-width: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
   position: relative;
+  margin: 10px 10px 10px 0;
+  background: var(--surface-2);
+  border: 0.5px solid var(--line);
+  border-radius: 13px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+[data-theme='dark'] .bp-inner {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
 /* ── 主体：输入区 / 内容区 ── */
@@ -568,17 +576,74 @@
 .bp-doc {
   position: absolute;
   inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* dock-panel 卡片化后画布由 .bp-inner 提供，本层不再刷底色 */
+  background: transparent;
+}
+
+/* 预览态头部（dock-panel 规格）：文件名 + 关闭回到最近列表 */
+.bp-doc-head {
+  flex: none;
+  height: 43px;
+  box-sizing: border-box;
+  padding: 0 10px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 0.5px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.bp-doc-head .bp-doc-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bp-doc-head .bp-doc-close {
+  flex: none;
+  width: 27px;
+  height: 27px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.bp-doc-head .bp-doc-close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.bp-doc-head .bp-doc-close svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* 预览正文：头部之下独立滚动 */
+.bp-doc-body {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  background: var(--c-bg);
   padding: 4px 32px 90px;
 }
 
-/* 空态：最近打开列表（点击立即在当前窗口打开为标签） */
+/* 空态：最近打开列表（点击直接在右侧面板打开，不建标签） */
 .bp-doc-empty {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding-top: 18px;
+  padding: 18px 28px 90px;
 }
 .bp-recents-title {
   font-size: var(--f12);
@@ -748,11 +813,12 @@
   padding: 6px 10px;
   text-align: left;
 }
-/* ── 文档切换行进出动画 = 原型 .wysiwyg>.line-enter/.line-exit 逐字复刻
-      （公式在 docMode.vue：距离/时长/延迟都按行文本长度与下标计算）── */
+/* ── 文档切换行进出动画 = 原型 .wysiwyg>.line-enter/.line-exit 复刻
+      （公式在 docMode.vue：距离/时长/延迟都按行文本长度与下标计算）。
+      用户拍板收紧：去掉 1.14 回弹缓动与 72% 过冲帧，零回弹（fastOutSlowIn）。── */
 .bp-doc .markdown-body > .line-enter {
   animation:
-    docLineIn var(--line-duration, 0.72s) cubic-bezier(0.16, 1.14, 0.3, 1)
+    docLineIn var(--line-duration, 0.72s) cubic-bezier(0.4, 0, 0.2, 1)
     var(--line-delay, 0ms) both;
   will-change: transform, opacity, filter;
 }
@@ -767,11 +833,6 @@
     opacity: 0;
     transform: translateX(var(--line-x, 160px));
     filter: blur(2px);
-  }
-  72% {
-    opacity: 1;
-    transform: translateX(calc(var(--line-x, 160px) * -0.025));
-    filter: blur(0);
   }
   100% {
     opacity: 1;
@@ -996,30 +1057,13 @@
   width: 14px;
   height: 14px;
 }
-/* 选择器安放位置：紧跟各场景的右栏开关（PHASE2-SPEC §5，与原型一致）——
-   标签栏（多文档/分屏）与标题栏（单文档）都渲染。 */
+/* 选择器安放位置：紧跟标签条右端开关（单/多文档统一位置）。 */
 .editor-tabs .bp-modes {
   margin: 0 0 0 2px;
 }
 
-/* ── 右栏开关按钮滚动变圆形 X（.rolled）── */
-.title-pbtn,
-.tb-toggle.panel-toggle {
-  /* 原型 .tb-toggle 单规则全量列表：bg/color .22s、radius .38s、transform .48s、shadow .22s */
-  transition:
-    background 0.22s ease,
-    color 0.22s ease,
-    border-radius 0.38s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.22s ease;
-}
-.title-pbtn.rolled {
-  background: var(--surface-2);
-  color: var(--accent);
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
-}
-/* 原型：标签栏开关 rolled = 圆 50% + 左滚 3px + 微投影；标题栏开关不位移 */
+/* ── 右栏开关按钮滚动变圆形 X（.rolled）：过渡列表已并入 tabs.vue 的
+   .tb-toggle 基础规则（含 opacity），这里只保留 rolled 终点态。── */
 .tb-toggle.panel-toggle.rolled {
   background: var(--surface-2);
   color: var(--accent);

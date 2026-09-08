@@ -176,6 +176,7 @@ declare global {
     getState(id: string): Promise<BpPageState>
     openExternal(url: string): Promise<boolean>
     pickDoc(): Promise<{ path: string; markdown: string } | null>
+    readDoc(path: string): Promise<{ path: string; markdown: string } | null>
     onNewWindowRequest(
       handler: (payload: { url: string; fromPageId: string | null }) => void
     ): () => void

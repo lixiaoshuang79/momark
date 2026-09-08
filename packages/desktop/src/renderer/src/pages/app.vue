@@ -12,10 +12,11 @@
       />
 
       <!-- 标签栏：win-body 之上的全宽行（PHASE2-SPEC §1：标题栏 40px /
-            标签栏 40px，single 整行移除）。面包屑行已按用户要求取消——
-            路径信息只在顶栏显示（≤3 级目录，多文档自适应字号）。 -->
+           标签栏 40px）。面包屑行已按用户要求取消——路径信息只在顶栏显示。
+           单文档态同样渲染该行（只保留两端侧栏开关、标签条隐藏）：
+           左右开关单/多文档位置统一（用户拍板）。 -->
       <div v-if="(hasCurrentFile || splitActive) && init" class="editor-chrome">
-        <editor-tabs v-if="tabbarVisible" />
+        <editor-tabs />
       </div>
 
       <!-- 主体三栏：侧栏 / 编辑区列 / 分隔线 / 右侧浏览器面板
@@ -105,7 +106,7 @@ const { projectTree } = storeToRefs(projectStore)
 const { currentFile, tabs } = storeToRefs(editorStore)
 const { open: bpanelOpen } = storeToRefs(bpStore)
 const { active: splitActive, draggingSplit } = storeToRefs(splitStore)
-const { scene, tabbarVisible } = storeToRefs(workspaceStore)
+const { scene } = storeToRefs(workspaceStore)
 
 const pathname = computed(() => currentFile.value?.pathname)
 const filename = computed(() => currentFile.value?.filename)

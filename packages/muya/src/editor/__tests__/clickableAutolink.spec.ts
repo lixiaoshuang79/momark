@@ -88,14 +88,15 @@ describe('#2165 — autolinks are followable via Cmd/Ctrl-click', () => {
         expect(emits[0].data.href).toContain('https://example.com');
     });
 
-    it('a plain (non-modifier) click on an autolink does NOT emit format-click', () => {
+    it('a plain (non-modifier) click on an autolink also emits format-click (host opens links on plain click)', () => {
         const muya = bootMuya('<https://example.com>\n');
         const emits = captureFormatClick(muya);
         const anchor = muya.domNode.querySelector<HTMLAnchorElement>('a.mu-auto-link')!;
 
         anchor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 
-        expect(emits).toHaveLength(0);
+        expect(emits).toHaveLength(1);
+        expect(emits[0].data.href).toContain('https://example.com');
     });
 
     it('hovering an autolink does NOT open the edit/unlink popover (follow-only)', () => {

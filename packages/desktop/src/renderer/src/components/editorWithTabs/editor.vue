@@ -120,10 +120,10 @@ import { addCommonStyle, setEditorWidth } from '@/util/theme'
 import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
 import { useProjectStore } from '@/store/project'
+import { useBrowserPanelStore } from '@/store/browserPanel'
 import { storeToRefs } from 'pinia'
 import { t } from '../../i18n'
 import { SyntheticHistory, type IFileHistoryLike } from './syntheticHistory'
-import { captureBlockLines, runDocumentTransition } from './transitions'
 
 // Importing the engine entrypoint auto-injects its editor CSS (the muya.ts
 // module imports its stylesheets at load time). Desktop themes still target the
@@ -195,6 +195,7 @@ const props = defineProps<{
 const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
 const projectStore = useProjectStore()
+const bpStore = useBrowserPanelStore()
 
 // Use storeToRefs to extract reactive properties from the stores
 const {
@@ -246,16 +247,8 @@ const {
 // Editor store refs
 const { currentFile, tabs } = storeToRefs(editorStore)
 
-// 上一次引擎展示的标签 id：用于推导切换方向（右移=+1，左移=-1）。
+// 上一次引擎展示的标签 id：用于历史恢复等按标签区分的逻辑。
 const lastTabId = ref<string | null>(null)
-
-const directionForSwitch = (targetId: string | undefined): 1 | -1 => {
-  const ids = tabs.value.map((tab) => tab.id)
-  const nextIndex = ids.indexOf(targetId ?? '')
-  const prevIndex = ids.indexOf(lastTabId.value ?? '')
-  if (nextIndex < 0 || prevIndex < 0) return 1
-  return nextIndex >= prevIndex ? 1 : -1
-}
 
 // 空文档占位提示已交由引擎（muya）渲染：空段落聚焦时显示
 // 「从这里开始写作，输入 / 插入段落」（zh-CN locale 合并句），不再叠加桌面层。
@@ -854,7 +847,16 @@ watch(
 const jumpClick = (linkInfo: { href?: string | null } | null) => {
   if (!linkInfo) return
   const { href } = linkInfo
-  editorStore.FORMAT_LINK_CLICK({ data: { href: href ?? null }, dirname: window.DIRNAME })
+  if (!href) return
+  // 正文点击链接：http(s) 默认在右侧边栏的网页面板里打开（用户拍板）。
+  // 锚点/相对 .md 路径仍走原通道（页内滚动 / 当前窗口打开文件）。
+  if (/^https?:\/\//i.test(href)) {
+    bpStore.SET_OPEN(true)
+    bpStore.SET_MODE('url')
+    bpStore.ADD_WEB_PAGE(href)
+    return
+  }
+  editorStore.FORMAT_LINK_CLICK({ data: { href }, dirname: window.DIRNAME })
 }
 
 interface ImagePathSuggestion {
@@ -1624,20 +1626,9 @@ const handleFileChange = (payload: unknown) => {
       // `history` in the payload is the synthetic desktop-shaped history used
       // for save tracking, not the engine history.
       //
-      // 切换动效（PHASE2-SPEC §2）：替换前快照旧内容行（含渲染坐标），
-      // 替换后由 transitions 模块逐行滑出旧行、逐层滑入新行。
-      const direction = directionForSwitch(id)
-      const oldLines = captureBlockLines(
-        container,
-        container.firstElementChild as HTMLElement | null
-      )
+      // 切换动效已移交给 tabs.vue：正文整屏滑出窗口边缘（点击标签路径）。
+      // 本处只做同步换文，不再有逐行进出动画。
       editor.value.setContent(newMarkdown)
-      runDocumentTransition({
-        scroller: container,
-        linesContainer: container.firstElementChild as HTMLElement | null,
-        oldLines,
-        direction
-      })
       lastTabId.value = id ?? null
       // Tab switch swaps content without firing `json-change`, so re-seed the
       // TOC (otherwise returning to an open tab keeps the other tab's TOC).
@@ -1970,11 +1961,11 @@ onMounted(() => {
     'format-click',
     ({ event, formatType, data }: { event: MouseEvent; formatType: string; data: unknown }) => {
       const ctrlOrMeta = (isOsx && event.metaKey) || (!isOsx && event.ctrlKey)
-      if (formatType === 'link' && ctrlOrMeta) {
-        editorStore.FORMAT_LINK_CLICK({
-          data: data as { href: string; [key: string]: unknown },
-          dirname: window.DIRNAME
-        })
+      // 链接：普通点击即可打开（用户拍板——http(s) 默认在右侧边栏网页里
+      // 打开，锚点/本地 .md 路径走原通道）；muya 侧已保证编辑态链接不发出
+      // 普通点击事件。图片仍保持 Cmd/Ctrl 放大查看。
+      if (formatType === 'link') {
+        jumpClick(data as { href?: string | null } | null)
       } else if (formatType === 'image' && ctrlOrMeta) {
         if (imageViewer) {
           imageViewer.destroy()

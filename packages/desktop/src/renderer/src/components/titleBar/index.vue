@@ -12,15 +12,8 @@
         </div>
       </div>
 
-      <!-- 左栏开关：红绿灯右侧常驻（单/多文档态均显示），点击开合侧边栏。 -->
-      <button
-        class="title-sidebar-btn title-no-drag"
-        :class="{ on: showSideBar }"
-        :title="t('sideBar.toggleTitle')"
-        @click.stop="toggleSideBar"
-      >
-        <mo-icon name="i-sidebar" />
-      </button>
+      <!-- 左右侧栏开关已统一到标签条两端（tabs.vue，单/多文档同位），
+           顶栏不再放置任何面板开关。 -->
 
       <!-- 标题区：任何场景都显示「…/目录/文件名」（面包屑行已取消）；
            路径最多往上 3 级、分隔符统一 /；单击折叠为仅文件名，双击原地重命名；
@@ -38,19 +31,6 @@
           >
         </div>
         <div v-else class="title-brand">墨记</div>
-      </div>
-
-      <!-- 单文档态右栏控件（面包屑行已整行移除）：开关 + 网页/文档选择器 -->
-      <div v-if="isSingleDoc && (filename || pathname)" class="title-controls title-no-drag">
-        <button
-          class="title-pbtn"
-          :class="{ rolled: bpanelOpen }"
-          :title="t('sideBar.rightPanelTitle')"
-          @click.stop="toggleBpPanel"
-        >
-          <mo-icon :name="bpanelOpen ? 'i-x' : 'i-partition'" />
-        </button>
-        <bp-modes :shown="bpanelOpen" />
       </div>
 
       <div
@@ -96,17 +76,12 @@
 
 <script setup lang="ts">
 import { usePreferencesStore } from '@/store/preferences.js'
-import { useBrowserPanelStore } from '@/store/browserPanel'
+import { useEditorStore } from '@/store/editor'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { minimizePath, restorePath, maximizePath, closePath } from '../../assets/window-controls.js'
 import { isOsx as isOsxPlatform } from '@/util'
 import { shouldShowInAppTitleBar } from './visibility'
-import { useEditorStore } from '@/store/editor'
-import { useLayoutStore } from '@/store/layout'
-import MoIcon from '@/components/icons/MoIcon.vue'
-import BpModes from '@/components/browserPanel/bpModes.vue'
-import { t } from '../../i18n'
 
 interface ProjectInfo {
   name?: string
@@ -120,21 +95,12 @@ const props = defineProps<{
   active?: boolean
   platform?: string
   isSaved?: boolean
-  // 标签集合大小：≤1 视为单文档态（标签栏不渲染、标题区显示路径）
+  // 标签集合大小：顶栏仅用于文案/字号逻辑，不再承载面板开关。
   tabCount?: number
 }>()
 
 const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
-const bpStore = useBrowserPanelStore()
-const layoutStore = useLayoutStore()
-
-const { open: bpanelOpen } = storeToRefs(bpStore)
-const { showSideBar } = storeToRefs(layoutStore)
-
-const toggleSideBar = () => {
-  layoutStore.TOGGLE_LAYOUT_ENTRY('showSideBar')
-}
 
 const isOsx = isOsxPlatform
 const windowIconMinimize = minimizePath
@@ -157,8 +123,6 @@ onMounted(async () => {
 })
 
 const { titleBarStyle } = storeToRefs(preferencesStore)
-
-const isSingleDoc = computed(() => (props.tabCount ?? 0) <= 1)
 
 // 单击折叠：路径最多往上 3 级，分隔符统一 /；切换文档时重置为完整路径。
 const collapsed = ref(false)
@@ -204,10 +168,6 @@ const titleFontStyle = computed(() => {
   if (len > 40) return { fontSize: '13px' }
   return { fontSize: '14px' }
 })
-
-const toggleBpPanel = () => {
-  bpStore.TOGGLE_PANEL()
-}
 
 const showCustomTitleBar = computed(() => {
   return titleBarStyle.value === 'custom' && !isOsx
@@ -368,39 +328,7 @@ onBeforeUnmount(() => {
   color: var(--faint);
 }
 
-/* 左栏开关按钮：红绿灯右侧 28×28，hover 浮出、开合状态着色。
-   z-index 必须高于 .title（inset:0 全铺层），否则点击被拖拽区吞掉。 */
-.title-sidebar-btn {
-  position: absolute;
-  left: 78px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 10;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.title-sidebar-btn:hover {
-  background: var(--hover);
-  color: var(--ink);
-}
-.title-sidebar-btn.on {
-  color: var(--accent);
-}
-.title-sidebar-btn svg {
-  width: 16px;
-  height: 16px;
-}
+/* 左右侧栏开关已统一到标签条两端（tabs.vue），顶栏只保留标题与窗口控制。 */
 
 /* 未保存状态点（PHASE2-SPEC §2：7px 墨蓝，保存成功即移除） */
 .title-dot {
@@ -418,41 +346,6 @@ onBeforeUnmount(() => {
 
 .title-bar .title .filename.isOsx:hover {
   color: var(--accent);
-}
-
-/* 单文档态右栏控件：开关 28×28 + 网页/文档选择器（rolled 圆态走全局 browserPanel.css） */
-.title-controls {
-  position: absolute;
-  top: 0;
-  right: 10px;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.title-pbtn {
-  width: 28px;
-  height: 28px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.title-pbtn:hover {
-  background: var(--hover);
-  color: var(--ink);
-}
-.title-pbtn svg {
-  width: 17px;
-  height: 17px;
 }
 
 .left-toolbar {

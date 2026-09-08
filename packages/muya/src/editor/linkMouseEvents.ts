@@ -63,16 +63,21 @@ function isModifierClick(event: Event): boolean {
     return event instanceof MouseEvent && (event.metaKey || event.ctrlKey);
 }
 
-function isPopoverTarget(wrapper: HTMLElement): boolean {
-    // Auto-detected links are follow-only (Cmd/Ctrl-click). The edit/unlink
-    // popover doesn't apply — there is no `[text](url)` source to rewrite, and
-    // the URL re-autolinks on the next render anyway.
-    if (
+// Auto-detected links are follow-only (no `[text](url)` source to rewrite).
+// They open on plain click too — there is no source text to place the
+// cursor into.
+function isFollowOnly(wrapper: HTMLElement): boolean {
+    return (
         wrapper.classList.contains(CLASS_NAMES.MU_AUTO_LINK)
         || wrapper.classList.contains(CLASS_NAMES.MU_AUTO_LINK_EXTENSION)
-    ) {
+    );
+}
+
+function isPopoverTarget(wrapper: HTMLElement): boolean {
+    // The edit/unlink popover doesn't apply to auto links — the URL
+    // re-autolinks on the next render anyway.
+    if (isFollowOnly(wrapper))
         return false;
-    }
 
     // HTML `<a>` is always a popover target — no source markers to hide.
     if (wrapper.classList.contains(CLASS_NAMES.MU_RAW_HTML))
@@ -149,19 +154,25 @@ export function attachLinkMouseHandlers(muya: Muya): void {
         if (anchor)
             event.preventDefault();
 
-        // Cmd/Ctrl-click a link → ask the host to open it. marktext's
-        // `clickCtrl.js` dispatched `format-click` with `{ event, formatType:
-        // 'link', data: { text, href } }`; the desktop renderer gates on the
-        // modifier itself (`editor.vue` `format-click` handler) and calls
-        // `FORMAT_LINK_CLICK({ data })`, so the only contract it needs is a
-        // `data.href`. We gate on the modifier here too so plain clicks keep
-        // their cursor-placement-only behavior. `getLinkInfo` resolves the
-        // wrapper that hosts the href even when the IMG/text descendant was
-        // clicked, and returns a superset (`{ href, raw, text, range }`).
-        if (!isModifierClick(event))
-            return;
-
+        // 打开链接：普通点击也触发（宿主已拍板——正文点击链接默认在
+        // 右侧边栏打开）。唯一例外：markdown/reference 链接处于编辑态
+        // （源字符标记可见、非 popover target）时，普通点击保持纯光标
+        // 定位，便于改链接文字/URL；预览态与自动链接/HTML 链接则直接
+        // emit format-click。Cmd/Ctrl-click 仍全量触发。
+        // `getLinkInfo` resolves the wrapper that hosts the href even when
+        // the IMG/text descendant was clicked, and returns a superset
+        // (`{ href, raw, text, range }`).
         const wrapper = findLinkWrapper(event.target);
+
+        if (
+            !isModifierClick(event)
+            && wrapper
+            && !isFollowOnly(wrapper)
+            && !isPopoverTarget(wrapper)
+        ) {
+            return;
+        }
+
         if (!wrapper) {
             // A link inside a raw HTML block renders into `.mu-html-preview` as
             // a plain `<a>` (no `mu-raw-html` wrapper), so it is not matched by

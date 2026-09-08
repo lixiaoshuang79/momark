@@ -57,6 +57,8 @@ export interface IpcInvokeChannels {
   'bp:openExternal': { args: [url: string]; ret: boolean }
   // 文档模式「打开文件…」：主进程弹系统对话框并读回 Markdown 文本。
   'bp:pickDoc': { args: []; ret: { path: string; markdown: string } | null }
+  // 文档模式按路径直读：最近打开列表点击后直接在右侧面板预览。
+  'bp:readDoc': { args: [path: string]; ret: { path: string; markdown: string } | null }
   'mt::clipboard::guess-file-path': { args: []; ret: string | null }
   'mt::clipboard::read-text': { args: []; ret: string }
   'mt::cmd::exists': { args: [name: string]; ret: boolean }

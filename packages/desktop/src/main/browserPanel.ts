@@ -344,4 +344,16 @@ export const registerBrowserPanelIpc = (): void => {
       return null
     }
   })
+
+  // 最近打开列表点击：按路径直读并在右侧面板文档模式预览（不建标签）。
+  ipcMain.handle('bp:readDoc', async (_event, filePath: string) => {
+    if (typeof filePath !== 'string' || !filePath) return null
+    try {
+      const markdown = await fs.readFile(filePath, 'utf-8')
+      return { path: filePath, markdown }
+    } catch (error) {
+      log.error('[browserPanel] readDoc failed:', error)
+      return null
+    }
+  })
 }

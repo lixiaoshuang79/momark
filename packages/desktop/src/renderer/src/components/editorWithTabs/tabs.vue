@@ -1,5 +1,5 @@
 <template>
-  <div class="editor-tabs">
+  <div class="editor-tabs" :class="{ single: !tabbarVisible }">
     <button
       class="tb-toggle"
       :class="{ on: showSideBar }"
@@ -9,7 +9,7 @@
       <mo-icon name="i-sidebar" />
     </button>
 
-    <div ref="tabContainer" class="tabstrip">
+    <div v-if="tabbarVisible" ref="tabContainer" class="tabstrip">
       <div
         v-for="file of visibleTabs"
         :key="file.id"
@@ -67,6 +67,9 @@ import { useBrowserPanelStore } from '@/store/browserPanel'
 import { useSplitStore } from '@/store/split'
 import { useWorkspaceStore } from '@/store/workspace'
 import BpModes from '@/components/browserPanel/bpModes.vue'
+// 正文整屏滑出/滑入动效的全局样式（类名挂在兄弟组件的根节点上，
+// scoped 样式无法命中，必须全局注入）。
+import './transitions.css'
 
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
@@ -77,7 +80,7 @@ const workspaceStore = useWorkspaceStore()
 const { currentFile, tabs } = storeToRefs(editorStore)
 const { showSideBar } = storeToRefs(layoutStore)
 const { open: bpanelOpen } = storeToRefs(bpStore)
-const { visibleTabs } = storeToRefs(workspaceStore)
+const { visibleTabs, tabbarVisible } = storeToRefs(workspaceStore)
 
 interface AutoScroller {
   readonly down: boolean
@@ -122,10 +125,58 @@ const onReturnDrop = (event: DragEvent) => {
   splitStore.RETURN_SPLIT_TO_TABS(true)
 }
 
+// ══ 标签点击切换：正文整屏动效（用户拍板方向）══
+// 切换时正文容器整体沿切换方向滑出软件窗口边缘（translateX ±100vw，
+// 跨过侧栏/右栏区域，视觉上真实穿出窗口），新内容从对侧滑入。
+// 零回弹：退出 = 加速曲线 cubic-bezier(.4,0,1,1)，入场 = fastOutSlowIn；
+// 只动画 transform/opacity（Composite-only，不掉帧）。
+// 其他切换路径（键盘循环/侧栏打开/关闭标签）即时切换，不走动效。
+let slideToken = 0
+let pendingCommit: { id: string; file: IFileState } | null = null
+
 const selectFile = (file: IFileState) => {
-  if (file.id !== currentFile.value?.id) {
+  if (file.id === currentFile.value?.id) return
+  const root = document.querySelector<HTMLElement>('.editor-with-tabs')
+  if (!root || REDUCED_MOTION) {
     editorStore.UPDATE_CURRENT_FILE(file)
+    return
   }
+
+  // 在途切换被打断：先无动画落地上一个目标，避免画面停在旧文档。
+  if (pendingCommit && pendingCommit.id !== file.id) {
+    editorStore.UPDATE_CURRENT_FILE(pendingCommit.file)
+  }
+  pendingCommit = { id: file.id, file }
+
+  const ids = tabs.value.map((tab) => tab.id)
+  const ni = ids.indexOf(file.id)
+  const oi = ids.indexOf(currentFile.value?.id ?? '')
+  const dir = ni >= 0 && oi >= 0 && ni >= oi ? 1 : -1
+  const token = ++slideToken
+
+  root.style.setProperty('--doc-x', `${-dir * 100}vw`)
+  root.classList.remove('doc-panel-exit', 'doc-panel-enter')
+  root.getBoundingClientRect() // 强制重排：退出动画从原位重新开始
+  root.classList.add('doc-panel-exit')
+
+  const commit = () => {
+    if (token !== slideToken) return
+    if (pendingCommit?.id !== file.id) return
+    root.classList.remove('doc-panel-exit')
+    editorStore.UPDATE_CURRENT_FILE(file)
+    root.getBoundingClientRect()
+    root.classList.add('doc-panel-enter')
+    const clean = () => {
+      if (token !== slideToken) return
+      root.classList.remove('doc-panel-enter')
+      root.style.removeProperty('--doc-x')
+      pendingCommit = null
+    }
+    root.addEventListener('animationend', clean, { once: true })
+    window.setTimeout(clean, 380)
+  }
+  root.addEventListener('animationend', commit, { once: true })
+  window.setTimeout(commit, 300)
 }
 
 const removeFileInTab = (file: IFileState) => {
@@ -192,40 +243,6 @@ const moveIndicator = (animate: boolean): void => {
     ind.style.width = `${targetW}px`
     indicatorAnim = null
   }
-}
-
-// 标签文字真实行程动效（用户反馈：被换走的文字要穿过界面边缘）：
-// 退场标签文字沿切换方向平移一个容器全宽（被 overflow 裁剪，视觉穿出边缘），
-// 新激活标签文字从对侧全宽处滑入；方向 = 新旧标签在 tabs 中的索引比较。
-let labelToken = 0
-
-const animateTabLabels = (prevId: string | undefined, nextId: string): void => {
-  const strip = tabContainer.value
-  if (!strip || REDUCED_MOTION || !prevId || prevId === nextId) return
-  const ids = tabs.value.map((tab) => tab.id)
-  const ni = ids.indexOf(nextId)
-  const oi = ids.indexOf(prevId)
-  const dir = ni >= 0 && oi >= 0 && ni >= oi ? 1 : -1
-  const oldEl = strip.querySelector<HTMLElement>(`.tab[data-id="${prevId}"]`)
-  const newEl = strip.querySelector<HTMLElement>(`.tab[data-id="${nextId}"]`)
-  const w = strip.clientWidth
-  const token = ++labelToken
-  strip.style.setProperty('--tab-exit-x', `${-dir * w}px`)
-  if (oldEl && oldEl !== newEl) {
-    oldEl.classList.remove('tab-exit')
-    // offsetWidth 读取触发强制同步重排,保证类名重加时移除已提交,过渡才能重新触发
-    oldEl.offsetWidth && oldEl.classList.add('tab-exit')
-  }
-  if (newEl) {
-    newEl.classList.remove('tab-enter')
-    newEl.offsetWidth && newEl.classList.add('tab-enter')
-  }
-  window.setTimeout(() => {
-    if (token !== labelToken) return
-    strip.style.removeProperty('--tab-exit-x')
-    oldEl?.classList.remove('tab-exit')
-    newEl?.classList.remove('tab-enter')
-  }, 400)
 }
 
 // Keep the active tab visible when the selection changes by something other
@@ -311,11 +328,10 @@ const handleContextMenu = (event: MouseEvent, tab: IFileState) => {
 
 watch(
   () => currentFile.value?.id,
-  (id, prevId) => {
+  () => {
     nextTick(() => {
       scrollActiveTabIntoView()
       moveIndicator(true)
-      animateTabLabels(prevId ?? undefined, id ?? '')
     })
   }
 )
@@ -328,19 +344,16 @@ watch(
   }
 )
 
-onMounted(() => {
-  bus.on('TABS::close-this', closeTab)
-  bus.on('TABS::close-others', closeOthers)
-  bus.on('TABS::close-saved', closeSaved)
-  bus.on('TABS::close-all', closeAll)
-  bus.on('TABS::rename', rename)
-  bus.on('TABS::copy-path', copyPath)
-  bus.on('TABS::show-in-folder', showInFolder)
-  bus.on('split:return-drag-start', onReturnDragStart)
-  bus.on('split:return-drag-end', onReturnDragEnd)
+// 标签条运行时（wheel 滚动 / 拖回投放 / dragula 拖拽 / autoScroll / RO / 滑轨首帧）。
+// 单文档态标签条不渲染（tabbarVisible=false），但组件常驻——条的出现/消失由
+// watch(tabbarVisible) 驱动 setup/teardown，避免单→多切换后拖拽与滑轨失效。
+let runtimeTabsEl: HTMLElement | null = null
 
+const setupTabsRuntime = () => {
   const tabsEl = tabContainer.value
-  if (!tabsEl) return
+  if (!tabsEl || runtimeTabsEl === tabsEl) return
+  teardownTabsRuntime()
+  runtimeTabsEl = tabsEl
 
   // Allow to scroll through the tabs by mouse wheel or touchpad.
   tabsEl.addEventListener('wheel', handleTabScroll)
@@ -454,10 +467,10 @@ onMounted(() => {
   // 字体加载/窗口缩放导致标签宽度变化时同步滑轨。
   resizeObserver = new ResizeObserver(() => moveIndicator(true))
   resizeObserver.observe(tabsEl)
-})
+}
 
-onBeforeUnmount(() => {
-  const tabsEl = tabContainer.value
+const teardownTabsRuntime = () => {
+  const tabsEl = runtimeTabsEl
   if (tabsEl) {
     tabsEl.removeEventListener('wheel', handleTabScroll)
     tabsEl.removeEventListener('dragover', onReturnDragOver)
@@ -466,14 +479,56 @@ onBeforeUnmount(() => {
 
   if (resizeObserver) {
     resizeObserver.disconnect()
+    resizeObserver = null
   }
   if (autoScroller) {
     // Force destroy
     autoScroller.destroy(true)
+    autoScroller = null
   }
   if (drake) {
     drake.destroy()
+    drake = null
   }
+  splitZoneEl?.classList.remove('over')
+  bpStore.SET_DRAG_STATE('none')
+  splitStore.dragTabId = null
+  splitZoneEl = null
+  bpanelEl = null
+  runtimeTabsEl = null
+}
+
+onMounted(() => {
+  bus.on('TABS::close-this', closeTab)
+  bus.on('TABS::close-others', closeOthers)
+  bus.on('TABS::close-saved', closeSaved)
+  bus.on('TABS::close-all', closeAll)
+  bus.on('TABS::rename', rename)
+  bus.on('TABS::copy-path', copyPath)
+  bus.on('TABS::show-in-folder', showInFolder)
+  bus.on('split:return-drag-start', onReturnDragStart)
+  bus.on('split:return-drag-end', onReturnDragEnd)
+
+  nextTick(() => {
+    if (tabbarVisible.value) {
+      setupTabsRuntime()
+    }
+  })
+})
+
+// 标签条随场景出现/消失：单文档隐藏、多文档挂载运行时。
+watch(tabbarVisible, (visible) => {
+  nextTick(() => {
+    if (visible) {
+      setupTabsRuntime()
+    } else {
+      teardownTabsRuntime()
+    }
+  })
+})
+
+onBeforeUnmount(() => {
+  teardownTabsRuntime()
 
   // Remove event listeners
   bus.off('TABS::close-this', closeTab)
@@ -512,9 +567,15 @@ onBeforeUnmount(() => {
   place-items: center;
   color: var(--muted);
   flex: none;
+  /* 原型全量列表：bg/color .22s、radius .38s、transform .48s、shadow .22s，
+     opacity 供单文档低透明度态平滑显现 */
   transition:
     background 0.22s ease,
-    color 0.22s ease;
+    color 0.22s ease,
+    opacity 0.22s ease,
+    border-radius 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease;
 }
 .tb-toggle:hover {
   background: var(--hover);
@@ -528,6 +589,21 @@ onBeforeUnmount(() => {
 .tb-toggle.on {
   background: color-mix(in oklab, var(--accent) 10%, transparent);
   color: var(--accent);
+}
+
+/* 单文档态：两个开关统一留在标签条两端（与多文档一致），
+   但低不透明度保简洁，hover / 激活时完全显现。 */
+.editor-tabs.single .tb-toggle {
+  opacity: 0.42;
+}
+.editor-tabs.single .tb-toggle:hover,
+.editor-tabs.single .tb-toggle.on,
+.editor-tabs.single .tb-toggle.rolled {
+  opacity: 1;
+}
+/* 单文档态无标签，右开关靠 margin 顶到右端（与多文档位置一致） */
+.editor-tabs.single .tb-toggle.panel-toggle {
+  margin-left: auto;
 }
 
 .tabstrip {
@@ -571,40 +647,13 @@ onBeforeUnmount(() => {
   background: var(--surface-2);
 }
 
-/* 切换标签的文字行程动效（真实穿过 tabstrip 边缘，由 overflow 裁剪）：
-   退场标签文字沿切换方向平移一个容器全宽，新激活标签从对侧滑入；
-   方向变量 --tab-exit-x 由 JS 写入 tabstrip（保证任何宽度都完整穿出）。 */
-.tab.tab-exit .tname {
-  animation: tabLabelExit var(--dur-tab-exit) var(--ease-tab-exit) both;
-}
-.tab.tab-enter .tname {
-  animation: tabLabelEnter var(--dur-tab-enter) var(--ease-tab-enter) both;
-}
-.tab.dragging .tname {
-  animation: none;
-}
-@keyframes tabLabelExit {
-  from {
-    transform: none;
-    opacity: 1;
-  }
-  to {
-    transform: translateX(var(--tab-exit-x, -999px));
-    opacity: 0.3;
-  }
-}
-@keyframes tabLabelEnter {
-  from {
-    transform: translateX(calc(var(--tab-exit-x, 999px) * -1));
-    opacity: 0.3;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
+/* 切换标签的文字行程动效已取消（用户拍板：文字不横穿边缘）——
+   切换动效改为正文整屏滑出窗口边缘（transitions.css），
+   标签页维持上一版：底部小横条滑动 + 活动标签文字微微变大。 */
 
 .tab .tname {
+  /* 基准 --f11（14.67px）；活动态 --f12（16px）= 微微变大（+9%），
+     带 0.3s S 型字号过渡 */
   font-size: var(--f11);
   line-height: 1.45;
   font-weight: 600;
@@ -614,9 +663,11 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  transition: font-size 0.3s var(--ease-tab-enter);
 }
 .tab.active .tname {
   color: var(--ink);
+  font-size: var(--f12);
 }
 
 /* 活动标签底部独立滑轨（独立元素，不随标签重建）。
