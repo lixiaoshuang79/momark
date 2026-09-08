@@ -172,7 +172,8 @@ const onDocnameDragEnd = () => {
 }
 .crumb-pbtn {
   display: flex;
-  width: 26px;
+  /* 与标签栏 .tb-toggle 一致：正方形，rolled 时 border-radius:50% 才是正圆 */
+  width: 22px;
   height: 22px;
   align-items: center;
   justify-content: center;
