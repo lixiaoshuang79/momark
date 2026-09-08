@@ -125,7 +125,8 @@
   outline: 2px dashed var(--accent);
   outline-offset: -3px;
 }
-/* 卡片本体：贴内容侧、距窗口右/上/下缘 10px */
+/* 卡片本体：贴内容侧、距窗口右/上/下缘 10px。
+   用户拍板：去掉发丝边框，只留投影+圆角，整体更简洁。 */
 .bp-inner {
   width: auto;
   align-self: stretch;
@@ -137,13 +138,11 @@
   position: relative;
   margin: 10px 10px 10px 0;
   background: var(--surface-2);
-  border: 0.5px solid var(--line);
   border-radius: 13px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
 [data-theme='dark'] .bp-inner {
-  border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
@@ -583,52 +582,7 @@
   background: transparent;
 }
 
-/* 预览态头部（dock-panel 规格）：文件名 + 关闭回到最近列表 */
-.bp-doc-head {
-  flex: none;
-  height: 43px;
-  box-sizing: border-box;
-  padding: 0 10px 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 0.5px solid var(--line);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-}
-.bp-doc-head .bp-doc-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.bp-doc-head .bp-doc-close {
-  flex: none;
-  width: 27px;
-  height: 27px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.bp-doc-head .bp-doc-close:hover {
-  background: var(--hover);
-  color: var(--ink);
-}
-.bp-doc-head .bp-doc-close svg {
-  width: 13px;
-  height: 13px;
-}
-
-/* 预览正文：头部之下独立滚动 */
+/* 预览正文：无头部，与左侧文档顶对齐，独立滚动 */
 .bp-doc-body {
   flex: 1;
   min-height: 0;

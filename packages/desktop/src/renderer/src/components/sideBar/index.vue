@@ -65,13 +65,17 @@ const selectTab = (tab: SideBarTab): void => {
 </script>
 
 <style scoped>
-/* 展开 288px 卡片化侧栏（dock-panel 规格，与右侧面板一致）：
-   画布（--bg）透出，本体 = 悬浮卡片（白底、.5px 发丝边、13px 圆角、轻投影），
+/* 展开 288px 卡片化侧栏（与右侧面板完全同构）：
+   画布（--bg）透出，本体 = 悬浮卡片（白底、13px 圆角、轻投影，无边框更简洁），
    距窗口左/上/下缘 10px、贴内容侧。收起 = 宽度 0（常驻挂载，无 rail 残留）。
    开合 = 纯显式宽度动画（--ease-panel 非线性零过冲，时长与右侧面板一致
-   .42s——用户要求左右开合效果保持一致）。 */
+   .42s——用户要求左右开合效果保持一致）。
+   ⚠️ 必须 flex-direction: column：sb-inner 用 width:auto + align-self:stretch
+   撑满横向空间（与右栏 .bp-inner 同构）。缺这一行时主轴是 row，width:auto
+   塌缩成内容宽度 → 切换大纲/文件时侧栏宽度大幅缩水（用户反馈 bug）。 */
 .side-bar {
   display: flex;
+  flex-direction: column;
   flex-shrink: 0;
   flex-grow: 0;
   width: 0;
@@ -96,7 +100,7 @@ const selectTab = (tab: SideBarTab): void => {
   box-sizing: border-box;
   margin: 10px 0 10px 10px;
   background: var(--surface-2);
-  border: 0.5px solid var(--line);
+  /* 用户拍板：去掉发丝边框，只留投影+圆角，整体更简洁 */
   border-radius: 13px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
@@ -105,7 +109,6 @@ const selectTab = (tab: SideBarTab): void => {
   padding: 10px 8px 12px;
 }
 [data-theme='dark'] .sb-inner {
-  border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 

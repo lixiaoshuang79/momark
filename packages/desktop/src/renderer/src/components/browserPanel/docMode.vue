@@ -1,14 +1,9 @@
 <template>
-  <!-- 原型 .bp-doc：预览态有 43px 头部（文件名 + 关闭回到最近列表）；
+  <!-- 原型 .bp-doc：预览态无独立头部（用户拍板——右栏文档名移到 app 顶部
+       标签行显示「文件A | 文件B」，右栏内容与左侧文档顶对齐，不再矮一头）；
        无内容时 = 最近打开列表（点击直接在右侧面板打开，不建标签）
        + 底部「打开文件…」条。 -->
   <div class="bp-doc">
-    <div v-if="docPath && !splitDocTab" class="bp-doc-head">
-      <span class="bp-doc-title">{{ docName }}</span>
-      <button class="bp-doc-close" title="关闭预览，回到最近打开" @click="closePicked">
-        <mo-icon name="i-x" />
-      </button>
-    </div>
     <div v-if="hasContent" ref="docBody" class="bp-doc-body" v-html="previewHtml" />
     <div v-else class="bp-doc-empty">
       <div class="bp-recents-title">
@@ -36,7 +31,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import MoIcon from '@/components/icons/MoIcon.vue'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import { useEditorStore } from '@/store/editor'
@@ -68,15 +62,6 @@ const previewHtml = ref('')
 const docBody = ref<HTMLElement | null>(null)
 
 const hasContent = computed(() => !!splitDocTab.value || !!docPath.value)
-
-const docName = computed(() => {
-  const path = docPath.value
-  return path ? window.path.basename(path) : ''
-})
-
-const closePicked = () => {
-  bpStore.SET_DOC_PATH(null)
-}
 
 // 空态最近打开列表：主进程系统级最近文档（同欢迎页数据源，≤8 条）。
 type RecentItem = { path: string; name: string; dirname: string; mtime: number }

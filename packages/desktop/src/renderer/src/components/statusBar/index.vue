@@ -58,7 +58,7 @@ const wcTooltip = computed(() => {
   align-items: center;
   gap: 16px;
   padding: 0 14px;
-  border-top: 1px solid var(--line);
+  /* 用户拍板：去掉顶部发丝线，画布整体更简洁 */
   background: var(--bg);
   font-size: var(--f11);
   line-height: 1.45;

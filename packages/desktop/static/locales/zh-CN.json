@@ -263,7 +263,9 @@
       "files": "文件"
     },
     "toggleTitle": "显示/隐藏侧栏",
-    "rightPanelTitle": "右侧栏 / 浏览器面板（拖标签进面板可双屏分栏）"
+    "rightPanelTitle": "右侧栏 / 浏览器面板（拖标签进面板可双屏分栏）",
+    "rightPanelCloseDoc": "关闭右栏文档",
+    "rightPanelDragBack": "拖回标签栏"
   },
   "commandPalette": {
     "placeholder": "输入要执行的命令",
