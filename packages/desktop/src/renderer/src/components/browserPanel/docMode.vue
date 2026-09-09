@@ -71,6 +71,16 @@ const openFileByPath = async (path: string, markdown: string) => {
   const editorStore = useEditorStore()
   const splitStore = useSplitStore()
 
+  // 文件已在标签集合：直接进分屏，走标准「拖出活动标签」语义
+  // （左编辑器落到相邻标签或空出），保证同一文档不出现在两侧。
+  const existing = editorStore.tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, path))
+  if (existing) {
+    bpStore.SET_OPEN(true)
+    bpStore.SET_MODE('doc')
+    splitStore.DRAG_TO_SPLIT(existing.id)
+    return
+  }
+
   // 记住打开前的当前文档；全局无当前文档时才让新标签激活（左栏空态）。
   const prev = editorStore.currentFile
   editorStore.NEW_TAB_WITH_CONTENT({
@@ -89,12 +99,6 @@ const openFileByPath = async (path: string, markdown: string) => {
 
   const tab = editorStore.tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, path))
   if (!tab) return
-
-  // 文件已在标签集合时 NEW_TAB 会激活它；把左栏切回打开前的文档，
-  // 保证同一文档不出现在两侧（PHASE2-SPEC §3 铁律）。
-  if (prev && editorStore.currentFile?.id === tab.id) {
-    editorStore.UPDATE_CURRENT_FILE(prev)
-  }
 
   bpStore.SET_OPEN(true)
   bpStore.SET_MODE('doc')

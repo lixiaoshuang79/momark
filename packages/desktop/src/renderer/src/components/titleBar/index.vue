@@ -37,7 +37,7 @@
               :title="rightDocTitle"
               @dragstart="onRightDragStart"
               @dragend="onRightDragEnd"
-              @click.stop
+              @click.stop="toggleCollapse"
               @dblclick.stop
               >{{ rightDocName }}</span
             >
@@ -150,6 +150,8 @@ onMounted(async () => {
 const { titleBarStyle } = storeToRefs(preferencesStore)
 
 // 单击折叠：路径最多往上 3 级，分隔符统一 /；切换文档时重置为完整路径。
+// round9（用户拍板）：单击顶栏标题区时，「文件A | 文件B」两侧同时切换
+// 「带路径 ⇄ 纯文件名」两种状态（共用一个 collapsed）。
 const collapsed = ref(false)
 watch(
   () => props.filename,
@@ -160,12 +162,31 @@ watch(
 
 const MAX_DIR_LEVELS = 3
 
+// 路径缩略：家目录缩写 ~；目录最多保留 3 级，超出前缀 …/。
+const compactPathLabel = (pathname: string): string => {
+  const name = window.path.basename(pathname)
+  const home =
+    window.electron?.process?.env?.HOME ??
+    (window.marktext?.env as { HOME?: string } | undefined)?.HOME
+  const dir = window.path.dirname(pathname)
+  let rel = dir
+  if (home && (dir === home || dir.startsWith(home + window.path.sep))) {
+    rel = '~' + dir.slice(home.length)
+  }
+  if (!rel || rel === '.') return name
+  const segs = rel.split('/').filter(Boolean)
+  const truncated = segs.length > MAX_DIR_LEVELS
+  const kept = truncated ? segs.slice(-MAX_DIR_LEVELS) : segs
+  return `${truncated ? '…/' : ''}${kept.join('/')}/${name}`
+}
+
 // 「文件A | 文件B」的右文档指示：分屏第二文档（round8 起右侧文档为真编辑器，
-// 无独立预览文档路径）。
+// 无独立预览文档路径）。round9：与左侧共用 collapsed——完整态显示缩略路径。
 const rightDocName = computed(() => {
   if (splitStore.active) {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
-    return tab?.filename ?? ''
+    if (!tab) return ''
+    return collapsed.value ? tab.filename : compactPathLabel(tab.pathname)
   }
   return ''
 })
@@ -199,24 +220,12 @@ const closeRightDoc = () => {
   }
 }
 
-// 标题文案：家目录缩写成 ~；目录最多保留 3 级，超出前缀 …/。
+// 标题文案：collapsed 时纯文件名，否则缩略路径（与右文档侧同一口径）。
 const titleLabel = computed(() => {
   const name = props.filename ?? ''
   if (!props.pathname) return name
   if (collapsed.value) return name
-  const home =
-    window.electron?.process?.env?.HOME ??
-    (window.marktext?.env as { HOME?: string } | undefined)?.HOME
-  const dir = window.path.dirname(props.pathname)
-  let rel = dir
-  if (home && (dir === home || dir.startsWith(home + window.path.sep))) {
-    rel = '~' + dir.slice(home.length)
-  }
-  if (!rel || rel === '.') return name
-  const segs = rel.split('/').filter(Boolean)
-  const truncated = segs.length > MAX_DIR_LEVELS
-  const kept = truncated ? segs.slice(-MAX_DIR_LEVELS) : segs
-  return `${truncated ? '…/' : ''}${kept.join('/')}/${name}`
+  return compactPathLabel(props.pathname)
 })
 
 const toggleCollapse = () => {

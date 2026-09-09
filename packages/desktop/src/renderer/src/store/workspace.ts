@@ -20,6 +20,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   // 左侧标签集合：分屏 doc 已被拆出的文档不参与（互斥由推导保证）。
   const visibleTabs = computed(() => editorStore.tabs.filter((t) => t.id !== splitStore.tabId))
 
+  // round9（用户拍板）：标签条所有场景常驻渲染（原 PHASE2-SPEC §10 的
+  // 「single 隐藏标签栏整行」作废——拖回标签栏后单文档标签需立即可见）。
   const scene = computed<WorkspaceScene>(() => {
     if (splitStore.active) {
       if (splitStore.kind === 'doc') return 'split-doc'
@@ -27,9 +29,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
     return visibleTabs.value.length >= 2 ? 'multi' : 'single'
   })
-
-  // PHASE2-SPEC §10：single 物理移除标签栏整行，multi/split-* 均渲染。
-  const tabbarVisible = computed(() => scene.value !== 'single')
 
   const splitDocTab = computed(() => {
     if (splitStore.kind !== 'doc' || !splitStore.tabId) return null
@@ -46,7 +45,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   return {
     visibleTabs,
     scene,
-    tabbarVisible,
     splitDocTab,
     panelWidthPx
   }

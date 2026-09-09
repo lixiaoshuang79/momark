@@ -55,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, nextTick, onMounted, ref } from 'vue'
+import { computed, watch, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useMainStore } from '@/store'
 import { storeToRefs } from 'pinia'
 import { wordCount as wordCountFromMarkdown } from '@muyajs/core'
@@ -78,6 +78,19 @@ import { DEFAULT_STYLE } from '@/config'
 import { useLayoutStore } from '@/store/layout'
 import { useListenForMainStore } from '@/store/listenForMain'
 import { usePreferencesStore } from '@/store/preferences'
+
+// round9 滚动条极简 overlay：滚动进行中给 body 挂 .scroll-engaged
+// （任何滚动容器的 scroll 事件捕获），停止 650ms 后移除——滑块随之淡入/淡出。
+let scrollEngageTimer: ReturnType<typeof setTimeout> | undefined
+const engageScrollbars = () => {
+  document.body.classList.add('scroll-engaged')
+  clearTimeout(scrollEngageTimer)
+  scrollEngageTimer = setTimeout(() => document.body.classList.remove('scroll-engaged'), 650)
+}
+window.addEventListener('scroll', engageScrollbars, { capture: true, passive: true })
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', engageScrollbars, { capture: true })
+})
 import { useEditorStore } from '@/store/editor'
 import { useCommandCenterStore } from '@/store/commandCenter'
 import { useProjectStore } from '@/store/project'

@@ -107,12 +107,14 @@
   --notificationErrorBg: #ff6969;
 }
 
-/* 全局滚动条：细药丸形（9px 轨道内 5px 圆角滑块，2px 透明描边留白），
-   hover 加深；轨道透明贴合画布，替换旧版 12px 粗方条。 */
+/* 全局滚动条（round9 用户拍板：极简 overlay 风，类 macOS 原生滚动条）——
+   默认完全隐形（无轨道、无占位）；滚动进行中（app.vue 挂 body.scroll-engaged）
+   浮现 4px 半透明细胶囊（10px 槽内 3px 透明描边留白），指针悬停滑块/拖动中
+   逐步加深；停止滚动后淡出——不滚时视觉上没有滚动条，滚动时若隐若现。 */
 ::-webkit-scrollbar,
 ::-webkit-scrollbar-corner {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   background: transparent;
 }
 
@@ -121,14 +123,27 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--editorColor30);
-  border-radius: 9px;
-  border: 2px solid transparent;
+  background: transparent;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.3s ease;
+}
+
+/* 滚动中：淡入半透明墨灰细胶囊（深/浅主题随 --editorColor）。 */
+body.scroll-engaged ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--editorColor) 26%, transparent);
   background-clip: padding-box;
 }
 
+/* 指针移到滑块上：直接显现并加深（不依赖滚动状态）。 */
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--editorColor50);
+  background: color-mix(in srgb, var(--editorColor) 40%, transparent);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: color-mix(in srgb, var(--editorColor) 52%, transparent);
   background-clip: padding-box;
 }
 

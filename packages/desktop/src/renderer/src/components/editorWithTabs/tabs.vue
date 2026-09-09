@@ -1,5 +1,5 @@
 <template>
-  <div ref="tabsRoot" class="editor-tabs" :class="{ single: !tabbarVisible }">
+  <div ref="tabsRoot" class="editor-tabs" :class="{ single: scene === 'single' }">
     <button
       class="tb-toggle"
       :class="{ on: showSideBar }"
@@ -9,7 +9,9 @@
       <mo-icon name="i-sidebar" />
     </button>
 
-    <div v-if="tabbarVisible" ref="tabContainer" class="tabstrip">
+    <!-- round9（用户拍板）：标签条任何场景都渲染（单文档也显示标签，
+         拖回标签栏后文档标签立即可见）。 -->
+    <div ref="tabContainer" class="tabstrip">
       <div
         v-for="file of visibleTabs"
         :key="file.id"
@@ -83,7 +85,7 @@ const workspaceStore = useWorkspaceStore()
 const { currentFile, tabs } = storeToRefs(editorStore)
 const { showSideBar } = storeToRefs(layoutStore)
 const { open: bpanelOpen } = storeToRefs(bpStore)
-const { visibleTabs, tabbarVisible } = storeToRefs(workspaceStore)
+const { visibleTabs, scene } = storeToRefs(workspaceStore)
 
 interface AutoScroller {
   readonly down: boolean
@@ -359,8 +361,8 @@ watch(
 )
 
 // 标签条运行时（wheel 滚动 / 拖回投放 / dragula 拖拽 / autoScroll / RO / 滑轨首帧）。
-// 单文档态标签条不渲染（tabbarVisible=false），但组件常驻——条的出现/消失由
-// watch(tabbarVisible) 驱动 setup/teardown，避免单→多切换后拖拽与滑轨失效。
+// round9：标签条所有场景常驻渲染，onMounted 后一次性挂载运行时，
+// 不再随场景出现/消失。
 let runtimeTabsEl: HTMLElement | null = null
 
 const setupTabsRuntime = () => {
@@ -518,26 +520,14 @@ onMounted(() => {
   bus.on('split:return-drag-start', onReturnDragStart)
   bus.on('split:return-drag-end', onReturnDragEnd)
 
-  // chip 拖回标签栏（原生 HTML5 drop）：绑在 editor-tabs 整行常驻——
-  // 多文档态落在标签条内（冒泡到行），单文档态无标签条也能整行投放。
+  // chip 拖回标签栏（原生 HTML5 drop）：绑在 editor-tabs 整行常驻，
+  // 任何场景都可整行投放。
   tabsRoot.value?.addEventListener('dragover', onReturnDragOver)
   tabsRoot.value?.addEventListener('drop', onReturnDrop)
 
+  // 标签条常驻渲染（round9），onMounted 后一次性挂载运行时。
   nextTick(() => {
-    if (tabbarVisible.value) {
-      setupTabsRuntime()
-    }
-  })
-})
-
-// 标签条随场景出现/消失：单文档隐藏、多文档挂载运行时。
-watch(tabbarVisible, (visible) => {
-  nextTick(() => {
-    if (visible) {
-      setupTabsRuntime()
-    } else {
-      teardownTabsRuntime()
-    }
+    setupTabsRuntime()
   })
 })
 
