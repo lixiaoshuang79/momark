@@ -14,6 +14,7 @@ import { Muya, wordCount as muyaWordCount, en, zhCN, type ILocale } from '@muyaj
 import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
 import { useWorkspaceStore } from '@/store/workspace'
+import { useSplitStore } from '@/store/split'
 import { DEFAULT_EDITOR_FONT_FAMILY, DEFAULT_CODE_FONT_FAMILY } from '@/config'
 import { guessClipboardFilePath } from '@/util/clipboard'
 import { createImageAction } from '@/util/docPaneImage'
@@ -38,6 +39,7 @@ const hostRef = ref<HTMLElement | null>(null)
 const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
 const workspaceStore = useWorkspaceStore()
+const splitStore = useSplitStore()
 const { splitDocTab } = storeToRefs(workspaceStore)
 
 const {
@@ -150,6 +152,12 @@ onMounted(() => {
       toc: muya.getTOC(),
       blocks: muya.getState()
     })
+  })
+
+  // round10：光标落在右编辑器 → 顶栏字数/保存状态切为右文档数据
+  // （左侧编辑器 selection-change 会切回）。
+  muya.on('selection-change', () => {
+    splitStore.SET_DOC_FOCUSED(true)
   })
 
   bus.on('language-changed', handleLocale)

@@ -31,26 +31,36 @@
 import { computed } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
+import { useSplitStore } from '@/store/split'
 import { storeToRefs } from 'pinia'
 import { Close } from '@element-plus/icons-vue'
 import { t } from '../../i18n'
 
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
+const splitStore = useSplitStore()
 
 const { currentFile } = storeToRefs(editorStore)
 const { effectiveSideBarWidth } = storeToRefs(layoutStore)
 
-const currentNotification = computed(() => {
-  const notifications = currentFile.value?.notifications
-  if (!notifications || notifications.length === 0) {
-    return null
+// round10：横幅数据源 = 左侧当前文档的通知栈；分屏开启时右侧文档的
+// 外部变更通知同样在此展示（数据挂在 split tab 的 notifications 栈）。
+const notificationStack = computed(() => {
+  const cur = currentFile.value?.notifications
+  if (cur && cur.length > 0) return cur
+  if (splitStore.active && splitStore.tabId) {
+    const splitTab = editorStore.tabs.find((t) => t.id === splitStore.tabId)
+    if (splitTab?.notifications && splitTab.notifications.length > 0) {
+      return splitTab.notifications
+    }
   }
-  return notifications[0]
+  return null
 })
 
+const currentNotification = computed(() => notificationStack.value?.[0] ?? null)
+
 const handleClick = (status: boolean) => {
-  const notifications = currentFile.value?.notifications
+  const notifications = notificationStack.value
   if (!notifications || notifications.length === 0) {
     console.error(t('editor.notifications.notificationNotFound'))
     return

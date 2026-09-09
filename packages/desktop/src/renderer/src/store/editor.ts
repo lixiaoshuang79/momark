@@ -1304,6 +1304,13 @@ export const useEditorStore = defineStore('editor', {
         return
       }
 
+      // round10：直建标签路径（「打开文件…」/拖放等）不经过主进程 openTab，
+      // 主动通知主进程把该文件挂进单文件 watcher——外部修改才能触发
+      // mt::update-file → 文件变更横幅（复刻 MarkText 行为）。
+      if (pathname) {
+        window.electron.ipcRenderer.send('mt::window-add-file-path', pathname)
+      }
+
       let keepTabBarState = false
       if (currentFile) {
         const { isSaved, pathname: cfPath } = currentFile

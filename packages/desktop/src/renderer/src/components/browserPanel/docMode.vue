@@ -4,6 +4,12 @@
        编辑器实例（docEditorPane）；无分屏 = 最近打开列表（点击直接建标签
        进分屏编辑）+ 底部「打开文件…」条。 -->
   <div class="bp-doc">
+    <!-- round10：顶部对齐条——与左边栏「大纲/文件」tab 头同高同构，
+         使左右边栏的文档内容开始线水平一致；显示当前分屏文档名。 -->
+    <div v-if="hasContent" class="bp-doc-head" :title="splitDocTab?.pathname">
+      <span class="bp-doc-head-dot" :class="{ show: !splitDocTab?.isSaved }" />
+      <span class="bp-doc-head-name">{{ splitDocTab?.filename }}</span>
+    </div>
     <doc-editor-pane v-if="hasContent" />
     <div v-else class="bp-doc-empty">
       <div class="bp-recents-title">
@@ -67,17 +73,23 @@ const loadRecents = async () => {
 onMounted(loadRecents)
 
 // 建真实文档标签并进入分屏（左栏保持当前文档，右栏编辑新文档）。
+// round10（用户拍板）：文件已打开也允许进分屏——同一文档左右同开、
+// 任一侧编辑另一侧实时同步（allowSame）。
 const openFileByPath = async (path: string, markdown: string) => {
   const editorStore = useEditorStore()
   const splitStore = useSplitStore()
 
-  // 文件已在标签集合：直接进分屏，走标准「拖出活动标签」语义
-  // （左编辑器落到相邻标签或空出），保证同一文档不出现在两侧。
+  // 文件已在标签集合：直接进分屏。若该文档已在右屏（分屏中），
+  // 左栏也切到它，实现左右同文档双开。
   const existing = editorStore.tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, path))
   if (existing) {
     bpStore.SET_OPEN(true)
     bpStore.SET_MODE('doc')
-    splitStore.DRAG_TO_SPLIT(existing.id)
+    if (splitStore.active && splitStore.tabId === existing.id) {
+      editorStore.UPDATE_CURRENT_FILE(existing)
+    } else {
+      splitStore.DRAG_TO_SPLIT(existing.id, { allowSame: true })
+    }
     return
   }
 

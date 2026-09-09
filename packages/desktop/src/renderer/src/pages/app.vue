@@ -9,6 +9,8 @@
         :platform="platform"
         :is-saved="isSaved"
         :tab-count="titleTabCount"
+        :title-word-count="titleStats.wordCount"
+        :title-saved="titleStats.isSaved"
       />
 
       <!-- 标签栏：win-body 之上的全宽行（PHASE2-SPEC §1：标题栏 40px /
@@ -43,8 +45,8 @@
         <browser-panel />
       </div>
 
-      <!-- 状态栏：全宽行（原型横跨整窗，含侧栏之下） -->
-      <status-bar v-if="hasCurrentFile && init" :word-count="wordCount" :is-saved="isSaved" />
+      <!-- round10：底部状态栏已移除——侧栏/编辑区直接延伸到窗口底，
+           字数/保存状态上移至顶栏右上角（titleBar）-->
 
       <command-palette />
       <export-setting-dialog />
@@ -59,13 +61,13 @@ import { computed, watch, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useMainStore } from '@/store'
 import { storeToRefs } from 'pinia'
 import { wordCount as wordCountFromMarkdown } from '@muyajs/core'
+import type { FileWordCount } from '@shared/types/files'
 import { addStyles, addThemeStyle, addCustomStyle, type AddStylesOptions } from '@/util/theme'
 import Recent from '@/components/recent/index.vue'
 import EditorWithTabs from '@/components/editorWithTabs/index.vue'
 import EditorTabs from '@/components/editorWithTabs/tabs.vue'
 import TitleBar from '@/components/titleBar/index.vue'
 import SideBar from '@/components/sideBar/index.vue'
-import StatusBar from '@/components/statusBar/index.vue'
 import CommandPalette from '@/components/commandPalette/index.vue'
 import ExportSettingDialog from '@/components/exportSettings/index.vue'
 import Rename from '@/components/rename/index.vue'
@@ -130,6 +132,31 @@ const isSaved = computed(() => {
   if (!f) return undefined
   return !!f.pathname && f.isSaved
 })
+
+// round10：顶栏右上角字数/保存状态的数据源——光标落在右栏文档编辑器时
+// 显示分屏文档的数据（split.docFocused），否则默认显示左侧当前文档。
+const titleStats = computed<{ wordCount: FileWordCount | null; isSaved: boolean | undefined }>(
+  () => {
+    if (splitStore.active && splitStore.docFocused && splitStore.tabId) {
+      const tab = tabs.value.find((t) => t.id === splitStore.tabId)
+      if (tab) {
+        const wc = tab.wordCount
+        const md = tab.markdown
+        const storedUsable =
+          !!wc &&
+          (wc.word !== undefined || wc.character !== undefined) &&
+          (wc.word > 0 || wc.character > 0 || wc.paragraph > 0 || wc.all > 0)
+        const tabWordCount: FileWordCount | null = storedUsable
+          ? wc
+          : typeof md === 'string' && md.length > 0
+            ? wordCountFromMarkdown(md)
+            : (wc ?? null)
+        return { wordCount: tabWordCount, isSaved: !!tab.pathname && tab.isSaved }
+      }
+    }
+    return { wordCount: wordCount.value, isSaved: isSaved.value }
+  }
+)
 // 标题区（PHASE2-SPEC §1/§10）：仅 single 场景显示状态点+完整路径；
 // multi / split-* 场景标题区留空 —— 用 tabCount>1 的既有判定表达。
 const titleTabCount = computed(() => (scene.value === 'single' ? tabs.value.length : 2))

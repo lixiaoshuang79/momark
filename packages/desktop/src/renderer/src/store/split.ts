@@ -27,6 +27,13 @@ export const useSplitStore = defineStore('split', () => {
   // 分隔线拖动中（win-body 挂 .dragging-split，禁用面板宽度过渡 + 全局 col-resize）。
   const draggingSplit = ref(false)
 
+  // round10：光标所在侧——右栏文档编辑器有光标活动时为 true，左侧编辑器
+  // 活动时清回 false；顶栏字数/保存状态据此选择数据源。分屏关闭即失效。
+  const docFocused = ref(false)
+  function SET_DOC_FOCUSED(focused: boolean): void {
+    docFocused.value = focused
+  }
+
   // round8（用户拍板）：左右文档平等——右栏宽 = 可用编辑区（窗宽 − 左侧栏）的
   // 一半，左侧文档区天然同宽；侧栏开合时跟随重算。最小 240px（极窄窗口下
   // 无法物理等分时保底）。
@@ -52,17 +59,30 @@ export const useSplitStore = defineStore('split', () => {
    * 标签拖入分屏（STATE-MACHINE dragToSplit）：
    * 已在右屏 → 返回 false（blocked，投放区 dropEffect none）；
    * 右屏已有其它文档 → 先静默还回，再开新文档窗格 min(480px, 60%)。
+   * round10（用户拍板）：allowSame=true 时允许当前文档两侧同开
+   * （「打开文件…」选已在左侧的文档）——左右同文档实时互同步。
    */
-  function DRAG_TO_SPLIT(id: string, opts?: { keepCurrent?: boolean }): boolean {
+  function DRAG_TO_SPLIT(
+    id: string,
+    opts?: { keepCurrent?: boolean; allowSame?: boolean }
+  ): boolean {
     const editorStore = useEditorStore()
     const bpStore = useBrowserPanelStore()
 
-    if (active.value && tabId.value === id) return false
+    if (active.value && tabId.value === id && !opts?.allowSame) return false
     const tab = editorStore.tabs.find((t) => t.id === id)
     if (!tab) return false
 
-    if (active.value && kind.value === 'doc' && tabId.value) {
-      RETURN_SPLIT_TO_TABS(false)
+    if (active.value && kind.value === 'doc' && tabId.value && tabId.value !== id) {
+      // round10：右栏换文档且目标是左栏当前文档（allowSame 同文档双开）——
+      // 只释放旧分屏文档，绝不能把它激活成左栏文档（否则左栏内容被顶替）。
+      if (opts?.allowSame) {
+        active.value = false
+        tabId.value = null
+        docFocused.value = false
+      } else {
+        RETURN_SPLIT_TO_TABS(false)
+      }
     }
 
     const index = editorStore.tabs.findIndex((t) => t.id === id)
@@ -76,11 +96,10 @@ export const useSplitStore = defineStore('split', () => {
     bpStore.SET_MODE('doc')
 
     // 若拖出的是活动标签：左编辑器落到相邻标签（原型 takeTabIntoSplit 语义）；
-    // 无可落标签（唯一标签被拖出）→ 左编辑区空出（与 CLOSE_TABS 的空态一致），
-    // 避免同一文档同时出现在两侧。
-    // keepCurrent（右栏「打开文件…」路径）：保持当前标签在左编辑器，
-    // 右栏同步实时预览（编辑+预览对照）。
-    if (editorStore.currentFile?.id === id && !opts?.keepCurrent) {
+    // 无可落标签（唯一标签被拖出）→ 左编辑区空出（与 CLOSE_TABS 的空态一致）。
+    // keepCurrent（右栏「打开文件…」路径）：保持当前标签在左编辑器。
+    // allowSame：同一文档左右同开，左编辑器保持该文档不动。
+    if (editorStore.currentFile?.id === id && !opts?.keepCurrent && !opts?.allowSame) {
       const visible = editorStore.tabs.filter((t) => t.id !== id)
       const next = visible[Math.min(index, visible.length - 1)] ?? null
       if (next) {
@@ -121,6 +140,7 @@ export const useSplitStore = defineStore('split', () => {
     active.value = false
     kind.value = 'doc'
     tabId.value = null
+    docFocused.value = false
     // 拖回只取消分屏本身：面板保持当前开合与内容状态
     // （用户拍板：关闭右侧边栏/切换模式都不影响里面的内容和状态）。
   }
@@ -151,10 +171,12 @@ export const useSplitStore = defineStore('split', () => {
     width,
     dragTabId,
     draggingSplit,
+    docFocused,
     SET_KIND,
     DRAG_TO_SPLIT,
     RETURN_SPLIT_TO_TABS,
     SET_SPLIT_WIDTH,
-    CLOSE_SPLIT
+    CLOSE_SPLIT,
+    SET_DOC_FOCUSED
   }
 })

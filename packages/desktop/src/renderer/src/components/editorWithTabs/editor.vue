@@ -121,9 +121,11 @@ import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
 import { useProjectStore } from '@/store/project'
 import { useBrowserPanelStore } from '@/store/browserPanel'
+import { useSplitStore } from '@/store/split'
 import { storeToRefs } from 'pinia'
 import { t } from '../../i18n'
 import { SyntheticHistory, type IFileHistoryLike } from './syntheticHistory'
+import { useEditorEnterMotion } from './useEditorEnterMotion'
 
 // Importing the engine entrypoint auto-injects its editor CSS (the muya.ts
 // module imports its stylesheets at load time). Desktop themes still target the
@@ -194,6 +196,10 @@ const props = defineProps<{
 // Get stores
 const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
+const splitStore = useSplitStore()
+
+// round10：标签切换正文回弹（6px 垂直微过冲弹簧 + 淡入，仅 transform/opacity）。
+const enterMotion = useEditorEnterMotion(() => wrapperRef.value)
 const projectStore = useProjectStore()
 const bpStore = useBrowserPanelStore()
 
@@ -538,6 +544,35 @@ watch(typewriter, (value) => {
     scrollToCursor()
   }
 })
+
+// round10：同一文档左右双开实时同步——右栏编辑器写入 tab.markdown 后，
+// 左引擎若显示同一文档且内容不一致则 setContent 刷新（自身编辑时
+// tab.markdown === 引擎内容，guard 跳过，光标/历史不受影响）。
+watch(
+  () => {
+    const id = editorStore.currentFile?.id
+    if (!id) return null
+    return editorStore.tabs.find((t) => t.id === id)?.markdown
+  },
+  (md) => {
+    if (typeof md !== 'string' || !editor.value) return
+    if (md === editor.value.getMarkdown()) return
+    editor.value.setContent(md)
+    editorStore.UPDATE_TOC(editor.value.getTOC())
+  }
+)
+
+// round10：标签切换正文回弹——内容 swap 与 setContent 均发生在事件内，
+// nextTick 后 DOM 就绪再起弹簧；首次打开/从空态打开（ov == null）不播，
+// 只对「已有文档 ⇄ 已有文档」的切换生效。
+watch(
+  () => editorStore.currentFile?.id,
+  async (nv, ov) => {
+    if (!nv || ov == null) return
+    await nextTick()
+    enterMotion.play()
+  }
+)
 
 watch(focus, (value) => {
   if (editor.value) {
@@ -1751,6 +1786,15 @@ onMounted(() => {
   const ele = editorRef.value
   if (!ele) return
 
+  // round10：回弹动画的打断通道——用户一旦开始输入/点选（捕获阶段），
+  // 动画一帧落位终态，绝不在运动中的编辑区上打靶。
+  wrapperRef.value?.addEventListener('pointerdown', enterMotion.cancel, {
+    capture: true
+  })
+  wrapperRef.value?.addEventListener('keydown', enterMotion.cancel, {
+    capture: true
+  })
+
   // Register the engine UI plugins once per renderer process (see
   // `muyaPluginsRegistered`). The image-edit tool receives the desktop's image
   // callbacks; LinkTools receives the ctrl/cmd-click jump handler.
@@ -1989,6 +2033,8 @@ onMounted(() => {
   })
 
   editor.value.on('selection-change', (changes: MuyaChange) => {
+    // round10：光标回到左编辑器 → 顶栏字数/保存状态切回左文档。
+    splitStore.SET_DOC_FOCUSED(false)
     const y = (changes.cursorCoords?.y ?? null) as number | null
     if (y != null) {
       if (typewriter.value) {
@@ -2029,6 +2075,12 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  wrapperRef.value?.removeEventListener('pointerdown', enterMotion.cancel, {
+    capture: true
+  })
+  wrapperRef.value?.removeEventListener('keydown', enterMotion.cancel, {
+    capture: true
+  })
   bus.off('file-loaded', setMarkdownToEditor)
   bus.off('invalidate-image-cache', handleInvalidateImageCache)
   bus.off('undo', handleUndo)

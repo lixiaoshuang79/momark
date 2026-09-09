@@ -53,6 +53,16 @@
         <div v-else class="title-brand">墨记</div>
       </div>
 
+      <!-- round10：底部状态栏移除后，字数+保存状态放右上角（与顶栏同排）。
+           数据跟随光标所在侧文档（app.vue 传 titleWordCount/titleSaved）。 -->
+      <div v-if="titleWordCount" class="title-stats title-no-drag" :title="wcTooltip">
+        <span class="save-state">
+          <span class="dot" :class="{ show: !titleSaved }" />
+          <span>{{ titleSaved ? t('statusBar.saved') : t('statusBar.unsaved') }}</span>
+        </span>
+        <button class="wc" @click.stop="cycle">{{ wcLabel }} {{ formatted }}</button>
+      </div>
+
       <div
         v-if="titleBarStyle === 'custom' && !isFullScreen && !isOsx"
         class="right-toolbar"
@@ -106,6 +116,7 @@ import { shouldShowInAppTitleBar } from './visibility'
 import { t } from '../../i18n'
 import bus from '../../bus'
 import MoIcon from '@/components/icons/MoIcon.vue'
+import type { FileWordCount } from '@shared/types/files'
 
 interface ProjectInfo {
   name?: string
@@ -121,6 +132,10 @@ const props = defineProps<{
   isSaved?: boolean
   // 标签集合大小：顶栏仅用于文案/字号逻辑，不再承载面板开关。
   tabCount?: number
+  // round10：底部状态栏已移除——字数/保存状态上移到顶栏右上角，
+  // 数据源跟随光标所在侧（左侧文档 / 分屏右文档）由 app.vue 决定。
+  titleWordCount?: FileWordCount | null
+  titleSaved?: boolean
 }>()
 
 const preferencesStore = usePreferencesStore()
@@ -251,6 +266,32 @@ const showTitleBar = computed(() => {
   return shouldShowInAppTitleBar(titleBarStyle.value, isOsx)
 })
 
+// —— round10 顶栏右上角字数/保存（原底部状态栏逻辑迁移）——
+const WC_STATES = [
+  { key: 'word', labelKey: 'statusBar.words' },
+  { key: 'paragraph', labelKey: 'statusBar.paragraphs' },
+  { key: 'character', labelKey: 'statusBar.characters' }
+] as const
+
+const wcIndex = ref(0)
+const wcState = computed(() => WC_STATES[wcIndex.value]!)
+const wcLabel = computed(() => t(wcState.value.labelKey))
+const formatted = computed(() => {
+  const value = props.titleWordCount?.[wcState.value.key] ?? 0
+  return Number(value).toLocaleString('en-US')
+})
+const cycle = () => {
+  wcIndex.value = (wcIndex.value + 1) % WC_STATES.length
+}
+const wcTooltip = computed(() => {
+  const { word, paragraph, character } = props.titleWordCount ?? {
+    word: 0,
+    paragraph: 0,
+    character: 0
+  }
+  return `${t('statusBar.words')} ${Number(word).toLocaleString('en-US')} · ${t('statusBar.paragraphs')} ${Number(paragraph).toLocaleString('en-US')} · ${t('statusBar.characters')} ${Number(character).toLocaleString('en-US')}`
+})
+
 watch(
   () => props.filename,
   (value) => {
@@ -368,8 +409,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 居中标题不能压到原生红绿灯（macOS）与左右工具栏 */
-  padding: 0 148px;
+  /* 居中标题不能压到原生红绿灯（macOS）与左右工具栏；
+     round10 右端避让扩大到 296px（title-stats 字数/保存状态）。 */
+  padding: 0 296px 0 148px;
   overflow: hidden;
 }
 
@@ -488,6 +530,54 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   flex-direction: row-reverse;
+}
+
+/* round10 顶栏右上角：保存状态 + 字数按钮（原底部状态栏上移）。
+   macOS 下 right-toolbar 不渲染，统计独占右上角；与居中标题同排不重叠
+   （.title 的 padding-right 已避让）。 */
+.title-stats {
+  position: absolute;
+  top: 0;
+  right: 12px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--f11);
+  line-height: 1.45;
+  color: var(--muted);
+  z-index: 3;
+}
+.title-stats .save-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.title-stats .save-state .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.title-stats .save-state .dot.show {
+  opacity: 1;
+}
+.title-stats .wc {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: var(--f11);
+  cursor: pointer;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+.title-stats .wc:hover {
+  background: var(--hover);
+  color: var(--ink);
 }
 
 .title-no-drag {

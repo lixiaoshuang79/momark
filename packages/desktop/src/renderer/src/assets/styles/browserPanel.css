@@ -583,8 +583,49 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* round10：与左边栏 sb-inner 的 padding(10px 8px 12px) 顶部/左右对称，
+     保证左右边栏文档内容开始线水平一致。 */
+  padding: 10px 8px 0;
+  box-sizing: border-box;
   /* dock-panel 卡片化后画布由 .bp-inner 提供，本层不再刷底色 */
   background: transparent;
+}
+
+/* round10：右栏顶部对齐条——与左边栏 sb-tabs 同高（33px）同 margin，
+   保证左右边栏文档内容开始线水平一致；显示分屏文档名 + 未保存圆点。 */
+.bp-doc-head {
+  flex: none;
+  height: 33px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  margin-bottom: 10px;
+  background: var(--hover);
+  border-radius: 8px;
+  font-size: var(--f11);
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+}
+.bp-doc-head-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bp-doc-head-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.bp-doc-head-dot.show {
+  opacity: 1;
 }
 
 /* 右栏编辑器宿主：与主编辑器 .editor-wrapper 同构（等高/独立堆叠上下文），

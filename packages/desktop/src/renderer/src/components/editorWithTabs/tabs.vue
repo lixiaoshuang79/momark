@@ -222,8 +222,13 @@ const moveIndicator = (animate: boolean): void => {
     ind.style.opacity = '0'
     return
   }
-  const targetW = Math.max(18, active.offsetWidth - 20)
-  const targetX = active.offsetLeft + 10
+  // round10：指示条精确贴住标签文字（.tname = 文件名 + 未保存圆点），
+  // 不再以整个 .tab 为基准——tab 右侧为 × 按钮预留 30px padding，
+  // 旧算法会把蓝条伸到 × 按钮下方与文字对不齐。
+  const tname = active.querySelector<HTMLElement>('.tname')
+  const offsetLeft = active.offsetLeft + (tname?.offsetLeft ?? 10)
+  const targetW = tname ? tname.offsetWidth : Math.max(18, active.offsetWidth - 20)
+  const targetX = tname ? offsetLeft : active.offsetLeft + 10
   if (indicatorAnim) {
     indicatorAnim.cancel()
     indicatorAnim = null
