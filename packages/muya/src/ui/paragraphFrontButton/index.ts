@@ -5,8 +5,6 @@ import type { IBaseOptions } from '../types';
 import { autoUpdate, computePosition, flip, offset } from '@floating-ui/dom';
 
 import dragIcon from '../../assets/icons/drag/2.png';
-import BulletList from '../../block/commonMark/bulletList';
-import OrderList from '../../block/commonMark/orderList';
 import { BLOCK_DOM_PROPERTY } from '../../config';
 import { isMouseEvent, throttle, verticalPositionInRect } from '../../utils';
 import { h, patch } from '../../utils/snabbdom';
@@ -44,9 +42,7 @@ function renderIcon(i: string, className: string) {
     );
 }
 
-function isOrderOrBulletList(block: Parent): block is OrderList | BulletList {
-    return block instanceof OrderList || block instanceof BulletList;
-}
+
 
 export class ParagraphFrontButton {
     public name: string = 'mu-front-button';
@@ -405,8 +401,9 @@ export class ParagraphFrontButton {
         const styles = window.getComputedStyle(domNode!);
         const paddingTop = Number.parseFloat(styles.paddingTop);
 
-        const isLooseList = isOrderOrBulletList(block) && block.meta.loose;
-        const dynamicMainAxis = isLooseList ? paddingTop * 2 : paddingTop;
+        // round11（用户反馈「H 离文字有点远」）：徽标不再随段落 paddingTop 右移
+        // （h1 padding-top 20px 时徽标距文字 20px 悬空），统一贴文字左缘 6px。
+        const dynamicMainAxis = 6;
 
         // Extract offset values, handling both number and object types
         let crossAxisValue = 0;
