@@ -82,8 +82,9 @@
     font-size: 1em;
 }
 
-/* heading copy-anchor affordance — revealed on heading hover, sits in the
-   left gutter (matches the legacy `ag-copy-header-link` placement). */
+/* heading copy-anchor affordance — revealed on heading hover, sits at the
+   line end (round11: moved out of the left gutter so it no longer overlaps
+   the paragraph badge / drag handle shown by paragraphFrontButton). */
 .mu-container h1 > .mu-copy-header-link,
 .mu-container h2 > .mu-copy-header-link,
 .mu-container h3 > .mu-copy-header-link,
@@ -92,7 +93,9 @@
 .mu-container h6 > .mu-copy-header-link {
     position: absolute;
     top: 0;
-    left: -40px;
+    /* round11（用户拍板）：🔗 从行首沟槽（left:-40px）移到行尾（right:-40px）——
+       行首沟槽让给段落徽标（H1-H6 图标，paragraphFrontButton），两图标不再重合。 */
+    right: -40px;
 
     display: inline-flex;
     align-items: center;

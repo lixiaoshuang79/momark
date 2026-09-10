@@ -131,19 +131,11 @@ export class ParagraphFrontButton {
             );
             if (outMostElement) {
                 const block = outMostElement[BLOCK_DOM_PROPERTY] as Parent;
-                // 标题在左侧沟槽已有自己的 hover 图标（🔗 复制锚点链接，
-                // `.mu-copy-header-link`，CSS :hover 显示）。两个都是行首
-                // gutter 悬停元素，标题上同时显示会互相重叠（用户反馈：
-                // 「段落类型会和链接 icon 重合」）。标题 hover 时把沟槽让给
-                // 链接 icon，徽标只用于非标题块（段落/列表/引用等）。
-                // `atx-heading` / `setext-heading` 与标题块一一对应。
-                if (
-                    block
-                    && (block.blockName === 'atx-heading' || block.blockName === 'setext-heading')
-                ) {
-                    this.hide();
-                    return;
-                }
+                // round11（用户拍板）：标题块同样显示段落徽标（H1-H6 图标，
+                // xA() 已支持）并支持按住拖动段落。此前为避让左侧沟槽的
+                // 🔗 复制锚点图标而 hide 标题（用户反馈「段落类型会和链接
+                // icon 重合」）——本轮把 🔗 移到标题行尾（blockSyntax.css
+                // right:-40px），两图标不再重合，标题的 H 徽标与拖拽恢复。
                 this.show(block);
                 this.render();
             }
