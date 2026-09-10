@@ -991,7 +991,10 @@
   },
   "notifications": {
     "defaultMessage": "Default message",
-    "defaultTitle": "Notification"
+    "defaultTitle": "Notification",
+    "confirm": "View docs",
+    "chromeCookieGuideTitle": "Link Chrome login state",
+    "chromeCookieGuideMessage": "To reuse your Chrome logins in the browser panel (no more re-entering passwords), grant MoMark Full Disk Access in System Settings, then restart MoMark."
   },
   "store": {
     "editor": {

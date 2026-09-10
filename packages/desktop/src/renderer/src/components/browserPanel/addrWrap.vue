@@ -32,8 +32,7 @@
 import { ref, watch, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import MoIcon from '@/components/icons/MoIcon.vue'
-import { useBrowserPanelStore, resolveInput } from '@/store/browserPanel'
-import notice from '@/services/notification'
+import { useBrowserPanelStore } from '@/store/browserPanel'
 
 /**
  * 单页「+」胶囊（PHASE2-SPEC §5）：34×34 卡片底描边 right:6px top:8px；
@@ -89,17 +88,12 @@ const cancelCollapse = () => {
 const go = async () => {
   const raw = inputText.value
   if (!raw.trim()) return
-  const resolved = resolveInput(raw)
   const pageId = await bpStore.ADD_WEB_PAGE(raw)
   if (!pageId) return
   inputText.value = ''
   bpStore.SET_DOCK_ADDR_OPEN(false)
-  if (resolved?.includes('google.com/search')) {
-    notice.notify({ message: `Google 搜索「${raw.trim()}」`, type: 'primary', time: 2000 })
-  } else {
-    const target = (resolved ?? raw.trim()).replace(/^https?:\/\//i, '')
-    notice.notify({ message: `正在打开 https://${target} …`, type: 'primary', time: 2000 })
-  }
+  // round11 通知精简（用户拍板）：地址栏本身已展示目标网址，
+  // 「正在打开/搜索」类 toast 属打扰，已移除。
 }
 
 watch(dockAddrOpen, (open) => {

@@ -42,7 +42,6 @@ import { useWorkspaceStore } from '@/store/workspace'
 import UrlMode from './urlMode.vue'
 import DocMode from './docMode.vue'
 import NavBar from './navBar.vue'
-import notice from '@/services/notification'
 
 /**
  * 右侧浏览器面板容器（PHASE2-SPEC §5 / STATE-MACHINE BpState）：
@@ -88,10 +87,9 @@ const onDrop = (event: DragEvent) => {
   bpStore.SET_DRAG_STATE('none')
   const id = splitStore.dragTabId
   if (!id) return
-  const ok = splitStore.DRAG_TO_SPLIT(id)
-  if (!ok) {
-    notice.notify({ message: '该文件已在右侧分屏', type: 'primary', time: 2000 })
-  }
+  // round11 通知精简（用户拍板）：重复拖入已在分屏的文件不弹 toast，
+  // 投放区/右侧面板本身已呈现该文件，用户可自行看见。
+  splitStore.DRAG_TO_SPLIT(id)
   splitStore.dragTabId = null
 }
 

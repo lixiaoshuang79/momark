@@ -21,7 +21,6 @@
 import { computed, ref } from 'vue'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import { useSplitStore } from '@/store/split'
-import notice from '@/services/notification'
 
 /**
  * 标签拖入投放区（PHASE2-SPEC §3.1/3.2）：任意标签 dragstart → 右缘 38%
@@ -55,15 +54,9 @@ const onDrop = (event: DragEvent) => {
   zoneHover.value = false
   const id = splitStore.dragTabId
   if (!id) return
-  if (blocked.value) {
-    notice.notify({ message: '该文件已在右侧分屏', type: 'primary', time: 2000 })
-    splitStore.dragTabId = null
-    return
-  }
-  const ok = splitStore.DRAG_TO_SPLIT(id)
-  if (!ok) {
-    notice.notify({ message: '该文件已在右侧分屏', type: 'primary', time: 2000 })
-  }
+  // round11 通知精简（用户拍板）：blocked 态投放区自带
+  // 「该文件已在右侧分屏」文案，无需再弹 toast。
+  if (!blocked.value) splitStore.DRAG_TO_SPLIT(id)
   splitStore.dragTabId = null
 }
 </script>

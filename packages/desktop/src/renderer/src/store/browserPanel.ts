@@ -138,15 +138,10 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   }
 
   // 地址栏外开箭头：仅 http(s) 允许 shell.openExternal（主进程二次校验）。
+  // round11 通知精简（用户拍板）：新窗口在系统浏览器即时可见，
+  // 「已在默认浏览器中打开」toast 属打扰，已移除。
   async function OPEN_EXTERNAL(url: string): Promise<void> {
-    const ok = await window.bp.openExternal(url)
-    if (ok) {
-      notice.notify({
-        message: `已在默认浏览器中打开 ${url.replace(/^https?:\/\//, '').split('/')[0]}`,
-        type: 'primary',
-        time: 2000
-      })
-    }
+    await window.bp.openExternal(url)
   }
 
   // guest 内 window.open / target=_blank（http/https）→ 面板内新建 Dock 页。

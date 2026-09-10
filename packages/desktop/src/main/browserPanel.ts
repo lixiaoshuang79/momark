@@ -20,6 +20,11 @@ import type { Event, WebContents, WebPreferences } from 'electron'
 import log from 'electron-log'
 import crypto from 'crypto'
 import fs from 'fs/promises'
+import {
+  tryImportChromeCookies,
+  getChromeCookieGuideState,
+  markChromeCookieGuideShown
+} from './chromeCookieSync'
 
 // ── 常量 ─────────────────────────────────────────────────────────────
 
@@ -219,6 +224,23 @@ export const installBrowserPanelSecurity = (): void => {
     panelSession.on('will-download', (_event, item) => {
       if (!isHttpUrl(item.getURL())) item.cancel()
     })
+
+    // round11 新功能（用户拍板）：启动时把 Chrome 登录 cookie 导入面板分区
+    // （已登录站点免重新输密码）。TCC 挡住时静默等待——引导改由渲染层
+    // 就绪后经 bp:chrome-cookie-guide-state 拉取（首启是欢迎页，推式会丢）。
+    tryImportChromeCookies()
+      .then((result) => {
+        log.info('[browserPanel] chrome cookie import result:', result)
+      })
+      .catch(() => {})
+  })
+
+  // 渲染层就绪后拉取：Chrome 数据被 TCC 挡住且未引导过 → 弹一次性授权引导。
+  ipcMain.handle('bp:chrome-cookie-guide-state', () => getChromeCookieGuideState())
+
+  // 引导已展示（用户点掉引导 toast 后落标志，重启后不再打扰）。
+  ipcMain.on('mt::chrome-cookie-guide-mark-shown', () => {
+    markChromeCookieGuideShown()
   })
 }
 

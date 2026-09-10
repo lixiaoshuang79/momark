@@ -231,7 +231,7 @@ const onRightDragEnd = () => {
 // × 关闭右栏文档：分屏 = 文档回左侧标签集合。
 const closeRightDoc = () => {
   if (splitStore.active) {
-    splitStore.RETURN_SPLIT_TO_TABS(false)
+    splitStore.RETURN_SPLIT_TO_TABS()
   }
 }
 

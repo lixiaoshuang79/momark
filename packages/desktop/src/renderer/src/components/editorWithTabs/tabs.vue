@@ -65,7 +65,6 @@ import dragula from 'dragula'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import { showContextMenu } from '../../contextMenu/tabs'
 import bus from '../../bus'
-import notice from '@/services/notification'
 import { t } from '../../i18n'
 import type { IFileState } from '@shared/types/files'
 import { useBrowserPanelStore } from '@/store/browserPanel'
@@ -137,7 +136,7 @@ const onReturnDrop = (event: DragEvent) => {
   if (!event.dataTransfer?.types.includes('application/x-momark-split-doc')) return
   if (splitStore.active) {
     // 分屏文档拖回标签栏（回到左侧标签集合）。
-    splitStore.RETURN_SPLIT_TO_TABS(true)
+    splitStore.RETURN_SPLIT_TO_TABS()
   }
 }
 
@@ -393,10 +392,8 @@ const setupTabsRuntime = () => {
       // 投放区 / 右栏面板 → 拖拽分屏（文档移出左侧标签集合）。
       if (target === splitZoneEl || target === bpanelEl) {
         if (droppedId) {
-          const ok = splitStore.DRAG_TO_SPLIT(droppedId)
-          if (!ok) {
-            notice.notify({ message: '该文件已在右侧分屏', type: 'primary', time: 2000 })
-          }
+          // round11 通知精简（用户拍板）：重复分屏不弹 toast。
+          splitStore.DRAG_TO_SPLIT(droppedId)
         }
         splitZoneEl?.classList.remove('over')
         bpStore.SET_DRAG_STATE('none')
@@ -423,11 +420,8 @@ const setupTabsRuntime = () => {
         toId: isLastTab ? null : nextTabId
       })
       splitStore.dragTabId = null
-      notice.notify({
-        message: t('tabs.reorderToast'),
-        time: 2000,
-        type: 'primary'
-      })
+      // round11 通知精简（用户拍板）：标签重排结果即时可见，
+      // 「顺序已保存」toast 属打扰，已移除。
     })
     .on('cancel', (el) => {
       el?.classList.remove('dragging')

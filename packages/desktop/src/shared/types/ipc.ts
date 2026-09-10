@@ -59,6 +59,8 @@ export interface IpcInvokeChannels {
   'bp:pickDoc': { args: []; ret: { path: string; markdown: string } | null }
   // 文档模式按路径直读：最近打开列表点击后直接在右侧面板预览。
   'bp:readDoc': { args: [path: string]; ret: { path: string; markdown: string } | null }
+  // round11 Chrome 登录态打通：渲染层就绪后拉取 FDA 授权引导状态。
+  'bp:chrome-cookie-guide-state': { args: []; ret: { shouldShow: boolean } }
   'mt::clipboard::guess-file-path': { args: []; ret: string | null }
   'mt::clipboard::read-text': { args: []; ret: string }
   'mt::cmd::exists': { args: [name: string]; ret: boolean }
@@ -116,6 +118,8 @@ export interface IpcSendChannels {
   'app-create-editor-window': [config?: unknown]
   'app-create-about-window': []
   'app-create-settings-window': []
+  // round11 Chrome 登录态打通：引导 toast 已展示（主进程落一次性标志）。
+  'mt::chrome-cookie-guide-mark-shown': []
   'app-open-directory-by-id': [windowId: number, dirPath: string]
   'app-open-file-by-id': [windowId: number, filePath: string, options?: unknown]
   'app-open-files-by-id': [windowId: number, filePaths: string[], options?: unknown]

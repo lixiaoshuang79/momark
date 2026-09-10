@@ -1,161 +1,162 @@
-/* MoMark HUD toast（对齐设计原型）：深底白字、12px、圆角 8px、右下角定位。
-   状态色走设计令牌：墨蓝=确认态（--accent）、danger=错误态（--danger）。 */
+/* MoMark toast（round11 重设计，用户拍板「样式丑+精简场景」）：
+   简洁卡片——白底/深底 surface、圆角 12、hairline 描边、类型色图标，
+   右上角滑入淡出；无光晕/无 mousemove 跟随/无 blur 残影。 */
 .mt-notification {
   position: fixed;
+  top: 14px;
+  right: 14px;
   z-index: 10000;
-  overflow: hidden;
-  border-radius: var(--radius);
-  max-width: 350px;
-  min-width: 280px;
-  transition: all 0.2s ease;
-  box-shadow: var(--shadow-pop);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 260px;
+  max-width: 400px;
+  padding: 11px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-win);
+  font-family: var(--font-body);
+  animation: mt-toast-in 0.22s var(--ease-standard);
   backface-visibility: hidden;
-  right: 18px;
-  bottom: 18px;
+}
 
-  & > .notice-bg {
-    background: var(--hudbg);
-    width: 0;
-    height: 0;
-    position: absolute;
-    transition:
-      all 0.8s ease,
-      left 0.4s ease,
-      top 0.4s ease;
-    border-radius: 50%;
-    z-index: 10;
-    transform: translate(-50%, -50%);
-    top: 50%;
-    left: 50%;
-  }
-
-  & .content {
-    z-index: 100;
-    color: var(--hudfg);
-    position: relative;
-    font-size: 12px;
-    & .icon-wrapper {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      background: rgba(255, 255, 255, 0.2);
-    }
-    & .title {
-      display: flex;
-      align-items: center;
-      padding: 5px 5px;
-      & svg.icon {
-        width: 0.85em;
-        height: 0.85em;
-      }
-      & span {
-        flex: 1;
-        margin-left: 10px;
-        font-size: 12px;
-      }
-      & .close {
-        margin-right: 10px;
-        opacity: 0;
-        transition: all 0.2s ease;
-        transform: scale(0);
-        cursor: pointer;
-        transform-origin: center;
-      }
-    }
-    & .body {
-      display: flex;
-      align-items: center;
-      font-size: 12px;
-      padding-bottom: 5px;
-      & .left-text {
-        overflow: hidden;
-        word-wrap: break-word;
-        padding: 5px;
-        box-sizing: border-box;
-        width: 100%;
-      }
-      & .confirm {
-        display: none;
-        margin-left: 7px;
-        width: 30px;
-        height: 30px;
-        cursor: pointer;
-      }
-    }
-  }
-
-  & .fluent-container {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    z-index: 40;
-    display: block;
-    top: 0px;
-    left: 0px;
-  }
-  & .fluent {
-    position: absolute;
-    z-index: 50;
-    display: block;
-    backface-visibility: hidden;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    transition:
-      opacity 1s ease,
-      width 0.4s ease,
-      height 0.4s ease;
-    background: rgba(255, 255, 255, 0.2);
+@keyframes mt-toast-in {
+  from {
     opacity: 0;
-    filter: blur(22px);
+    transform: translateY(-8px) scale(0.98);
   }
-
-  &:hover .content .title .close {
+  to {
     opacity: 1;
-    transform: scale(1);
-  }
-
-  /* Notification style colors（tokens：墨蓝确认态 / danger 错误态） */
-  &.mt-primary {
-    & > .notice-bg {
-      background: var(--accent);
-    }
-    & > .content {
-      color: var(--accent-on);
-    }
-  }
-  &.mt-info {
-    & > .notice-bg {
-      background: var(--muted);
-    }
-    & > .content {
-      color: var(--hudfg);
-    }
-  }
-  &.mt-warn {
-    & > .notice-bg {
-      background: var(--warn);
-    }
-    & > .content {
-      color: #242422;
-    }
-  }
-  &.mt-error {
-    & > .notice-bg {
-      background: var(--danger);
-    }
-    & > .content {
-      color: var(--hudfg);
-    }
+    transform: translateY(0) scale(1);
   }
 }
-.mt-notification.mt-confirm .content .body {
-  & .left-text {
-    width: calc(100% - 45px);
-  }
-  & .confirm {
-    display: flex;
-  }
+
+.mt-notification.mt-toast-out {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+/* 类型色图标（圆底 10% 透明度） */
+.mt-notification .mt-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mt-notification .mt-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mt-notification.mt-primary .mt-icon {
+  background: color-mix(in oklab, var(--accent), transparent 88%);
+  color: var(--accent);
+}
+
+.mt-notification.mt-error .mt-icon {
+  background: color-mix(in oklab, var(--danger), transparent 88%);
+  color: var(--danger);
+}
+
+.mt-notification.mt-warning .mt-icon {
+  background: color-mix(in oklab, var(--warn), transparent 85%);
+  color: #8a6d00;
+}
+
+[data-theme='dark'] .mt-notification.mt-warning .mt-icon {
+  color: var(--warn);
+}
+
+.mt-notification.mt-info .mt-icon {
+  background: color-mix(in oklab, var(--muted), transparent 88%);
+  color: var(--muted);
+}
+
+/* 正文区 */
+.mt-notification .mt-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.mt-notification .mt-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mt-notification .mt-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mt-notification .mt-message {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow: hidden;
+  word-wrap: break-word;
+}
+
+.mt-notification .mt-actions {
+  display: none;
+}
+
+/* 关闭按钮：hover 卡片才显现 */
+.mt-notification .close {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  padding: 2px;
+  border-radius: 5px;
+  color: var(--faint);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease;
+}
+
+.mt-notification:hover .close {
+  opacity: 1;
+}
+
+.mt-notification .close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+/* showConfirm：底部确认按钮 */
+.mt-notification.mt-confirm .mt-actions {
+  display: block;
+  margin-top: 7px;
+  text-align: right;
+}
+
+.mt-notification.mt-confirm .confirm {
+  display: inline-block;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--accent);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mt-notification.mt-confirm .confirm:hover {
+  background: var(--hover);
 }

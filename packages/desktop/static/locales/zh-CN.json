@@ -993,7 +993,10 @@
   },
   "notifications": {
     "defaultMessage": "默认消息",
-    "defaultTitle": "通知"
+    "defaultTitle": "通知",
+    "confirm": "了解详情",
+    "chromeCookieGuideTitle": "打通 Chrome 登录态",
+    "chromeCookieGuideMessage": "想让右侧浏览器直接复用 Chrome 的登录状态（免重新输密码），请在系统设置中给墨记授予「完全磁盘访问权限」，然后重启墨记。"
   },
   "store": {
     "editor": {

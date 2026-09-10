@@ -1,6 +1,5 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import notice from '@/services/notification'
 import { useEditorStore } from './editor'
 import { useBrowserPanelStore } from './browserPanel'
 import { useLayoutStore } from './layout'
@@ -81,7 +80,7 @@ export const useSplitStore = defineStore('split', () => {
         tabId.value = null
         docFocused.value = false
       } else {
-        RETURN_SPLIT_TO_TABS(false)
+        RETURN_SPLIT_TO_TABS()
       }
     }
 
@@ -109,33 +108,25 @@ export const useSplitStore = defineStore('split', () => {
         window.DIRNAME = ''
       }
     }
-    notice.notify({
-      message: `已分栏：${tab.filename} · 拖动中央分隔线调整两栏宽度`,
-      type: 'primary',
-      time: 2500
-    })
+    // round11 通知精简（用户拍板）：右侧分屏面板已展开呈现结果，
+    // 「已分栏」toast 属打扰，已移除。
     return true
   }
 
   /**
    * 文档拖回标签栏（STATE-MACHINE returnSplitToTabs）：
-   * 回标签集合为活动标签、面板收起；showToast 控制 toast
-   * 「已将『xx』拖回标签栏」（分隔线 ≥90% 关闭时为静默还回）。
+   * 回标签集合为活动标签、面板收起。round11 通知精简（用户拍板）：
+   * 拖回结果在标签栏即时可见，一律静默（原 showToast 参数已移除）。
    */
-  function RETURN_SPLIT_TO_TABS(showToast: boolean = true): void {
+  function RETURN_SPLIT_TO_TABS(): void {
     const editorStore = useEditorStore()
     const id = tabId.value
     const tab = id ? editorStore.tabs.find((t) => t.id === id) : null
     if (tab) {
       // UPDATE_CURRENT_FILE 在 tabs 中缺该文档时会重新推入并激活。
       editorStore.UPDATE_CURRENT_FILE(tab)
-      if (showToast) {
-        notice.notify({
-          message: `已将「${tab.filename}」拖回标签栏`,
-          type: 'primary',
-          time: 2000
-        })
-      }
+      // round11 通知精简（用户拍板）：标签回到标签栏结果即时可见，
+      // 「已拖回标签栏」toast 属打扰，已移除。
     }
     active.value = false
     kind.value = 'doc'
@@ -153,7 +144,7 @@ export const useSplitStore = defineStore('split', () => {
   function SET_SPLIT_WIDTH(widthPx: number): void {
     const avail = window.innerWidth - layoutStore.effectiveSideBarWidth
     if (widthPx >= avail * 0.9) {
-      RETURN_SPLIT_TO_TABS(false)
+      RETURN_SPLIT_TO_TABS()
       return
     }
     width.value = Math.round(Math.max(240, Math.min(widthPx, avail / 2)))
@@ -161,7 +152,7 @@ export const useSplitStore = defineStore('split', () => {
 
   // 关闭分屏（右栏开关收起等路径），文档静默还回。
   function CLOSE_SPLIT(): void {
-    RETURN_SPLIT_TO_TABS(false)
+    RETURN_SPLIT_TO_TABS()
   }
 
   return {
