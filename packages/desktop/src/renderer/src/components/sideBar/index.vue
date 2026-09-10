@@ -4,24 +4,35 @@
   <div class="side-bar" :class="{ open: showSideBar }">
     <div class="sb-inner">
       <!-- 顶部「大纲 / 文件」双 tab：白色滑块在选中项间滑动（回弹缓动，非线性），
-           按钮自身不再换底，仅滑块位移 + 文字颜色过渡。 -->
+           按钮自身不再换底，仅滑块位移 + 文字颜色过渡。round11：行尾补「关闭」
+           按钮，对齐参考 gallery dock-head 的 close。 -->
       <div class="sb-tabs" role="tablist">
-        <span class="sb-slider" :class="{ right: activeTab === 'files' }" aria-hidden="true" />
+        <div class="sb-tabseg">
+          <span class="sb-slider" :class="{ right: activeTab === 'files' }" aria-hidden="true" />
+          <button
+            role="tab"
+            :aria-selected="activeTab === 'outline'"
+            :class="{ on: activeTab === 'outline' }"
+            @click="selectTab('outline')"
+          >
+            {{ t('sideBar.tabs.outline') }}
+          </button>
+          <button
+            role="tab"
+            :aria-selected="activeTab === 'files'"
+            :class="{ on: activeTab === 'files' }"
+            @click="selectTab('files')"
+          >
+            {{ t('sideBar.tabs.files') }}
+          </button>
+        </div>
         <button
-          role="tab"
-          :aria-selected="activeTab === 'outline'"
-          :class="{ on: activeTab === 'outline' }"
-          @click="selectTab('outline')"
+          class="sb-close"
+          :title="t('sideBar.tabs.closePanel')"
+          :aria-label="t('sideBar.tabs.closePanel')"
+          @click="closeSideBar"
         >
-          {{ t('sideBar.tabs.outline') }}
-        </button>
-        <button
-          role="tab"
-          :aria-selected="activeTab === 'files'"
-          :class="{ on: activeTab === 'files' }"
-          @click="selectTab('files')"
-        >
-          {{ t('sideBar.tabs.files') }}
+          <mo-icon name="i-close" />
         </button>
       </div>
 
@@ -46,6 +57,7 @@ import { t } from '../../i18n'
 
 import Tree from './tree.vue'
 import Toc from './toc.vue'
+import MoIcon from '@/components/icons/MoIcon.vue'
 
 const layoutStore = useLayoutStore()
 
@@ -61,6 +73,11 @@ const selectTab = (tab: SideBarTab): void => {
   if (rightColumn.value !== column) {
     layoutStore.SET_LAYOUT({ rightColumn: column })
   }
+}
+
+// round11：行尾「关闭」按钮收起侧栏（对齐参考 gallery dock-head close）。
+const closeSideBar = (): void => {
+  layoutStore.SET_LAYOUT({ showSideBar: false })
 }
 </script>
 
@@ -121,6 +138,7 @@ const selectTab = (tab: SideBarTab): void => {
 
 .sb-tabs {
   display: flex;
+  align-items: center;
   gap: 2px;
   background: var(--hover);
   border-radius: 8px;
@@ -128,6 +146,41 @@ const selectTab = (tab: SideBarTab): void => {
   margin-bottom: 10px;
   flex: none;
   position: relative;
+}
+
+/* round11：tab 分段容器（滑块 50% 以此为基准，关闭按钮不占滑块行程） */
+.sb-tabseg {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
+/* round11：行尾「关闭」按钮（参考 gallery dock-head 27px 圆角 hover） */
+.sb-close {
+  width: 27px;
+  height: 27px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.sb-close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.sb-close svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* 滑动滑块：尺寸=单个按钮，在 padding/gap 内平移；回弹缓动（非线性，
@@ -156,7 +209,7 @@ const selectTab = (tab: SideBarTab): void => {
   transform: translateX(calc(100% + 2px));
 }
 
-.sb-tabs button {
+.sb-tabseg button {
   position: relative;
   z-index: 1;
   flex: 1;
@@ -171,7 +224,7 @@ const selectTab = (tab: SideBarTab): void => {
   transition: color 0.15s ease;
 }
 
-.sb-tabs button.on {
+.sb-tabseg button.on {
   color: var(--ink);
   font-weight: 600;
 }

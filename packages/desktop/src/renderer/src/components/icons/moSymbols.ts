@@ -17,6 +17,7 @@ export const MO_SYMBOLS = `
 <symbol id="i-file" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 2h9v12h-9z"/><path d="M5.5 5.5h5M5.5 8.2h5M5.5 10.9h3"/></symbol>
 <symbol id="i-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m2.8 8.6 3.1 3.1 7.3-7.4"/></symbol>
 <symbol id="i-x" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 3.5 9 9M12.5 3.5l-9 9"/></symbol>
+<symbol id="i-close" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
 <symbol id="i-plus" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></symbol>
 <symbol id="i-warn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.8 14.8 13.2H1.2Z"/><path d="M8 6.2v3.2"/><path d="M8 11.6v.1"/></symbol>
 <symbol id="i-info" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="M8 7.4v4"/><path d="M8 4.8v.1"/></symbol>

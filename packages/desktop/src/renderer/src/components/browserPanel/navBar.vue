@@ -1,14 +1,7 @@
 <template>
+  <!-- round11：导航按钮（后退/前进/刷新）上移至顶部 bp-tools（对齐参考
+       gallery browser-tools），本行只保留地址栏 + 外开。 -->
   <div class="bp-browserbar">
-    <button title="后退" :disabled="!canGoBack" @click="goBack">
-      <mo-icon name="i-chev-left" />
-    </button>
-    <button title="前进" :disabled="!canGoForward" @click="goForward">
-      <mo-icon name="i-chev-right" />
-    </button>
-    <button title="重新加载" @click="reload">
-      <mo-icon name="i-refresh" />
-    </button>
     <span class="bp-location-wrap">
       <input
         ref="locationEl"
@@ -36,9 +29,8 @@ import MoIcon from '@/components/icons/MoIcon.vue'
 import { useBrowserPanelStore, resolveInput } from '@/store/browserPanel'
 
 /**
- * 底部 40px 导航条（PHASE2-SPEC §5）：后退/前进/刷新 + 地址栏
- * （不透明白底、不自动聚焦；hover 显示外开箭头）。
- * 前进后退按钮状态来自 bp:getState（navigationHistory，Electron ≥ 32）。
+ * 底部 40px 导航条（PHASE2-SPEC §5）：地址栏（不透明白底、不自动聚焦；
+ * hover 显示外开箭头）。导航按钮已上移至顶部 bp-tools（round11）。
  */
 
 const bpStore = useBrowserPanelStore()
@@ -46,8 +38,6 @@ const { urlPages, activePageId } = storeToRefs(bpStore)
 
 const locationEl = ref<HTMLInputElement | null>(null)
 const locationText = ref('')
-const canGoBack = ref(false)
-const canGoForward = ref(false)
 
 const activePage = computed(() => urlPages.value.find((p) => p.id === activePageId.value) ?? null)
 
@@ -62,19 +52,12 @@ watch(
 
 const refreshNavState = async () => {
   const id = activePageId.value
-  if (!id) {
-    canGoBack.value = false
-    canGoForward.value = false
-    return
-  }
+  if (!id) return
   try {
     const state = await window.bp.getState(id)
-    canGoBack.value = state.canGoBack
-    canGoForward.value = state.canGoForward
     if (state.url) locationText.value = state.url
   } catch {
-    canGoBack.value = false
-    canGoForward.value = false
+    /* 忽略：地址栏保持上次输入 */
   }
 }
 
@@ -86,21 +69,6 @@ watch(
   },
   { immediate: true }
 )
-
-const goBack = () => {
-  if (activePageId.value) window.bp.back(activePageId.value)
-}
-
-const goForward = () => {
-  if (activePageId.value) window.bp.forward(activePageId.value)
-}
-
-const reload = () => {
-  const id = activePageId.value
-  if (!id) return
-  bpStore.UPDATE_PAGE_STATE(id, { loading: true, error: null })
-  window.bp.reload(id)
-}
 
 // 回车导航当前激活页（地址栏输入 → 智能判断 URL vs 搜索）。
 const locationGo = () => {

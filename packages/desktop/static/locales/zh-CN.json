@@ -245,7 +245,8 @@
       "openFolder": "打开文件夹",
       "currentFile": "当前",
       "revealInFinder": "在访达中打开",
-      "noFilesInDirectory": "该目录下没有 Markdown 文件"
+      "noFilesInDirectory": "该目录下没有 Markdown 文件",
+      "fileFilter": "筛选文件…"
     },
     "toc": {
       "title": "目录",
@@ -261,7 +262,8 @@
     },
     "tabs": {
       "outline": "大纲",
-      "files": "文件"
+      "files": "文件",
+      "closePanel": "关闭侧栏"
     },
     "toggleTitle": "显示/隐藏侧栏",
     "rightPanelTitle": "右侧栏 / 浏览器面板（拖标签进面板可双屏分栏）",
@@ -1079,5 +1081,16 @@
     "noRecentText": "还没有打开过文档\n从左侧「新建文档」开始你的第一篇",
     "timeToday": "今天",
     "timeYesterday": "昨天"
+  },
+  "browserPanel": {
+    "docTitle": "文档",
+    "closePanel": "关闭面板",
+    "emptyTitle": "还没有网页",
+    "emptyDesc": "点击右上角分屏按钮搜索或输入网址，即可在面板内浏览网页。",
+    "tools": {
+      "back": "后退",
+      "forward": "前进",
+      "reload": "重新加载"
+    }
   }
 }

@@ -53,7 +53,9 @@ export const useNotificationStore = defineStore('notification', () => {
           const options: NotifyOptions = {
             title: t('notifications.chromeCookieGuideTitle'),
             message: t('notifications.chromeCookieGuideMessage'),
-            type: 'warning',
+            // round11（用户反馈）：引导类通知用墨蓝 primary——warning 的土黄
+            // 感叹号像报错，与引导语义不符。
+            type: 'primary',
             showConfirm: true
           }
           notice
