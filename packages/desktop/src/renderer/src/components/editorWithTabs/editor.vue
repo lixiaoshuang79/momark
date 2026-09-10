@@ -2162,11 +2162,10 @@ onBeforeUnmount(() => {
   isolation: isolate;
   flex: 1;
   color: var(--editorColor);
-  /* round11 三调（用户拍板）：编辑区底色画在本层——此前背景由外层
-     .editor-with-tabs 提供，动画 transform 只带走了文字（前景层）、
-     底色静止，观感像「字浮在背景上划过、层级错乱」。底色随本层一起
-     横滑-轻弹后，动画=整块画布一体回弹，字与背景一体。 */
-  background: var(--bg);
+  /* round11 五调（用户拍板）：本层保持透明——画布底色由外层
+     .editor-with-tabs 提供并始终静止。动画只带动 Muya 内容（字），
+     「字动、底不动」，内容被父级 overflow:hidden 裁剪在编辑区内，
+     无背景色块可越界，不会从侧边栏上方飞过。 */
 }
 
 .ag-insert-table-dialog {

@@ -22,6 +22,9 @@ export interface EditorEnterMotionOptions {
  * ②弹簧 ζ≈0.49（k=420/c=20/m=1）过冲 = 32×e^(-πζ/√(1-ζ²)) ≈5.5px，
  *   收敛 ≈650ms；淡入 0.15→1 共 220ms；不再缩放（横滑+缩放会互相
  *   干扰观感）。
+ * round11 五调（用户拍板「还是带着底一起移动的…层级不对」）：
+ * .editor-wrapper 撤掉背景恢复透明——画布底色由外层静态提供，
+ * 动画=「字动、底不动」，无背景色块参与位移，越界/层级问题根除。
  * 积分用欠阻尼解析解（与帧率无关，低帧率下幅度不漂移）。
  * 打断策略：pointerdown/keydown → cancel() 一帧落位终态，绝不打运动靶子；
  * prefers-reduced-motion 直接跳过。
