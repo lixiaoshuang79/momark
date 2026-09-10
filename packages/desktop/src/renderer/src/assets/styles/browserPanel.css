@@ -147,15 +147,19 @@
      文档内容从同一水平线开始。 */
   margin: 0 10px 10px 0;
   background: var(--surface-2);
+  /* round11（用户纠偏）：底板外壳对齐参考 gallery .dock-panel——
+     .5px 13% 黑描边 + 13px 圆角 + 2px 8px 8% 投影，与左栏 .sb-inner 同构。 */
+  border: 0.5px solid rgba(11, 11, 11, 0.13);
   border-radius: 13px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
 [data-theme='dark'] .bp-inner {
-  /* round11（用户拍板「深色下两个侧边栏特别丑」）：与左栏 .sb-inner 同构——
-     融入式 surface-1 底 + 发丝描边，去投影浮层。 */
+  /* round11（用户纠偏）：深色与参考同构——surface-1 底 + .5px 白 8% 描边
+     + 黑投影浮起层次，与左栏 .sb-inner 同构。 */
   background: var(--surface-1);
-  box-shadow: 0 0 0 1px var(--line);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
 }
 
 /* ── 主体：输入区 / 内容区 ── */

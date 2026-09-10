@@ -103,7 +103,10 @@ const selectTab = (tab: SideBarTab): void => {
   box-sizing: border-box;
   margin: 10px 0 10px 10px;
   background: var(--surface-2);
-  /* 用户拍板：去掉发丝边框，只留投影+圆角，整体更简洁 */
+  /* round11（用户纠偏）：底板外壳对齐参考 gallery .dock-panel——
+     白底 + .5px 13% 黑描边 + 13px 圆角 + 2px 8px 8% 投影，描边此前
+     被「去边框」拍板误删，补回。 */
+  border: 0.5px solid rgba(11, 11, 11, 0.13);
   border-radius: 13px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
@@ -112,11 +115,11 @@ const selectTab = (tab: SideBarTab): void => {
   padding: 10px 8px 12px;
 }
 [data-theme='dark'] .sb-inner {
-  /* round11（用户拍板「深色下两个侧边栏特别丑」）：深色不再用「浅灰卡片
-     +投影」浮层——改融入式：surface-1 底（比画布只亮半阶）+ 发丝描边，
-     层次靠描边与选中高亮建立，与右栏 .bp-inner 同构。 */
+  /* round11（用户纠偏）：深色与参考同构——surface-1 底 + .5px 白 8% 描边
+     + 黑投影浮起层次（克制强度，避免上版「亮灰浮层」突兀感）。 */
   background: var(--surface-1);
-  box-shadow: 0 0 0 1px var(--line);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
 }
 
 .sb-tabs {
