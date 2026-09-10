@@ -2150,6 +2150,11 @@ onBeforeUnmount(() => {
   isolation: isolate;
   flex: 1;
   color: var(--editorColor);
+  /* round11 三调（用户拍板）：编辑区底色画在本层——此前背景由外层
+     .editor-with-tabs 提供，动画 transform 只带走了文字（前景层）、
+     底色静止，观感像「字浮在背景上划过、层级错乱」。底色随本层一起
+     回弹后，动画=整块画布下沉-弹起，字与背景一体。 */
+  background: var(--bg);
 }
 
 .ag-insert-table-dialog {
