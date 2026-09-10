@@ -112,7 +112,11 @@ const selectTab = (tab: SideBarTab): void => {
   padding: 10px 8px 12px;
 }
 [data-theme='dark'] .sb-inner {
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  /* round11（用户拍板「深色下两个侧边栏特别丑」）：深色不再用「浅灰卡片
+     +投影」浮层——改融入式：surface-1 底（比画布只亮半阶）+ 发丝描边，
+     层次靠描边与选中高亮建立，与右栏 .bp-inner 同构。 */
+  background: var(--surface-1);
+  box-shadow: 0 0 0 1px var(--line);
 }
 
 .sb-tabs {
@@ -142,6 +146,9 @@ const selectTab = (tab: SideBarTab): void => {
 }
 
 [data-theme='dark'] .sb-slider {
+  /* round11：深色下滑块不再用亮卡片（surface-2）——用白 9% 浮层（Claude 分段
+     控件选中态），与融入式侧栏整体协调。 */
+  background: var(--selected);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 

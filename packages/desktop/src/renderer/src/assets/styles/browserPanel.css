@@ -20,7 +20,10 @@
    与引擎默认列宽/内边距。 */
 .win-body.split .editor-component .mu-container {
   max-width: none;
-  padding: 48px 32px 100px;
+  /* round11（用户拍板）：左右 32→56——分屏后左窗格变窄，原 32px 内容
+     快贴到窗格边缘，放宽到 56px 呼吸感与全屏观感一致（右窗格同规则生效，
+     两侧对称）。 */
+  padding: 48px 56px 100px;
 }
 
 .win-body.dragging-split,
@@ -149,7 +152,10 @@
   overflow: hidden;
 }
 [data-theme='dark'] .bp-inner {
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  /* round11（用户拍板「深色下两个侧边栏特别丑」）：与左栏 .sb-inner 同构——
+     融入式 surface-1 底 + 发丝描边，去投影浮层。 */
+  background: var(--surface-1);
+  box-shadow: 0 0 0 1px var(--line);
 }
 
 /* ── 主体：输入区 / 内容区 ── */
@@ -159,6 +165,10 @@
   position: relative;
   background: var(--surface-2);
   min-height: 0;
+}
+/* round11：深色下内容区与卡片同底（surface-1），不出现「内容亮于卡片」套娃。 */
+[data-theme='dark'] .bp-body {
+  background: var(--surface-1);
 }
 
 /* 顶部 2px 墨蓝进度线（滑动动画） */
@@ -819,6 +829,8 @@
 }
 
 [data-theme='dark'] .bp-slider {
+  /* round11：与左栏 sb-slider 同构——白 9% 浮层，去亮卡片。 */
+  background: var(--selected);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 

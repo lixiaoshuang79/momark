@@ -103,7 +103,9 @@
   --hudfg: #fcfcfb;
 
   /* ── 编辑区排版（PHASE2-SPEC §6，全部派生自原始令牌） ── */
-  --editor-pad: 44px 32px 140px; --editor-pad-top: 44px; --editor-pad-x: 32px;
+  /* round11（用户拍板）：顶部 44→20——全屏下文档起始线对齐 marktext 手感，
+     不再多空一截（引擎段落自身还带行高余量）。 */
+  --editor-pad: 20px 32px 140px; --editor-pad-top: 20px; --editor-pad-x: 32px;
   --h1-size: 30px; --h1-weight: 500; --h1-font: var(--font-display);
   --h2-size: 17px; --h2-weight: 680;
   --h3-size: 16px; --h3-weight: 670;
