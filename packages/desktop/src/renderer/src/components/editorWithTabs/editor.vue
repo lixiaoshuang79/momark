@@ -565,12 +565,24 @@ watch(
 // round10：标签切换正文回弹——内容 swap 与 setContent 均发生在事件内，
 // nextTick 后 DOM 就绪再起弹簧；首次打开/从空态打开（ov == null）不播，
 // 只对「已有文档 ⇄ 已有文档」的切换生效。
+// round11 四调（用户拍板：左右回弹非上下跳）：滑入方向跟随标签顺序——
+// 新标签在旧标签右侧 → 内容从右滑入；在左侧 → 从左滑入；旧标签已不在
+// 标签栏（被关闭/替换）→ 一律从右滑入。
 watch(
   () => editorStore.currentFile?.id,
   async (nv, ov) => {
     if (!nv || ov == null) return
+    const tabs = editorStore.tabs
+    const newIndex = tabs.findIndex((t) => t.id === nv)
+    const oldIndex = tabs.findIndex((t) => t.id === ov)
+    const direction: 'left' | 'right' =
+      oldIndex !== -1 && newIndex > oldIndex
+        ? 'right'
+        : oldIndex !== -1 && newIndex < oldIndex
+          ? 'left'
+          : 'right'
     await nextTick()
-    enterMotion.play()
+    enterMotion.play(direction)
   }
 )
 
@@ -2153,7 +2165,7 @@ onBeforeUnmount(() => {
   /* round11 三调（用户拍板）：编辑区底色画在本层——此前背景由外层
      .editor-with-tabs 提供，动画 transform 只带走了文字（前景层）、
      底色静止，观感像「字浮在背景上划过、层级错乱」。底色随本层一起
-     回弹后，动画=整块画布下沉-弹起，字与背景一体。 */
+     横滑-轻弹后，动画=整块画布一体回弹，字与背景一体。 */
   background: var(--bg);
 }
 
