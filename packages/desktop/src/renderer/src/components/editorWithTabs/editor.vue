@@ -562,29 +562,19 @@ watch(
   }
 )
 
-// round10：标签切换正文回弹——内容 swap 与 setContent 均发生在事件内，
-// nextTick 后 DOM 就绪再起弹簧；首次打开/从空态打开（ov == null）不播，
+// round10：标签切换正文回弹，首次打开/从空态打开（ov == null）不播，
 // 只对「已有文档 ⇄ 已有文档」的切换生效。
-// round11 四调（用户拍板：左右回弹非上下跳）：滑入方向跟随标签顺序——
-// 新标签在旧标签右侧 → 内容从右滑入；在左侧 → 从左滑入；旧标签已不在
-// 标签栏（被关闭/替换）→ 一律从右滑入。
-watch(
-  () => editorStore.currentFile?.id,
-  async (nv, ov) => {
-    if (!nv || ov == null) return
-    const tabs = editorStore.tabs
-    const newIndex = tabs.findIndex((t) => t.id === nv)
-    const oldIndex = tabs.findIndex((t) => t.id === ov)
-    const direction: 'left' | 'right' =
-      oldIndex !== -1 && newIndex > oldIndex
-        ? 'right'
-        : oldIndex !== -1 && newIndex < oldIndex
-          ? 'left'
-          : 'right'
-    await nextTick()
-    enterMotion.play(direction)
-  }
-)
+// round11 六调（用户拍板：内容级左右回弹、底不动）：触发从 watch 改为
+// tabs.vue 点击瞬间的 CustomEvent——watch 要等 UPDATE_CURRENT_FILE 里
+// flushActiveEditor 跑完（实测 ~280ms）才触发，起跳被拖晚，观感「没回弹」。
+// 事件在 flush 前同步派发，起跳立即可见；动画对象 wrapper 不随 setContent
+// 重建，内容替换发生在滑入过程中，切换全程连贯。
+const onTabEnterMotion = (e: Event): void => {
+  const direction = (e as CustomEvent<{ direction: 'left' | 'right' }>).detail?.direction ?? 'right'
+  enterMotion.play(direction)
+}
+onMounted(() => document.addEventListener('momark:tab-enter', onTabEnterMotion))
+onBeforeUnmount(() => document.removeEventListener('momark:tab-enter', onTabEnterMotion))
 
 watch(focus, (value) => {
   if (editor.value) {

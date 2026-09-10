@@ -141,58 +141,25 @@ const onReturnDrop = (event: DragEvent) => {
   }
 }
 
-// ══ 标签点击切换：正文整屏动效（用户拍板方向）══
-// 切换时正文容器整体沿切换方向滑出软件窗口边缘（translateX ±100vw，
-// 跨过侧栏/右栏区域，视觉上真实穿出窗口），新内容从对侧滑入。
-// 零回弹：退出 = 加速曲线 cubic-bezier(.4,0,1,1)，入场 = fastOutSlowIn；
-// 只动画 transform/opacity（Composite-only，不掉帧）。
+// ══ 标签点击切换：正文左右回弹动效（round11 六调用户拍板）══
+// 整屏滑出动效（±100vw 跨侧栏穿出）是「底飞过侧边栏、层级不对、
+// 没回弹」的根因，已删除。现在：点击瞬间按标签顺序算方向并同步
+// 派发事件，editor.vue 侧 useEditorEnterMotion 起跳（内容级横滑
+// + 5.5px 反向过冲，wrapper 透明、底不动、裁剪在编辑区内），
+// 随后 UPDATE_CURRENT_FILE 落地切换。flushActiveEditor 的耗时
+// 不再拖晚起跳（旧 watch 触发路径要等 flush 完 ~280ms 才动）。
 // 其他切换路径（键盘循环/侧栏打开/关闭标签）即时切换，不走动效。
-let slideToken = 0
-let pendingCommit: { id: string; file: IFileState } | null = null
-
 const selectFile = (file: IFileState) => {
   if (file.id === currentFile.value?.id) return
-  const root = document.querySelector<HTMLElement>('.editor-with-tabs')
-  if (!root || REDUCED_MOTION) {
-    editorStore.UPDATE_CURRENT_FILE(file)
-    return
-  }
-
-  // 在途切换被打断：先无动画落地上一个目标，避免画面停在旧文档。
-  if (pendingCommit && pendingCommit.id !== file.id) {
-    editorStore.UPDATE_CURRENT_FILE(pendingCommit.file)
-  }
-  pendingCommit = { id: file.id, file }
 
   const ids = tabs.value.map((tab) => tab.id)
   const ni = ids.indexOf(file.id)
   const oi = ids.indexOf(currentFile.value?.id ?? '')
-  const dir = ni >= 0 && oi >= 0 && ni >= oi ? 1 : -1
-  const token = ++slideToken
+  const direction: 'left' | 'right' = oi !== -1 && ni > oi ? 'right' : 'left'
 
-  root.style.setProperty('--doc-x', `${-dir * 100}vw`)
-  root.classList.remove('doc-panel-exit', 'doc-panel-enter')
-  root.getBoundingClientRect() // 强制重排：退出动画从原位重新开始
-  root.classList.add('doc-panel-exit')
-
-  const commit = () => {
-    if (token !== slideToken) return
-    if (pendingCommit?.id !== file.id) return
-    root.classList.remove('doc-panel-exit')
-    editorStore.UPDATE_CURRENT_FILE(file)
-    root.getBoundingClientRect()
-    root.classList.add('doc-panel-enter')
-    const clean = () => {
-      if (token !== slideToken) return
-      root.classList.remove('doc-panel-enter')
-      root.style.removeProperty('--doc-x')
-      pendingCommit = null
-    }
-    root.addEventListener('animationend', clean, { once: true })
-    window.setTimeout(clean, 380)
-  }
-  root.addEventListener('animationend', commit, { once: true })
-  window.setTimeout(commit, 300)
+  // 起跳信号：editor.vue 监听此事件，同步起跳后再落地切换。
+  document.dispatchEvent(new CustomEvent('momark:tab-enter', { detail: { direction } }))
+  editorStore.UPDATE_CURRENT_FILE(file)
 }
 
 const removeFileInTab = (file: IFileState) => {

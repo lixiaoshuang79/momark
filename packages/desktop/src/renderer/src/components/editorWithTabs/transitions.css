@@ -1,40 +1,4 @@
-/* 标签切换正文动效（用户拍板方向，替代旧逐行分层动效）：
-   切换时正文容器整体沿切换方向滑出软件窗口边缘（±100vw，跨过
-   侧栏区域真实穿出），新内容从对侧滑入。零回弹：退出 = 加速曲线
-   cubic-bezier(.4,0,1,1)，入场 = fastOutSlowIn；只动画
-   transform/opacity（合成层，不掉帧）。
-   方向变量 --doc-x 由 tabs.vue 写入（= -dir * 100vw）。 */
-
-.doc-panel-exit {
-  animation: docPanelOut var(--dur-doc-out, 200ms) var(--ease-doc-out, cubic-bezier(0.4, 0, 1, 1))
-    both;
-  will-change: transform, opacity;
-}
-
-.doc-panel-enter {
-  animation: docPanelIn var(--dur-doc-in, 280ms) var(--ease-doc-in, cubic-bezier(0.4, 0, 0.2, 1))
-    both;
-  will-change: transform, opacity;
-}
-
-@keyframes docPanelOut {
-  from {
-    transform: none;
-    opacity: 1;
-  }
-  to {
-    transform: translateX(var(--doc-x, -100vw));
-    opacity: 0.2;
-  }
-}
-
-@keyframes docPanelIn {
-  from {
-    transform: translateX(calc(var(--doc-x, 100vw) * -1));
-    opacity: 0.2;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
+/* round11 六调（用户六轮反馈定稿）：整屏滑出动效（±100vw 跨侧栏穿出）
+   是「底带着飞过侧边栏、层级不对、没回弹」的根因，已删除。
+   正文切换动效改为内容级左右回弹（useEditorEnterMotion：wrapper 透明、
+   只有 Muya 内容横向滑入 + 反向 5.5px 过冲，全程裁剪在编辑区内）。 */
