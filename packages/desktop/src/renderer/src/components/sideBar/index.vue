@@ -132,6 +132,10 @@ const selectTab = (tab: SideBarTab): void => {
   flex: none;
   position: relative;
 }
+[data-theme='dark'] .sb-tabs {
+  /* round11（用户反馈）：深色下分段底再压暗一档，配合墨蓝滑块不显白。 */
+  background: rgba(255, 255, 255, 0.03);
+}
 
 /* 滑动滑块：尺寸=单个按钮，在 padding/gap 内平移；回弹缓动（非线性，
    超越终点后回弹的弹簧手感）。按钮内容 z-index 在滑块之上。 */
@@ -149,10 +153,11 @@ const selectTab = (tab: SideBarTab): void => {
 }
 
 [data-theme='dark'] .sb-slider {
-  /* round11：深色下滑块不再用亮卡片（surface-2）——用白 9% 浮层（Claude 分段
-     控件选中态），与融入式侧栏整体协调。 */
-  background: var(--selected);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  /* round11（用户反馈「深色侧边栏有白底」）：滑块白浮层在真机观感像白底；
+     改深墨蓝实底（#3d5a80，不用深色主题亮 accent #7fa6cc——那在深底上
+     仍显灰白），白字选中，白字/深墨蓝对比 6:1。 */
+  background: #3d5a80;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .sb-slider.right {

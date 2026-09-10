@@ -816,6 +816,10 @@
   transform: scale(1);
   pointer-events: auto;
 }
+[data-theme='dark'] .bp-modes {
+  /* round11（用户反馈）：深色下分段底再压暗一档，与左栏 sb-tabs 同构。 */
+  background: rgba(255, 255, 255, 0.03);
+}
 
 /* 模式滑动滑块（与左侧栏同款回弹缓动）：白色卡片在 网页/文档 间滑动，
    按钮只做文字颜色过渡。 */
@@ -833,9 +837,10 @@
 }
 
 [data-theme='dark'] .bp-slider {
-  /* round11：与左栏 sb-slider 同构——白 9% 浮层，去亮卡片。 */
-  background: var(--selected);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  /* round11（用户反馈「深色侧边栏有白底」）：与左栏 sb-slider 同构——深墨蓝
+     实底 #3d5a80 + 白字。 */
+  background: #3d5a80;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .bp-slider.right {

@@ -90,7 +90,7 @@
   --sidebar: #111111;
   --ink: #fcfcfb; --muted: #c4c3b2; --faint: #96948a;
   --line: rgba(255,255,255,.08); --line-strong: rgba(255,255,255,.16);
-  --hover: rgba(255,255,255,.06); --selected: rgba(255,255,255,.09);
+  --hover: rgba(255,255,255,.06); --selected: rgba(61,90,128,.4);
   --accent: #7fa6cc; --accent-on: #12161b;
   --accent-soft: rgba(127,166,204,.14);
   --accent-hover: color-mix(in oklab, var(--accent), white 8%);
