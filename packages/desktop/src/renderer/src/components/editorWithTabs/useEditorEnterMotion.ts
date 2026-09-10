@@ -11,26 +11,29 @@ export interface EditorEnterMotionOptions {
 }
 
 /**
- * 正文切换回弹动效（round10 调研定案）：手写 rAF 弹簧、零依赖，只动
- * transform/opacity（合成器属性——不触发布局与 element-resize-detector），
- * 作用目标是编辑器外层 .editor-wrapper（绝不碰 Muya 的 .editor-component
- * 根节点）。手感参数 ζ=0.70（k=400/c=28/m=1）：6px 垂直位移反弹出 ≈4.6%
- * 的肉眼刚可察觉微过冲 + scale 0.992→1 缓升（scale 不过冲）+ 90ms 淡入，
- * 稳定时间 ≈215ms。打断策略：pointerdown/keydown → cancel() 一帧落位终态，
- * 绝不打运动靶子；prefers-reduced-motion 直接跳过。
+ * 正文切换回弹动效（round10 调研定案，round11 参数增强）：手写 rAF 弹簧、
+ * 零依赖，只动 transform/opacity（合成器属性——不触发布局与
+ * element-resize-detector），作用目标是编辑器外层 .editor-wrapper
+ * （绝不碰 Muya 的 .editor-component 根节点）。
+ * round11（用户反馈「没看出来」）：行程 6px→16px、缩放 0.992→0.985、
+ * 淡入 90ms→140ms，弹簧 ζ≈0.63（k=420/c=26/m=1）——位移幅度明显，
+ * 单次轻过冲 ≈1.2px、收敛 ≈350ms，无反复弹跳；积分用欠阻尼解析解
+ * （与帧率无关，低帧率下幅度不漂移）。
+ * 打断策略：pointerdown/keydown → cancel() 一帧落位终态，绝不打运动靶子；
+ * prefers-reduced-motion 直接跳过。
  */
 export function useEditorEnterMotion(
   getEl: () => HTMLElement | null,
   opts: EditorEnterMotionOptions = {}
 ): { play: () => void; cancel: () => void } {
   const {
-    stiffness = 400,
-    damping = 28,
+    stiffness = 420,
+    damping = 26,
     mass = 1,
-    distance = 6,
-    scaleFrom = 0.992,
-    fadeMs = 90,
-    maxMs = 600
+    distance = 16,
+    scaleFrom = 0.985,
+    fadeMs = 140,
+    maxMs = 700
   } = opts
 
   const reducedMotion =
@@ -79,21 +82,27 @@ export function useEditorEnterMotion(
         el.style.opacity = '1'
 
         const start = performance.now()
-        let last = start
-        let p = 0
-        let v = 0
+        // round11：解析弹簧（欠阻尼闭合解）替代欧拉数值积分——
+        // 半隐式欧拉在大 dt（低帧率/采样卡顿）下会放大过冲（实测 16px 行程
+        // 过冲飙到 -6.8px），解析解与帧率无关、幅度严格等于理论值：
+        // ζ≈0.63 时过冲 = 16×e^(-πζ/√(1-ζ²)) ≈ 1.2px，精致且稳定。
+        const w0 = Math.sqrt(stiffness / mass)
+        const zeta = damping / (2 * Math.sqrt(stiffness * mass))
+        const wd = w0 * Math.sqrt(Math.max(0, 1 - zeta * zeta))
+        const sinCoef = (zeta * w0) / Math.max(wd, 0.0001)
         const tick = (now: number): void => {
           if (finished) return
-          // dt 封顶 50ms（60Hz 下限），时间戳驱动不受帧率波动影响。
-          const dt = Math.min(0.05, Math.max(0, (now - last) / 1000))
-          last = now
-          // 半隐式欧拉弹簧积分（目标位 p = 1、单位质量公式）。
-          v += (-stiffness * (p - 1) * dt - damping * v * dt) / mass
-          p += v * dt
+          const tSec = Math.max(0, (now - start) / 1000)
+          const decay = Math.exp(-zeta * w0 * tSec)
+          const p = 1 - decay * (Math.cos(wd * tSec) + sinCoef * Math.sin(wd * tSec))
           const y = distance * (1 - p) // 位移冲过终点再弹回 = 回弹手感
           const s = scaleFrom + (1 - scaleFrom) * Math.min(1, Math.max(0, p))
           el.style.transform = `translate3d(0, ${y}px, 0) scale(${s})`
-          if ((Math.abs(p - 1) < 0.01 && Math.abs(v) < 0.02) || now - start > maxMs) {
+          // 结束判定用固定时长（解析解全程稳定，ratio 不漂移）：
+          // ≈360ms 覆盖「16px 主体行程 + ≈1.2px 单次轻过冲 + 回落近零」，
+          // 不允许用 |p-1| 提前判停——p 在 t≈140ms 会先穿过 1 附近，过早
+          // 判停会截断过冲段，回弹感就没了。
+          if (tSec * 1000 > 360 || now - start > maxMs) {
             finished = true
             raf = 0
             applyFinal()

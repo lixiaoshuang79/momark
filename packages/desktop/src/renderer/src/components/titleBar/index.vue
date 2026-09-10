@@ -38,11 +38,11 @@
               @dragstart="onRightDragStart"
               @dragend="onRightDragEnd"
               @click.stop="toggleCollapse"
-              @dblclick.stop
+              @dblclick.stop="renameRightDoc"
               >{{ rightDocName }}</span
             >
             <button
-              class="right-doc-close"
+              class="right-doc-close title-no-drag"
               :title="t('sideBar.rightPanelCloseDoc')"
               @click.stop="closeRightDoc"
             >
@@ -342,6 +342,16 @@ const rename = () => {
   }
 }
 
+// round11（用户反馈）：双击右侧文档名同样发出重命名（竖线两侧都有效）。
+// 复用 RENAME_FILE（= 标签栏右键重命名口径：激活该文档后弹重命名框）。
+const renameRightDoc = () => {
+  if (props.platform !== 'darwin' || !splitStore.active) return
+  const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
+  if (tab) {
+    editorStore.RENAME_FILE(tab)
+  }
+}
+
 const onMaximize = () => {
   isMaximized.value = true
 }
@@ -409,9 +419,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 居中标题不能压到原生红绿灯（macOS）与左右工具栏；
-     round10 右端避让扩大到 296px（title-stats 字数/保存状态）。 */
-  padding: 0 296px 0 148px;
+  /* round11：去掉左 148/右 296 的不对称 padding——那是「居中标题不压两侧」
+     的旧做法，但两侧避让不等导致「文件A | 文件B」整体偏左（用户反馈
+     「根本没居中，是歪的」）。改为全宽 flex 居中 + .title-path 对称收缩。 */
+  padding: 0;
   overflow: hidden;
 }
 
@@ -419,7 +430,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 100%;
+  /* 左右各避让 210px：左=macOS 红绿灯+余量，右=title-stats 保存态+字数。
+     两侧对称 → 标题盒子的几何中心 = 窗口中心，短标题完美居中、长标题
+     从中心向两侧收缩（省略号），不再偏左。 */
+  max-width: calc(100% - 420px);
   min-width: 0;
   overflow: hidden;
   /* 基础字号 14px（用户反馈 --f13 17.33px 偏大）；超长时由 titleFontStyle

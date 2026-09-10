@@ -4,12 +4,10 @@
        编辑器实例（docEditorPane）；无分屏 = 最近打开列表（点击直接建标签
        进分屏编辑）+ 底部「打开文件…」条。 -->
   <div class="bp-doc">
-    <!-- round10：顶部对齐条——与左边栏「大纲/文件」tab 头同高同构，
-         使左右边栏的文档内容开始线水平一致；显示当前分屏文档名。 -->
-    <div v-if="hasContent" class="bp-doc-head" :title="splitDocTab?.pathname">
-      <span class="bp-doc-head-dot" :class="{ show: !splitDocTab?.isSaved }" />
-      <span class="bp-doc-head-name">{{ splitDocTab?.filename }}</span>
-    </div>
+    <!-- round11（用户拍板）：右栏顶部不再显示文件名胶囊（round10 的
+         bp-doc-head 可见条被否掉）；保留同高透明占位，使左右边栏的
+         文档内容开始线仍水平一致。 -->
+    <div v-if="hasContent" class="bp-doc-head" />
     <doc-editor-pane v-if="hasContent" />
     <div v-else class="bp-doc-empty">
       <div class="bp-recents-title">
