@@ -245,8 +245,7 @@
       "openFolder": "Open Folder",
       "currentFile": "Current",
       "revealInFinder": "Reveal in Finder",
-      "noFilesInDirectory": "No Markdown files in this directory",
-      "fileFilter": "Filter files…"
+      "noFilesInDirectory": "No Markdown files in this directory"
     },
     "toc": {
       "title": "Table Of Contents",
@@ -262,8 +261,7 @@
     },
     "tabs": {
       "outline": "Outline",
-      "files": "Files",
-      "closePanel": "Close sidebar"
+      "files": "Files"
     },
     "toggleTitle": "Show/Hide Side Bar",
     "rightPanelTitle": "Right Panel / Browser Panel (drag a tab here to split)"
@@ -1079,16 +1077,5 @@
     "noRecentText": "No documents opened yet\nStart your first one from \"New Document\" on the left",
     "timeToday": "Today",
     "timeYesterday": "Yesterday"
-  },
-  "browserPanel": {
-    "docTitle": "Document",
-    "closePanel": "Close panel",
-    "emptyTitle": "No web page yet",
-    "emptyDesc": "Click the split button in the top-right corner to search or type a URL, then browse inside this panel.",
-    "tools": {
-      "back": "Back",
-      "forward": "Forward",
-      "reload": "Reload"
-    }
   }
 }

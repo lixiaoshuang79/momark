@@ -238,8 +238,7 @@
       "createFile": "建立檔案",
       "openFolder": "開啟資料夾",
       "currentFile": "當前",
-      "noFilesInDirectory": "該目錄下沒有 Markdown 檔案",
-      "fileFilter": "篩選檔案…"
+      "noFilesInDirectory": "該目錄下沒有 Markdown 檔案"
     },
     "toc": {
       "title": "目錄",
@@ -255,8 +254,7 @@
     },
     "tabs": {
       "outline": "大綱",
-      "files": "檔案",
-      "closePanel": "關閉側欄"
+      "files": "檔案"
     }
   },
   "commandPalette": {
@@ -965,17 +963,6 @@
       "languageMissing": "拼字檢查語言缺失 {languageCode}",
       "switchError": "{languageCode} 拼字檢查切換錯誤，{error}",
       "title": "拼字檢查"
-    }
-  },
-  "browserPanel": {
-    "docTitle": "文件",
-    "closePanel": "關閉面板",
-    "emptyTitle": "還沒有網頁",
-    "emptyDesc": "點擊右上角分割按鈕搜尋或輸入網址，即可在面板內瀏覽網頁。",
-    "tools": {
-      "back": "上一頁",
-      "forward": "下一頁",
-      "reload": "重新載入"
     }
   }
 }

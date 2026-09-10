@@ -1,19 +1,9 @@
 <template>
   <div class="side-bar-files">
     <div v-if="dirLabel" class="sb-head">文件夹 · {{ dirLabel }}</div>
-    <!-- round11：对齐参考 gallery 的 file-filter——文件 tab 顶部筛选框 -->
-    <label v-if="dirLabel" class="sb-filter">
-      <mo-icon name="i-search" />
-      <input
-        v-model="filterText"
-        type="text"
-        :placeholder="t('sideBar.tree.fileFilter')"
-        spellcheck="false"
-      />
-    </label>
-    <div v-if="filteredFiles.length" class="file-list">
+    <div v-if="dirFiles.length" class="file-list">
       <div
-        v-for="file of filteredFiles"
+        v-for="file of dirFiles"
         :key="file.pathname"
         class="sb-row"
         :class="{ sel: isCurrentFile(file.pathname) }"
@@ -60,15 +50,6 @@ interface DirFile {
 
 // 文件 tab：当前文档所在目录的 .md 文件列表（文件名排序，含当前文件本身）。
 const dirFiles = ref<DirFile[]>([])
-
-// round11：文件筛选框（对齐参考 gallery 的 file-filter，输入即过滤文件名）。
-const filterText = ref('')
-
-const filteredFiles = computed(() => {
-  const q = filterText.value.trim().toLowerCase()
-  if (!q) return dirFiles.value
-  return dirFiles.value.filter((f) => f.name.toLowerCase().includes(q))
-})
 
 // 目录标签（原型 sb-head：「文件夹 · ~/path/」）
 const dirLabel = computed(() => {
@@ -152,40 +133,6 @@ const revealInFinder = (pathname: string): void => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* round11：对齐参考 gallery 的 file-filter——37px 描边圆角筛选框 */
-.sb-filter {
-  height: 37px;
-  margin: 0 3px 8px;
-  border: 0.5px solid var(--line-strong);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  gap: 7px;
-  color: var(--faint);
-  flex: none;
-}
-
-.sb-filter svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
-}
-
-.sb-filter input {
-  border: 0;
-  outline: 0;
-  background: transparent;
-  min-width: 0;
-  flex: 1;
-  font: var(--f11) / 1.2 var(--font-body);
-  color: var(--ink);
-}
-
-.sb-filter input::placeholder {
-  color: var(--faint);
 }
 
 .sb-row {

@@ -8,11 +8,9 @@
       :active="page.id === activePageId"
     />
 
-    <!-- round11：空态对齐参考 gallery preview-error 结构——图标 + 粗标题 + 说明 -->
     <div v-if="urlPages.length === 0" class="bp-url-empty">
       <mo-icon name="i-globe" />
-      <b>{{ t('browserPanel.emptyTitle') }}</b>
-      <p>{{ t('browserPanel.emptyDesc') }}</p>
+      <p>点击右上角分屏按钮搜索或输入网址<br />即可在面板内浏览网页</p>
     </div>
 
     <!-- 单页悬浮胶囊 / Dock 新增时展开的网址栏 -->
@@ -47,7 +45,6 @@ import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import { useBrowserPanelStore } from '@/store/browserPanel'
-import { t } from '../../i18n'
 import WebviewPage from './webviewPage.vue'
 import AddrWrap from './addrWrap.vue'
 import UrlDock from './urlDock.vue'

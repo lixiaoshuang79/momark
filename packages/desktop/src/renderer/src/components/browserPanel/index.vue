@@ -12,9 +12,6 @@
     @drop="onDrop"
   >
     <div class="bp-inner">
-      <!-- round11：顶部 43px 工具条（对齐参考 gallery dock-head/browser-tools，
-           url 模式=导航按钮+关闭，doc 模式=标题+关闭） -->
-      <bp-tools />
       <div class="bp-body">
         <!-- 顶部 2px 墨蓝进度线（任何激活页加载中即显示，滑动动画） -->
         <div class="bp-track" :class="{ show: activePageLoading }" />
@@ -45,7 +42,6 @@ import { useWorkspaceStore } from '@/store/workspace'
 import UrlMode from './urlMode.vue'
 import DocMode from './docMode.vue'
 import NavBar from './navBar.vue'
-import BpTools from './bpTools.vue'
 
 /**
  * 右侧浏览器面板容器（PHASE2-SPEC §5 / STATE-MACHINE BpState）：
