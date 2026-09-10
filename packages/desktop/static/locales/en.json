@@ -244,6 +244,7 @@
       "createFile": "Create File",
       "openFolder": "Open Folder",
       "currentFile": "Current",
+      "revealInFinder": "Reveal in Finder",
       "noFilesInDirectory": "No Markdown files in this directory"
     },
     "toc": {
