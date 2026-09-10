@@ -15,10 +15,11 @@ export interface EditorEnterMotionOptions {
  * 零依赖，只动 transform/opacity（合成器属性——不触发布局与
  * element-resize-detector），作用目标是编辑器外层 .editor-wrapper
  * （绝不碰 Muya 的 .editor-component 根节点）。
- * round11（用户反馈「没看出来」）：行程 6px→16px、缩放 0.992→0.985、
- * 淡入 90ms→140ms，弹簧 ζ≈0.63（k=420/c=26/m=1）——位移幅度明显，
- * 单次轻过冲 ≈1.2px、收敛 ≈350ms，无反复弹跳；积分用欠阻尼解析解
- * （与帧率无关，低帧率下幅度不漂移）。
+ * round11 二轮（用户反馈「还是看不出」）：行程 16px→32px（超过一整行
+ * 文字高度，肉眼必见）、淡入 140ms→220ms 且起跳透明度 0.35→0.15、
+ * 缩放 0.985→0.98；弹簧 ζ≈0.63（k=420/c=26/m=1）单次轻过冲随行程放大到
+ * ≈2.4px、收敛 ≈450ms——幅度醒目、回落仍干净（Slack 频道切换同级）。
+ * 积分用欠阻尼解析解（与帧率无关，低帧率下幅度不漂移）。
  * 打断策略：pointerdown/keydown → cancel() 一帧落位终态，绝不打运动靶子；
  * prefers-reduced-motion 直接跳过。
  */
@@ -30,9 +31,9 @@ export function useEditorEnterMotion(
     stiffness = 420,
     damping = 26,
     mass = 1,
-    distance = 16,
-    scaleFrom = 0.985,
-    fadeMs = 140,
+    distance = 32,
+    scaleFrom = 0.98,
+    fadeMs = 220,
     maxMs = 700
   } = opts
 
@@ -71,7 +72,7 @@ export function useEditorEnterMotion(
     finished = false
     el.style.transition = 'none'
     el.style.willChange = 'transform, opacity'
-    el.style.opacity = '0.35'
+    el.style.opacity = '0.15'
     el.style.transform = `translate3d(0, ${distance}px, 0) scale(${scaleFrom})`
 
     // 双 rAF：确保起始帧已提交，起始值与首动画帧不会被浏览器合并。
@@ -99,10 +100,10 @@ export function useEditorEnterMotion(
           const s = scaleFrom + (1 - scaleFrom) * Math.min(1, Math.max(0, p))
           el.style.transform = `translate3d(0, ${y}px, 0) scale(${s})`
           // 结束判定用固定时长（解析解全程稳定，ratio 不漂移）：
-          // ≈360ms 覆盖「16px 主体行程 + ≈1.2px 单次轻过冲 + 回落近零」，
+          // ≈450ms 覆盖「32px 主体行程 + ≈2.4px 单次轻过冲 + 回落近零」，
           // 不允许用 |p-1| 提前判停——p 在 t≈140ms 会先穿过 1 附近，过早
           // 判停会截断过冲段，回弹感就没了。
-          if (tSec * 1000 > 360 || now - start > maxMs) {
+          if (tSec * 1000 > 450 || now - start > maxMs) {
             finished = true
             raf = 0
             applyFinal()
