@@ -1056,7 +1056,8 @@
   },
   "tabs": {
     "reorderToast": "Tab order updated",
-    "closeTab": "Close Tab"
+    "closeTab": "Close Tab",
+    "newTab": "New tab"
   },
   "export": {
     "progress": {

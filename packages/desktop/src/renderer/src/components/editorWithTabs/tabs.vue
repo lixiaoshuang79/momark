@@ -38,6 +38,11 @@
       </div>
       <!-- 活动标签底部独立滑轨：独立元素，不随标签重建（PHASE2-SPEC §2） -->
       <span ref="indicator" class="tab-indicator" />
+      <!-- round12（用户拍板）：标签条最右 hover 显现的新建按钮——
+           点击新建 untitled 未保存文件。 -->
+      <button class="tab-new" :title="t('tabs.newTab')" @click.stop="newUntitled">
+        <mo-icon name="i-plus" />
+      </button>
     </div>
 
     <!-- 右栏文档指示已移到窗口顶栏（titleBar，「文件A | 文件B」竖线分隔、
@@ -168,6 +173,13 @@ const removeFileInTab = (file: IFileState) => {
   } else {
     editorStore.CLOSE_UNSAVED_TAB(file)
   }
+}
+
+// round12（用户拍板）：新建 untitled 文件（未保存态）。
+// 关闭语义：无内容直接关不提示（isSaved=true 走 FORCE_CLOSE_TAB）、
+// 写过内容 isSaved 已被置 false 走 CLOSE_UNSAVED_TAB 弹保存对话框。
+const newUntitled = (): void => {
+  editorStore.NEW_UNTITLED_TAB({})
 }
 
 // 滑轨（PHASE2-SPEC §2）：width = max(18px, active.offsetWidth - 20px)，
@@ -592,6 +604,39 @@ onBeforeUnmount(() => {
 }
 .tabstrip::-webkit-scrollbar {
   display: none;
+}
+
+/* round12（用户拍板）：新建标签按钮——常驻标签条尾部占位、hover 标签条时
+   淡显；点击新建 untitled。 */
+.tab-new {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-left: 3px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.16s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.tab-new svg {
+  width: 14px;
+  height: 14px;
+}
+.tabstrip:hover .tab-new {
+  opacity: 1;
+}
+.tab-new:hover {
+  background: var(--hover);
+  color: var(--ink);
 }
 
 /* 标签：只显示文件名；宽度随内容自适应，max 420px，不得省略截断（PHASE2-SPEC §2） */

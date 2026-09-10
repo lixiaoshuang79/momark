@@ -964,5 +964,10 @@
       "switchError": "{languageCode} 拼字檢查切換錯誤，{error}",
       "title": "拼字檢查"
     }
+  },
+  "tabs": {
+    "reorderToast": "拖動排序已保存",
+    "closeTab": "關閉標籤頁",
+    "newTab": "新增標籤頁"
   }
 }

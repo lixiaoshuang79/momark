@@ -1058,7 +1058,8 @@
   },
   "tabs": {
     "reorderToast": "标签顺序已更新",
-    "closeTab": "关闭标签"
+    "closeTab": "关闭标签",
+    "newTab": "新建标签页"
   },
   "export": {
     "progress": {
