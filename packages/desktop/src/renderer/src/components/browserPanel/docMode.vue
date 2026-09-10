@@ -4,10 +4,9 @@
        编辑器实例（docEditorPane）；无分屏 = 最近打开列表（点击直接建标签
        进分屏编辑）+ 底部「打开文件…」条。 -->
   <div class="bp-doc">
-    <!-- round11（用户拍板）：右栏顶部不再显示文件名胶囊（round10 的
-         bp-doc-head 可见条被否掉）；保留同高透明占位，使左右边栏的
-         文档内容开始线仍水平一致。 -->
-    <div v-if="hasContent" class="bp-doc-head" />
+    <!-- round11（用户拍板）：右栏不再有任何顶部占位/头条——文档内容开始线
+         与左主编辑器对齐由 .bp-inner margin-top 0 + .bp-doc padding-top 0
+         保证（两侧 mu-container 同 top）。 -->
     <doc-editor-pane v-if="hasContent" />
     <div v-else class="bp-doc-empty">
       <div class="bp-recents-title">

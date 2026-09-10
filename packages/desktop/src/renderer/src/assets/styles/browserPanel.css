@@ -139,7 +139,10 @@
   flex-direction: column;
   min-height: 0;
   position: relative;
-  margin: 10px 10px 10px 0;
+  /* round11（用户拍板）：顶部 margin 10→0——卡片顶与左主编辑器
+     .editor-wrapper 顶（tabs 条底 80px）同高，两侧打开同一文档时
+     文档内容从同一水平线开始。 */
+  margin: 0 10px 10px 0;
   background: var(--surface-2);
   border-radius: 13px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -583,26 +586,14 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* round10：与左边栏 sb-inner 的 padding(10px 8px 12px) 顶部/左右对称，
-     保证左右边栏文档内容开始线水平一致。 */
-  padding: 10px 8px 0;
+  /* round11（用户拍板）：顶部 padding 0——文档内容开始线直接与左主编辑器
+     对齐（引擎 mu-container 自带 48px 内容上边距，足够远离卡片圆角）。 */
+  padding: 0 8px 0;
   box-sizing: border-box;
   /* dock-panel 卡片化后画布由 .bp-inner 提供，本层不再刷底色 */
   background: transparent;
 }
 
-/* round11（用户拍板）：右栏顶部不再显示文件名胶囊——纯透明占位，
-   高度 = 原头高 33px + 原下边距 10px，保证左右边栏文档内容开始线仍水平一致。 */
-.bp-doc-head {
-  flex: none;
-  height: 43px;
-  box-sizing: border-box;
-  background: transparent;
-}
-
-/* 右栏编辑器宿主：与主编辑器 .editor-wrapper 同构（等高/独立堆叠上下文），
-   内部 .editor-component 复用 claude-editor.css 的全部排版规则（列宽/字体/
-   表格样式），与左侧渲染逐像素一致；滚动由引擎 domNode 自身接管。 */
 .bp-doc-editor {
   flex: 1;
   min-height: 0;
