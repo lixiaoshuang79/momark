@@ -86,6 +86,16 @@ const hardenGuest = (host: WebContents, guest: WebContents): void => {
   if (!guestStates.has(guestId)) guestStates.set(guestId, freshRuntimeState())
   const st = guestStates.get(guestId) ?? freshRuntimeState()
 
+  // round13（用户反馈「figma 半天加载不出来」）：根因=figma 文件页走
+  // CloudFront WAF，识别 Electron/产品名 UA 直接 403（页面白屏）。
+  // 剥离 UA 里的 Electron/墨记 标识，伪装成同内核标准 Chrome——
+  // 实测：带 Electron 标识的 UA 请求 403、纯 Chrome UA 301 正常。
+  const cleanUa = guest
+    .getUserAgent()
+    .replace(/\sElectron\/[\d.]+/g, '')
+    .replace(/\s墨记\/[\d.]+/g, '')
+  guest.setUserAgent(cleanUa)
+
   // 新窗口请求：http(s) → 面板内新建 Dock 页（渲染层监听 bp:new-window-request），
   // 其余一律拒绝。外开系统浏览器只走底部地址栏箭头（bp:openExternal）。
   guest.setWindowOpenHandler(({ url }) => {
