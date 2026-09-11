@@ -126,12 +126,15 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
     let curW = 0;
     let curH = 0;
     let userTouched = false;
+    let frameLoaded = false;
 
     // Synchronous baseline read used by user actions. Once the user has
     // taken control the baseline is frozen: re-reading after every zoom
     // would compound (1.1x × 1.2x × … — reproduced as a 96k-px frame).
+    // Also gated on the iframe load event: measuring before load can catch
+    // an unsettled layout (observed 88%-width first-paint reads).
     const readBaseNow = () => {
-        if (userTouched)
+        if (userTouched || !frameLoaded)
             return;
         baseW = frame.offsetWidth || baseW;
         baseH = frame.offsetHeight || FRAME_DEFAULT_HEIGHT;
@@ -154,6 +157,7 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
     // Once the frame has loaded (lazy iframes load late), re-anchor the
     // baseline at its final layout size.
     frame.addEventListener('load', () => {
+        frameLoaded = true;
         if (!userTouched) {
             baseW = 0;
             readBase();
@@ -170,7 +174,11 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
     observeLayout.observe(frame);
 
     const apply = () => {
-        if (!baseW)
+        // Hard guard: until the user explicitly zooms/drags, the frame keeps
+        // the author's CSS (`width:100%`) untouched so it follows the editor
+        // layout (split view, window resize). Any inline px write would
+        // permanently break that.
+        if (!userTouched || !baseW)
             return;
         frame.style.width = `${curW}px`;
         frame.style.height = `${curH}px`;
