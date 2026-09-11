@@ -66,6 +66,16 @@
               @dblclick.stop="renameRightDoc"
               >{{ rightDocName }}</span
             >
+            <!-- round13（用户拍板）：右文档名 hover 也出小箭头——分屏双文档时
+                 左右两个文件名各有一个「在访达中打开」箭头。 -->
+            <button
+              v-if="!renaming && rightDocPathname"
+              class="reveal-title-btn title-no-drag"
+              :title="t('sideBar.tree.revealInFinder')"
+              @click.stop="revealRightDocInFinder"
+            >
+              <mo-icon name="i-external" />
+            </button>
             <button
               class="right-doc-close title-no-drag"
               :title="t('sideBar.rightPanelCloseDoc')"
@@ -235,6 +245,15 @@ const rightDocTitle = computed(() => {
   if (splitStore.active) {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     return tab?.pathname ?? rightDocName.value
+  }
+  return ''
+})
+
+// 右文档磁盘路径：小箭头按钮的显隐与「在访达中打开」参数。
+const rightDocPathname = computed(() => {
+  if (splitStore.active) {
+    const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
+    return tab?.pathname ?? ''
   }
   return ''
 })
@@ -417,6 +436,13 @@ const cancelRename = () => {
 const revealInFinder = () => {
   if (props.pathname) {
     window.electron.shell.showItemInFolder(props.pathname)
+  }
+}
+
+// 右文档名的同名箭头（分屏双文档时两侧各自可用）。
+const revealRightDocInFinder = () => {
+  if (rightDocPathname.value) {
+    window.electron.shell.showItemInFolder(rightDocPathname.value)
   }
 }
 

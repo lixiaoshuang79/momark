@@ -639,7 +639,9 @@ onBeforeUnmount(() => {
   color: var(--ink);
 }
 
-/* 标签：只显示文件名；宽度随内容自适应，max 420px，不得省略截断（PHASE2-SPEC §2） */
+/* 标签：只显示文件名；宽度随内容自适应，max 420px。
+   超长文件名省略号截断（round13 用户拍板：不再「不得截断」——长文件名
+   文字溢出标签边界压到右侧面板开关造成重叠；悬停 title 显示完整路径）。 */
 .tab {
   position: relative;
   flex: 0 0 auto;
@@ -677,11 +679,20 @@ onBeforeUnmount(() => {
   font-weight: 600;
   color: var(--muted);
   white-space: nowrap;
-  overflow: visible;
+  overflow: hidden;
+  min-width: 0;
+  flex: 0 1 auto;
   display: flex;
   align-items: center;
   gap: 6px;
   transition: font-size 0.3s var(--ease-tab-enter);
+}
+
+/* 文件名文字层：省略号截断（round13，防超长溢出压到面板开关）。 */
+.tab .tname .tn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tab.active .tname {
   color: var(--ink);
