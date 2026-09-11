@@ -19,18 +19,10 @@
    muya 引擎的 .mu-container）。本文件最后引入，覆盖 claude-editor.css
    与引擎默认列宽/内边距。 */
 .win-body.split .editor-component .mu-container {
-  /* round27 二次（用户拍板）：分屏时内容列=窗格宽 95%，两侧都贴分隔线——
-     左文档左边留 2.5%、右文档右边留 2.5%，中间不空。 */
-  max-width: 95%;
-  margin-left: auto;
-  margin-right: 0;
-  padding: 48px 8px 100px;
-}
-
-/* 分屏右文档（右侧栏内）：镜像——右边留 2.5%，左边贴分隔线。 */
-.win-body.split .bpanel .editor-component .mu-container {
-  margin-left: 0;
-  margin-right: auto;
+  /* round27 三次（用户拍板）：两侧文档统一——左边 2.5%、右边 0（贴分隔线）。
+     不再用 max-width 95% 居中（视觉右边距仍偏大），直接满宽 + 左内边距。 */
+  max-width: none;
+  padding: 48px 0 100px 2.5%;
 }
 
 .win-body.dragging-split,

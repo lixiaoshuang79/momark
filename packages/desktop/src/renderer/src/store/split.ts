@@ -95,7 +95,8 @@ export const useSplitStore = defineStore('split', () => {
     bpStore.SET_MODE('doc')
 
     // 若拖出的是活动标签：左编辑器落到相邻标签（原型 takeTabIntoSplit 语义）；
-    // 无可落标签（唯一标签被拖出）→ 左编辑区空出（与 CLOSE_TABS 的空态一致）。
+    // 无相邻标签可落（唯一标签被拖出）→ 左右同开该文档，杜绝左编辑区空白
+    // （round27 用户反馈「标签页有概率变成空白」的根因之一）。
     // keepCurrent（右栏「打开文件…」路径）：保持当前标签在左编辑器。
     // allowSame：同一文档左右同开，左编辑器保持该文档不动。
     if (editorStore.currentFile?.id === id && !opts?.keepCurrent && !opts?.allowSame) {
@@ -103,9 +104,6 @@ export const useSplitStore = defineStore('split', () => {
       const next = visible[Math.min(index, visible.length - 1)] ?? null
       if (next) {
         editorStore.UPDATE_CURRENT_FILE(next)
-      } else {
-        editorStore.currentFile = null
-        window.DIRNAME = ''
       }
     }
     // round11 通知精简（用户拍板）：右侧分屏面板已展开呈现结果，
