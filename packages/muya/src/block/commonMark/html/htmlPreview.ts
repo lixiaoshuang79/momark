@@ -180,6 +180,10 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
         // permanently break that.
         if (!userTouched || !baseW)
             return;
+        // The shell tracks the frame's real viewport: the whole block grows
+        // and shrinks with a drag (overflowing the editor pane horizontally
+        // when the viewport is wider than the container, like a large image).
+        shell.style.width = `${curW}px`;
         frame.style.width = `${curW}px`;
         frame.style.height = `${curH}px`;
         pct.textContent = `${Math.round((curW / baseW) * 100)}%`;

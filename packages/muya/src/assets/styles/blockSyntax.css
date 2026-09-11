@@ -731,10 +731,11 @@ figure.mu-diagram-block .mu-diagram-preview {
 
 /* Interactive HTML embedded via `<iframe>` inside an HTML block. Charts and
    prototypes usually paint their own white background, which is kept so the
-   content looks identical to opening the file in a browser. */
+   content looks identical to opening the file in a browser. No max-width
+   clamp: once the user resizes, the real viewport width (and the shell
+   around it) must win, so the block itself grows/shrinks. */
 figure.mu-html-block .mu-html-preview iframe.mu-html-iframe {
     display: block;
-    max-width: 100%;
     margin: 0.5em 0;
     border: 1px solid rgba(128, 128, 128, 0.25);
     border-radius: 6px;
