@@ -155,7 +155,10 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: transparent !important;
+  /* round13（用户拍板，白底根除）：原 transparent 让浏览器默认白底从
+     侧边栏悬浮卡片四周的 10px 空隙透出——深色主题下左右侧栏各包一圈白。
+     改直接挂主题画布色 --bg（浅色=画布米白 / 深色=#151515），切主题即跟随。 */
+  background: var(--bg) !important;
   caret-color: var(--editorColor);
 }
 
