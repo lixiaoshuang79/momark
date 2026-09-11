@@ -1,0 +1,3 @@
+cell.png | https://commons.wikimedia.org/wiki/File:Animal_cell_structure_en.svg | Public domain (作者 LadyofHats / Mariana Ruiz)；来源 Special:FilePath SVG 原图，本机渲染为 PNG
+chloroplast.png | https://commons.wikimedia.org/wiki/File:Chloroplast_structure.svg | CC BY-SA 3.0 (作者 Kelvinsong)；来源 Special:FilePath SVG 原图，本机渲染为 PNG
+dna.png | https://commons.wikimedia.org/wiki/File:DNA_Structure+Key+Labelled.pn_NoBB.png | CC BY-SA 3.0 (作者 Zephyris)；来源 Special:FilePath 原图 PNG (3024x3000)，缩放到宽 1024px，保留透明背景

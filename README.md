@@ -45,6 +45,20 @@ HTML 代码块不再是一段源码，而是真实渲染的画面——数据图
 
 界面全量中文，开箱即用；运行时数据独立存放，与其他编辑器互不干扰。
 
+## 效果预览
+
+**图文笔记** —— 生物复习笔记，彩色插图与表格混排：
+
+<img src="docs/screenshots/notes-biology.png" alt="生物图文笔记" width="760" />
+
+**数据分析报告** —— 交互图表直接渲染进文档，悬停即看数值：
+
+<img src="docs/screenshots/data-report.png" alt="数据分析报告" width="760" />
+
+**对照写 PRD** —— 左侧写需求文档，右侧同步对照设计稿：
+
+<img src="docs/screenshots/prd-split-prototype.png" alt="PRD 与设计稿对照" width="760" />
+
 ## 安装
 
 下载构建产物，将 `墨记.app` 拖入「应用程序」。
@@ -87,14 +101,6 @@ pnpm dev      # 开发实例，渲染进程运行于 localhost:9333
 | `packages/website` | 官网 / 文档站                        |
 | `docs/`            | 架构、分支规范、路线图等文档         |
 
-## 分支与发布规范
-
-- `main` 主干只进合并，不做直接提交
-- 开发分支 `feat/<主题>`、`fix/<主题>`，验收通过后合入
-- 验收版本打 tag `momark/<x.y.z>`
-
-详见 [docs/BRANCHING.md](docs/BRANCHING.md)。
-
 ## 文档
 
 - [架构说明](docs/ARCHITECTURE.md)
@@ -103,3 +109,5 @@ pnpm dev      # 开发实例，渲染进程运行于 localhost:9333
 ## License
 
 [MIT](LICENSE)
+
+> 效果预览中的生物学插图来自 Wikimedia Commons（公有领域 / CC BY-SA 3.0），逐图来源与授权见 [docs/screenshots/figure-sources.txt](docs/screenshots/figure-sources.txt)。
