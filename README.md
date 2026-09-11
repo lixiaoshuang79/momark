@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.0-3D5A80" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.2.0-3D5A80" alt="version" />
   <img src="https://img.shields.io/badge/platform-macOS%20arm64%20%7C%20x64-lightgrey" alt="platform" />
   <img src="https://img.shields.io/badge/license-MIT-7BA3C9" alt="license" />
   <img src="https://img.shields.io/github/stars/lixiaoshuang79/momark?style=social" alt="stars" />

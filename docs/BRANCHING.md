@@ -24,7 +24,7 @@ Conventional commits：`feat(ui): …` / `fix(muya): …`，描述用中文。
 
 - 格式 `momark/<x.y.z>`（前缀与上游 marktext 的 `v*` tag 区分，避免冲突）
 - 只在验收通过、合入 `main` 之后打
-- 当前基线：`momark/1.1.0`（V1.1.0 正式发布；历史：`momark/0.1.0` 13 项定制清单全量验收、`momark/1.0.0` 首个正式发布）
+- 当前基线：`momark/1.2.0`（V1.2.0 正式发布：网页 PC/移动端切换 + 分屏顶部紧凑；历史：`momark/0.1.0` 13 项定制清单全量验收、`momark/1.0.0` 首个正式发布、`momark/1.1.0` HTML 内嵌渲染与分屏优化）
 
 ## 验收约定
 
