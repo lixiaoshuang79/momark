@@ -1896,6 +1896,13 @@ onMounted(() => {
   // `file-loaded` / `setMarkdownToEditor` runs for it — seed its TOC here.
   editorStore.UPDATE_TOC(muya.getTOC())
 
+  // HTML embed toolbar's "open in side panel" action: render the embedded
+  // page in the right panel's document mode (sandboxed iframe, same opaque
+  // origin isolation as the in-editor embed).
+  muya.on('muya-html-open-sidebar', (payload: { src: string; title: string }) => {
+    bpStore.OPEN_HTML_DOC(payload.src, payload.title || 'HTML')
+  })
+
   // Seed the save-tracking baseline for the mount-loaded document (from the
   // engine's OWN serialization, same reason as setMarkdownToEditor). Without
   // this the allocator is created lazily on the first `json-change` — i.e.

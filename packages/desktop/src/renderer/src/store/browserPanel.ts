@@ -133,6 +133,28 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     dockAddrOpen.value = value
   }
 
+  // ── 文档模式的 HTML 渲染页 ────────────────────────────────────────────
+  // 编辑器内嵌 HTML 块的工具条「在侧栏打开」落点：右栏文档模式下以
+  // sandbox iframe（与编辑器内嵌同一隔离等级，不透明源）渲染该页面。
+  // 与分屏 md 文档互斥（docMode 内容区同一时刻只显示一种内容），
+  // 打开/新建文档时由 docMode 清空。
+  interface HtmlDocView {
+    src: string
+    title: string
+  }
+
+  const htmlDoc = ref<HtmlDocView | null>(null)
+
+  function OPEN_HTML_DOC(src: string, title: string): void {
+    SET_OPEN(true)
+    SET_MODE('doc')
+    htmlDoc.value = { src, title }
+  }
+
+  function CLOSE_HTML_DOC(): void {
+    htmlDoc.value = null
+  }
+
   function SET_DRAG_STATE(value: BpDragState): void {
     dragState.value = value
   }
@@ -165,6 +187,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     dockAddrOpen,
     dragState,
     urlWidth,
+    htmlDoc,
     SET_OPEN,
     TOGGLE_PANEL,
     SET_MODE,
@@ -175,6 +198,8 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     SET_DOCK_ADDR_OPEN,
     SET_DRAG_STATE,
     SET_URL_WIDTH,
+    OPEN_HTML_DOC,
+    CLOSE_HTML_DOC,
     OPEN_EXTERNAL,
     LISTEN,
     STOP_LISTENING

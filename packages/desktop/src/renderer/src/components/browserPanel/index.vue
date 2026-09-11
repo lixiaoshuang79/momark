@@ -22,12 +22,19 @@
         <doc-mode v-show="mode === 'doc'" ref="docModeRef" />
       </div>
 
-      <!-- 底部：网址模式 = 40px 导航条；文档模式 = 「打开文件…」（36px 顶部 hairline） -->
+      <!-- 底部：网址模式 = 40px 导航条；文档模式 = 「打开文件… / 新建文件」
+           （36px 顶部 hairline，两按钮左右等分） -->
       <nav-bar v-show="mode === 'url'" />
-      <button v-show="mode === 'doc'" class="bp-openfile" @click="openDocFile">
-        <mo-icon name="i-folder" />
-        打开文件…
-      </button>
+      <div v-show="mode === 'doc'" class="bp-doc-actions">
+        <button class="bp-openfile" @click="openDocFile">
+          <mo-icon name="i-folder" />
+          打开文件…
+        </button>
+        <button class="bp-openfile" @click="newDocFile">
+          <mo-icon name="i-file" />
+          新建文件
+        </button>
+      </div>
     </div>
   </aside>
 </template>
@@ -95,6 +102,10 @@ const onDrop = (event: DragEvent) => {
 
 const openDocFile = () => {
   docModeRef.value?.openFile()
+}
+
+const newDocFile = () => {
+  docModeRef.value?.newFile()
 }
 
 onMounted(() => {

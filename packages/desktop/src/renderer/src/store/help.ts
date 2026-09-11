@@ -18,7 +18,7 @@ export type { IFileState }
 const defaultFileStateWithoutId = {
   isSaved: true,
   pathname: '',
-  filename: 'Untitled-1',
+  filename: 'Untitled-1.md',
   markdown: '',
   encoding: {
     encoding: 'utf8',
@@ -97,7 +97,9 @@ export const getBlankFileState = (
   let untitleId = Math.max(
     ...tabs.map((f) => {
       if (f.pathname === '') {
-        return +f.filename.split('-')[1]
+        // 'Untitled-2.md' → 2
+        const num = +(f.filename.split('-')[1] ?? '').split('.')[0]
+        return Number.isFinite(num) ? num : 0
       } else {
         return 0
       }
@@ -117,7 +119,7 @@ export const getBlankFileState = (
     lineEnding,
     adjustLineEndingOnSave: lineEnding.toLowerCase() === 'crlf',
     id,
-    filename: `${defaultFilenamePrefix}-${++untitleId}`,
+    filename: `${defaultFilenamePrefix}-${++untitleId}.md`,
     markdown,
     // The freshly-loaded document IS its on-disk/clean baseline. The engine
     // clears its undo history on `setContent`, so the baseline undo-stack depth
