@@ -20,9 +20,9 @@
    与引擎默认列宽/内边距。 */
 .win-body.split .editor-component .mu-container {
   max-width: none;
-  /* round26 二次反馈：左右 20 仍嫌中间空——分栏内容直接顶满窗格
-     （水平内边距 0），两侧文档视觉上由分隔线分隔。 */
-  padding: 48px 0 100px;
+  /* round26 三轮：0 贴边（右侧文档被截断一点），8px 对称内边距——
+     内容贴近窗格但不贴死，两侧之间只剩分隔线 + 16px。 */
+  padding: 48px 8px 100px;
 }
 
 .win-body.dragging-split,

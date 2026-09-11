@@ -24,14 +24,15 @@ const resolvePicgoBinary = (): string | null => {
     process.platform === 'win32'
       ? ['picgo', 'picgo.exe']
       : [
-        'picgo',
-        '/opt/homebrew/bin/picgo',
-        '/usr/local/bin/picgo',
-        '/usr/bin/picgo',
-        `${process.env.HOME}/.npm-global/bin/picgo`,
-        `${process.env.HOME}/.npm/bin/picgo`,
-        '/usr/local/lib/node_modules/.bin/picgo'
-      ]
+          'picgo',
+          '/opt/homebrew/bin/picgo',
+          '/usr/local/bin/picgo',
+          '/usr/bin/picgo',
+          `${process.env.HOME}/.npm-global/bin/picgo`,
+          `${process.env.HOME}/.npm/bin/picgo`,
+          `${process.env.HOME}/.local/bin/picgo`,
+          '/usr/local/lib/node_modules/.bin/picgo'
+        ]
   for (const c of candidates) {
     try {
       if (commandExists.sync(c)) return c
@@ -117,7 +118,7 @@ const uploadByCli = (cliScript: string, localPath: string): Promise<string> =>
     )
   })
 
-const writeBinaryToTmp = async(
+const writeBinaryToTmp = async (
   data: Uint8Array | number[] | null | undefined,
   suffix: string = ''
 ): Promise<string> => {
@@ -127,7 +128,7 @@ const writeBinaryToTmp = async(
   return tmpPath
 }
 
-const uploadFromPath = async(
+const uploadFromPath = async (
   imagePath: string,
   options: { currentUploader: string; cliScript: string }
 ): Promise<string> => {
@@ -142,7 +143,7 @@ interface BufferImagePayload {
   name: string
 }
 
-const uploadFromBuffer = async(
+const uploadFromBuffer = async (
   { data, name }: BufferImagePayload,
   options: {
     currentUploader: string
@@ -173,7 +174,7 @@ interface UploadRequest {
 }
 
 export const registerUploaderHandlers = (): void => {
-  ipcMain.handle('mt::uploader::upload', async(_event, req: UploadRequest) => {
+  ipcMain.handle('mt::uploader::upload', async (_event, req: UploadRequest) => {
     const { pathname, image, isPath, preferences } = req
     if (isPath) {
       const dir = path.dirname(pathname)
