@@ -41,26 +41,7 @@
   background: transparent;
   z-index: 5;
 }
-.splitter::after {
-  content: '';
-  position: absolute;
-  left: 3.5px;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  /* 用户拍板：默认不显示——这条常驻竖线就是验收反复点名的
-     「右侧边栏那条线」（分屏拖动分隔线本体）；仅悬停/拖动中点亮。 */
-  background: transparent;
-  transition: background 0.15s ease;
-}
-.splitter:hover::after {
-  background: var(--accent);
-}
-/* round12（用户拍板）：拖动改变分栏宽度时不显示竖线——hover 点亮保留，
-   但拖动态显式压制（拖动时鼠标必在分隔条上，hover 会同时成立）。 */
-.win-body.dragging-split .splitter::after {
-  background: transparent;
-}
+/* round13（用户拍板）：分隔条 hover/拖动都不再显示竖线，仅保留 8px 拖拽热区。 */
 
 /* ── 标签拖入投放区（右 38% 宽，无需预先打开右栏）── */
 .split-drop-zone {
@@ -451,7 +432,8 @@
   justify-content: center;
   gap: 8px;
   padding: 0;
-  box-shadow: 0 0 0 1px var(--line), 0 1px 3px rgba(0, 0, 0, 0.07);
+  /* round13：去掉 0 0 0 1px 外圈——与 border 叠加成视觉双描边显粗。 */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
   overflow: hidden;
   transition:
     background 0.15s ease,
@@ -460,8 +442,8 @@
   font-size: var(--f11);
 }
 [data-theme='dark'] .bp-plus {
-  /* round12（用户反馈「看着太重」）：深色收起态阴影减半——细描边+微投影。 */
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 4px rgba(0, 0, 0, 0.3);
+  /* round13：同去外圈，只留微投影。 */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 .bp-plus:hover {
   background: var(--hover);
@@ -495,18 +477,15 @@
 .bp-addrwrap.open .bp-plus {
   border-radius: 11px;
   background: var(--surface-2);
-  /* round12（用户反馈「看着太重」）：展开态大投影改微投影 + 细描边。 */
-  border-color: var(--line);
-  box-shadow:
-    0 2px 10px rgba(0, 0, 0, 0.08),
-    0 0 0 1px var(--line);
+  /* round13（用户反馈「描边还是很粗」）：边框减到 0.5px、去掉 shadow 外圈
+     （原 border+外圈叠加为视觉 2px 双描边），只留微投影。 */
+  border: 0.5px solid var(--line);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 [data-theme='dark'] .bp-addrwrap.open .bp-plus {
-  /* round12：深色展开态同构——轻投影 + 白 8% 细描边。 */
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 2px 12px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+  /* round13：深色展开态同构——0.5px 细描边 + 轻投影。 */
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
 }
 .bp-addrwrap.open .bp-plus-ic {
   opacity: 0;

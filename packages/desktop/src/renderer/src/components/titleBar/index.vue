@@ -21,12 +21,27 @@
       <div class="title" @dblclick.stop="toggleMaxmizeOnMacOS">
         <div v-if="filename || pathname" class="title-path" :style="titleFontStyle">
           <span class="title-dot" :class="{ show: !isSaved }" />
+          <!-- round13（用户拍板）：双击标题就地重命名——标题位置直接变输入框，
+               不再弹重命名对话框（untitled 仍走旧行为：双击=保存即命名）。 -->
+          <input
+            v-if="renaming"
+            ref="renameInputRef"
+            v-model="renameDraft"
+            class="rename-input title-no-drag"
+            :style="titleFontStyle"
+            spellcheck="false"
+            @keydown.enter.prevent="commitRename"
+            @keydown.esc.prevent="cancelRename"
+            @blur="commitRename"
+            @click.stop
+          />
           <span
+            v-else
             class="filename title-no-drag"
             :class="{ isOsx: platform === 'darwin' }"
             :title="titleLabel"
             @click.stop="toggleCollapse"
-            @dblclick.stop="rename"
+            @dblclick.stop="startRename"
             >{{ titleLabel }}</span
           >
           <template v-if="rightDocName">
@@ -108,7 +123,7 @@
 import { usePreferencesStore } from '@/store/preferences.js'
 import { useEditorStore } from '@/store/editor'
 import { useSplitStore } from '@/store/split'
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { minimizePath, restorePath, maximizePath, closePath } from '../../assets/window-controls.js'
 import { isOsx as isOsxPlatform } from '@/util'
@@ -342,6 +357,52 @@ const rename = () => {
   }
 }
 
+// round13（用户拍板）：双击标题就地重命名。
+// 已保存文档（有 pathname）→ 标题位置直接变输入框，回车/失焦提交
+// editorStore.RENAME（主进程 fs.rename + mt::set-pathname 回填）；
+// untitled 保持旧行为（RESPONSE_FOR_RENAME = 保存即命名）。
+const renaming = ref(false)
+const renameDraft = ref('')
+const renameInputRef = ref<HTMLInputElement | null>(null)
+
+const baseNameWithoutExt = (name: string): string => {
+  const i = name.lastIndexOf('.')
+  return i > 0 ? name.slice(0, i) : name
+}
+
+const startRename = () => {
+  if (props.platform !== 'darwin') return
+  if (!props.pathname) {
+    rename()
+    return
+  }
+  renameDraft.value = baseNameWithoutExt(props.filename ?? '')
+  renaming.value = true
+  nextTick(() => {
+    const el = renameInputRef.value
+    el?.focus()
+    el?.select()
+  })
+}
+
+const commitRename = () => {
+  if (!renaming.value) return
+  renaming.value = false
+  const name = renameDraft.value.trim()
+  if (!name || !props.filename) return
+  const oldBase = baseNameWithoutExt(props.filename)
+  if (name === oldBase) return
+  const ext = props.filename.slice(oldBase.length)
+  // 输入含扩展名（如 a.md）→ 视为完整文件名（允许改扩展名）；
+  // 只输入主名 → 拼回原扩展名。
+  const full = name.includes('.') ? name : name + ext
+  editorStore.RENAME(full)
+}
+
+const cancelRename = () => {
+  renaming.value = false
+}
+
 // round11（用户反馈）：双击右侧文档名同样发出重命名（竖线两侧都有效）。
 // 复用 RENAME_FILE（= 标签栏右键重命名口径：激活该文档后弹重命名框）。
 const renameRightDoc = () => {
@@ -450,6 +511,23 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+
+/* round13：就地重命名输入框——与标题同位、细描边、墨蓝 focus 环 */
+.rename-input {
+  width: 240px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: inherit;
+  font-weight: 400;
+  line-height: 22px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  margin-left: 2px;
 }
 
 /* 「文件A | 文件B」：竖线分隔淡色、右文档名可拖回标签栏、× 关闭右栏文档 */
