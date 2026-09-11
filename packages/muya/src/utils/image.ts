@@ -39,7 +39,7 @@ const ABSOLUTE_LOCAL_REG = /^(?:\/|\\\\|[a-z]:\\|[a-z]:\/).+/i;
  * to `/` first (Chromium loads `file://` URLs with forward slashes regardless
  * of platform). `.` and `..` segments are collapsed.
  */
-function resolveRelativePath(base: string, relative: string): string {
+export function resolveRelativePath(base: string, relative: string): string {
     const normalizedBase = base.replace(/\\/g, '/').replace(/\/+$/, '');
     const combined = `${normalizedBase}/${relative.replace(/\\/g, '/')}`;
     // Isolate the root that `..` must never collapse past (mirroring
@@ -67,7 +67,7 @@ function resolveRelativePath(base: string, relative: string): string {
     return tail ? `${root}/${tail}` : root;
 }
 
-function localPathToFileUrl(src: string): string {
+export function localPathToFileUrl(src: string): string {
     const normalized = src.replace(/\\/g, '/');
 
     if (/^\/\/[^/]+\/[^/]+/.test(normalized))
@@ -138,6 +138,30 @@ export function getImageSrc(src: string) {
             };
         }
     }
+}
+
+// Resolve an `<iframe src>` inside an HTML block: remote URLs and `file://`
+// URLs pass through unchanged; a relative path is anchored to the document
+// directory (`window.DIRNAME`), mirroring `getImageSrc`'s local-path handling.
+export function getIframeSrc(src: string): string {
+    // http[s] (domain or IPv4 or localhost or IPv6) [port] /not-white-space
+    const URL_REG
+        = /^https?:\/\/(?:[\w\-.~]+\.[a-z]{2,}|[0-9.]+|localhost|\[[a-f0-9.:]+\])(?::\d{1,5})?\/\S+/i;
+
+    if (URL_REG.test(src) || /^file:\/\//i.test(src))
+        return src;
+
+    if (ABSOLUTE_LOCAL_REG.test(src))
+        return localPathToFileUrl(src);
+
+    const baseUrl
+        = typeof window !== 'undefined' ? window.DIRNAME : undefined;
+    if (baseUrl)
+        return localPathToFileUrl(resolveRelativePath(baseUrl, src));
+
+    // No document directory (headless / no open file): leave as-is so the
+    // browser resolves it against the current page instead of loading nothing.
+    return src;
 }
 
 export async function loadImage(url: string, detectContentType = false): Promise<{

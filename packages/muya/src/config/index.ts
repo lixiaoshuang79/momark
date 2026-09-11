@@ -128,6 +128,7 @@ export const CLASS_NAMES = genUpper2LowerKeyHash([
     'MU_HTML_ESCAPE',
     'MU_HTML_ESCAPE_MARKER',
     'MU_HTML_PREVIEW',
+    'MU_HTML_IFRAME',
     'MU_HTML_TAG',
     'MU_IMAGE_FAIL',
     'MU_IMAGE_BUTTONS',

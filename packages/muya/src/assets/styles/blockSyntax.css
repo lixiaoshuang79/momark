@@ -729,6 +729,19 @@ figure.mu-diagram-block .mu-diagram-preview {
     width: 100%;
 }
 
+/* Interactive HTML embedded via `<iframe>` inside an HTML block. Charts and
+   prototypes usually paint their own white background, which is kept so the
+   content looks identical to opening the file in a browser. */
+figure.mu-html-block .mu-html-preview iframe.mu-html-iframe {
+    display: block;
+    max-width: 100%;
+    margin: 0.5em 0;
+    border: 1px solid rgba(128, 128, 128, 0.25);
+    border-radius: 6px;
+    background: #fff;
+    box-sizing: border-box;
+}
+
 figure.mu-math-block .mu-math-preview .katex-display {
     margin: 0;
     padding: 1em 0;
