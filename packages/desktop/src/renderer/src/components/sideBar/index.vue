@@ -1,7 +1,12 @@
 <template>
-  <!-- 开合动效：外层宽度 0↔288px 以 --ease-panel（.22,1,.36,1 零过冲非线性）
-       过渡，与右侧面板完全一致；内层 dock-panel 悬浮卡片随宽度显隐。 -->
-  <div class="side-bar" :class="{ open: showSideBar }">
+  <!-- 开合动效：外层宽度 0↔用户拖出的宽度（默认 288px）以 --ease-panel
+       （.22,1,.36,1 零过冲非线性）过渡，与右侧面板完全一致；内层 dock-panel
+       悬浮卡片随宽度显隐。round27：宽度可拖动（右侧 6px 命中区手柄）。 -->
+  <div
+    class="side-bar"
+    :class="{ open: showSideBar, dragging: resizing }"
+    :style="showSideBar ? { width: `${effectiveSideBarWidth}px` } : { width: '0px' }"
+  >
     <div class="sb-inner">
       <!-- 顶部「大纲 / 文件」双 tab：白色滑块在选中项间滑动（回弹缓动，非线性），
            按钮自身不再换底，仅滑块位移 + 文字颜色过渡。 -->
@@ -35,11 +40,21 @@
         <tree />
       </div>
     </div>
+    <!-- 宽度拖拽手柄：贴内容侧右缘，6px 命中区；拖动夹逼 220px~50% 窗宽 -->
+    <div
+      v-if="showSideBar"
+      class="sb-resize-handle"
+      aria-hidden="true"
+      @pointerdown="onResizeDown"
+      @pointermove="onResizeMove"
+      @pointerup="onResizeUp"
+      @pointercancel="onResizeUp"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
 import { t } from '../../i18n'
@@ -49,12 +64,31 @@ import Toc from './toc.vue'
 
 const layoutStore = useLayoutStore()
 
-const { rightColumn, showSideBar } = storeToRefs(layoutStore)
+const { rightColumn, showSideBar, effectiveSideBarWidth } = storeToRefs(layoutStore)
 
 // MoMark：右栏（rail）已移除。rightColumn 仅保留 toc/files 语义用于 tab 选择，
 // 其余历史值（search/''）一律落到文件 tab。
 type SideBarTab = 'outline' | 'files'
 const activeTab = computed<SideBarTab>(() => (rightColumn.value === 'toc' ? 'outline' : 'files'))
+
+// round27：宽度拖拽——拖拽中实时 SET_SIDE_BAR_WIDTH（禁用过渡防抖动），
+// 松手时再调度一次持久化。
+const resizing = ref(false)
+const onResizeDown = (event: PointerEvent) => {
+  if (!showSideBar.value) return
+  resizing.value = true
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  layoutStore.SET_SIDE_BAR_WIDTH(event.clientX - 10, { scheduleBufferUpdate: false })
+}
+const onResizeMove = (event: PointerEvent) => {
+  if (!resizing.value) return
+  layoutStore.SET_SIDE_BAR_WIDTH(event.clientX - 10, { scheduleBufferUpdate: false })
+}
+const onResizeUp = () => {
+  if (!resizing.value) return
+  resizing.value = false
+  layoutStore.SET_SIDE_BAR_WIDTH(effectiveSideBarWidth.value)
+}
 
 const selectTab = (tab: SideBarTab): void => {
   const column = tab === 'outline' ? 'toc' : 'files'
@@ -90,6 +124,22 @@ const selectTab = (tab: SideBarTab): void => {
 }
 .side-bar.open {
   width: var(--sidebar-w);
+}
+.side-bar.dragging {
+  transition: none;
+}
+
+/* 宽度拖拽手柄：贴内容侧右缘 6px 命中区（悬浮卡片距右缘 10px，手柄
+   横跨整高便于抓住）。 */
+.sb-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  z-index: 5;
+  cursor: col-resize;
+  touch-action: none;
 }
 
 .sb-inner {

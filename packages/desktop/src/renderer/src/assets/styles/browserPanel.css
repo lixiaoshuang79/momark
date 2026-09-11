@@ -19,18 +19,11 @@
    muya 引擎的 .mu-container）。本文件最后引入，覆盖 claude-editor.css
    与引擎默认列宽/内边距。 */
 .win-body.split .editor-component .mu-container {
-  max-width: none;
-  /* round26 三轮：0 贴边（右侧文档被截断一点），8px 对称内边距——
-     内容贴近窗格但不贴死，两侧之间只剩分隔线 + 16px。 */
-  padding: 48px 8px 100px;
-}
-
-/* round26：分屏激活但右侧栏已收起（标题栏仍是双文件格式）——左文档
-   恢复居中列显示（720px 内容列在编辑区内居中），不再摊满整宽。 */
-.win-body.split:not(.panel-open) .editor-component .mu-container {
-  max-width: min(720px, 100%);
+  /* round27（用户拍板）：分屏时内容列=窗格宽 95% 居中（100% 容易贴边；
+     编辑器宽度设置只在单文件模式生效）。 */
+  max-width: 95%;
   margin: 0 auto;
-  padding: 48px 32px 100px;
+  padding: 48px 8px 100px;
 }
 
 .win-body.dragging-split,

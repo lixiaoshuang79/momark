@@ -16,8 +16,11 @@ interface SetLayoutOptions {
 }
 
 const normalizeSideBarWidth = (width: unknown): number => {
+  // round27：左侧栏宽度可拖动（220px ≤ w ≤ min(560px, 50% 窗宽)），
+  // 缺省 288px（原固定宽度）。Number(null)=0 会误归一到 220，先判空。
+  if (width === null || width === undefined || width === '') return 288
   const numericWidth = Number(width)
-  return Number.isFinite(numericWidth) ? Math.max(numericWidth, 220) : 280
+  return Number.isFinite(numericWidth) ? Math.max(numericWidth, 220) : 288
 }
 
 interface BufferedLayout {
@@ -51,12 +54,11 @@ export const useLayoutStore = defineStore('layout', () => {
   const showTabBar = ref(false)
   const sideBarWidth = ref<number>(initialSideBarWidth)
 
-  // MoMark 二期规格：左侧栏固定 288px（顶部 大纲/文件 双 tab），收起=0 无占位。
-  // 旧的 45px 图标 rail 已移除，`sideBarWidth` 仍保留以兼容其他调用方（标签右键菜单）。
-  const SIDEBAR_EXPANDED_WIDTH = 288
+  // round27：左侧栏宽度可拖动（用户拍板恢复可调）——展开宽度=用户拖出的
+  // sideBarWidth（localStorage 持久化），收起=0 无占位。
   const effectiveSideBarWidth = computed<number>(() => {
     if (!showSideBar.value) return 0
-    return SIDEBAR_EXPANDED_WIDTH
+    return sideBarWidth.value
   })
 
   function SET_LAYOUT(
@@ -131,7 +133,12 @@ export const useLayoutStore = defineStore('layout', () => {
     width: number | string,
     { scheduleBufferUpdate = true }: SetLayoutOptions = {}
   ): void {
-    const normalizedWidth = normalizeSideBarWidth(width)
+    // round27：夹逼 220px ≤ w ≤ min(560px, 50% 窗宽)，与右侧面板同思路。
+    const raw = Number(width)
+    const max = Math.max(220, Math.min(560, window.innerWidth * 0.5))
+    const normalizedWidth = Number.isFinite(raw)
+      ? Math.round(Math.max(220, Math.min(max, raw)))
+      : 288
     localStorage.setItem('side-bar-width', String(normalizedWidth))
     sideBarWidth.value = normalizedWidth
     if (scheduleBufferUpdate) {
