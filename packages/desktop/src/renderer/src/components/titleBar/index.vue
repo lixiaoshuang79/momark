@@ -58,7 +58,7 @@
             <span class="title-sep" aria-hidden="true">|</span>
             <span
               class="filename right-doc title-no-drag"
-              draggable="true"
+              :draggable="splitStore.active"
               :title="rightDocTitle"
               @dragstart="onRightDragStart"
               @dragend="onRightDragEnd"
@@ -143,6 +143,7 @@
 import { usePreferencesStore } from '@/store/preferences.js'
 import { useEditorStore } from '@/store/editor'
 import { useSplitStore } from '@/store/split'
+import { useBrowserPanelStore } from '@/store/browserPanel'
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { minimizePath, restorePath, maximizePath, closePath } from '../../assets/window-controls.js'
@@ -176,6 +177,7 @@ const props = defineProps<{
 const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
 const splitStore = useSplitStore()
+const bpStore = useBrowserPanelStore()
 
 const isOsx = isOsxPlatform
 const windowIconMinimize = minimizePath
@@ -238,6 +240,8 @@ const rightDocName = computed(() => {
     if (!tab) return ''
     return collapsed.value ? tab.filename : compactPathLabel(tab.pathname)
   }
+  // HTML 渲染页（编辑器内嵌 html「在侧栏打开」）：右文档名槽位显示页面标题。
+  if (bpStore.htmlDoc) return bpStore.htmlDoc.title
   return ''
 })
 
@@ -246,6 +250,7 @@ const rightDocTitle = computed(() => {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     return tab?.pathname ?? rightDocName.value
   }
+  if (bpStore.htmlDoc) return bpStore.htmlDoc.src
   return ''
 })
 
@@ -261,7 +266,7 @@ const rightDocPathname = computed(() => {
 // 顶栏右文档名拖回标签栏：标记内部拖放（app.vue 的 window dragover 据此放行），
 // 高亮标签条/顶部行，drop 时按来源落地（drop 处理在 tabs.vue onReturnDrop）。
 const onRightDragStart = (event: DragEvent) => {
-  if (!rightDocName.value) return
+  if (!rightDocName.value || !splitStore.active) return
   event.dataTransfer?.setData('application/x-momark-split-doc', rightDocName.value)
   window.__momarkReturnDrag = true
   bus.emit('split:return-drag-start')
@@ -272,8 +277,14 @@ const onRightDragEnd = () => {
   bus.emit('split:return-drag-end')
 }
 
-// × 关闭右栏文档：分屏 = 文档回左侧标签集合。
+// × 关闭右栏：分屏 = 文档回左侧标签集合；HTML 渲染页 = 直接关掉整个
+// 右侧栏（round26 用户拍板：不落「空白文档」态）。
 const closeRightDoc = () => {
+  if (bpStore.htmlDoc) {
+    bpStore.CLOSE_HTML_DOC()
+    bpStore.SET_OPEN(false)
+    return
+  }
   if (splitStore.active) {
     splitStore.RETURN_SPLIT_TO_TABS()
   }

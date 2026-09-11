@@ -20,10 +20,10 @@
    与引擎默认列宽/内边距。 */
 .win-body.split .editor-component .mu-container {
   max-width: none;
-  /* round11（用户拍板）：左右 32→56——分屏后左窗格变窄，原 32px 内容
-     快贴到窗格边缘，放宽到 56px 呼吸感与全屏观感一致（右窗格同规则生效，
-     两侧对称）。 */
-  padding: 48px 56px 100px;
+  /* round26（用户反馈）：左右 56→20——分栏下两侧 56px 内边距在左右
+     编辑器之间留下约 116px 的空白带（红框），内容宽度即使 100% 也
+     填不满；收窄到 20px，两侧对称。 */
+  padding: 48px 20px 100px;
 }
 
 .win-body.dragging-split,
@@ -746,25 +746,51 @@
   border: none;
   background: #fff;
 }
-.bp-html-close {
+/* 缩放控制条：右下角 hover 显示（与编辑器内嵌 html 块同一语义） */
+.bp-html-zoom {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  right: 20px;
+  bottom: 6px;
   z-index: 2;
-  width: 24px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.bp-html-view:hover .bp-html-zoom {
+  opacity: 1;
+}
+.bp-zoom-btn {
+  min-width: 24px;
   height: 24px;
-  display: grid;
-  place-items: center;
+  padding: 0 4px;
   border: none;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.55);
+  border-radius: 5px;
+  background: transparent;
   color: #fff;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
 }
-.bp-html-close:hover {
-  background: rgba(0, 0, 0, 0.75);
+.bp-zoom-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.bp-zoom-pct {
+  min-width: 44px;
+  text-align: center;
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  padding: 4px 2px;
+  border-radius: 5px;
+}
+.bp-zoom-pct:hover {
+  background: rgba(255, 255, 255, 0.18);
 }
 .bp-browserbar {
   flex: none;
