@@ -9,6 +9,14 @@
     <button title="重新加载" @click="reload">
       <mo-icon name="i-refresh" />
     </button>
+    <button
+      class="bp-device"
+      :title="deviceMode === 'pc' ? '切换为移动端样式' : '切换为 PC 样式'"
+      :aria-label="deviceMode === 'pc' ? '切换为移动端样式' : '切换为 PC 样式'"
+      @click="toggleDeviceMode"
+    >
+      <mo-icon :name="deviceMode === 'pc' ? 'i-monitor' : 'i-phone'" />
+    </button>
     <span class="bp-location-wrap">
       <input
         ref="locationEl"
@@ -42,7 +50,7 @@ import { useBrowserPanelStore, resolveInput } from '@/store/browserPanel'
  */
 
 const bpStore = useBrowserPanelStore()
-const { urlPages, activePageId } = storeToRefs(bpStore)
+const { urlPages, activePageId, deviceMode } = storeToRefs(bpStore)
 
 const locationEl = ref<HTMLInputElement | null>(null)
 const locationText = ref('')
@@ -100,6 +108,11 @@ const reload = () => {
   if (!id) return
   bpStore.UPDATE_PAGE_STATE(id, { loading: true, error: null })
   window.bp.reload(id)
+}
+
+// round16：PC / 移动端样式切换（无激活页时静默忽略）。
+const toggleDeviceMode = () => {
+  bpStore.TOGGLE_DEVICE_MODE()
 }
 
 // 回车导航当前激活页（地址栏输入 → 智能判断 URL vs 搜索）。

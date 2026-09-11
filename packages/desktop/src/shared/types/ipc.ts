@@ -53,6 +53,8 @@ export interface IpcInvokeChannels {
   'bp:forward': { args: [id: string]; ret: void }
   'bp:reload': { args: [id: string]; ret: void }
   'bp:getState': { args: [id: string]; ret: BpPageState }
+  // round16：PC / 移动端样式切换（底部工具栏按钮）。
+  'bp:setDeviceMode': { args: [id: string, mode: 'pc' | 'mobile']; ret: boolean }
   // 地址栏外开箭头（PHASE2-SPEC §5）：仅 http(s) 才允许 shell.openExternal。
   'bp:openExternal': { args: [url: string]; ret: boolean }
   // 文档模式「打开文件…」：主进程弹系统对话框并读回 Markdown 文本。
@@ -348,6 +350,7 @@ export interface BpPageState {
   title: string
   loading: boolean
   error: string | null
+  deviceMode: 'pc' | 'mobile'
 }
 
 export interface BootInfo {

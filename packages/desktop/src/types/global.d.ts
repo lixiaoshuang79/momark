@@ -173,6 +173,7 @@ declare global {
     back(id: string): Promise<void>
     forward(id: string): Promise<void>
     reload(id: string): Promise<void>
+    setDeviceMode(id: string, mode: 'pc' | 'mobile'): Promise<boolean>
     getState(id: string): Promise<BpPageState>
     openExternal(url: string): Promise<boolean>
     pickDoc(): Promise<{ path: string; markdown: string } | null>
