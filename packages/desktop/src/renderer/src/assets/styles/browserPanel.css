@@ -25,6 +25,14 @@
   padding: 48px 8px 100px;
 }
 
+/* round26：分屏激活但右侧栏已收起（标题栏仍是双文件格式）——左文档
+   恢复居中列显示（720px 内容列在编辑区内居中），不再摊满整宽。 */
+.win-body.split:not(.panel-open) .editor-component .mu-container {
+  max-width: min(720px, 100%);
+  margin: 0 auto;
+  padding: 48px 32px 100px;
+}
+
 .win-body.dragging-split,
 .win-body.dragging-split * {
   cursor: col-resize !important;
