@@ -41,6 +41,11 @@ const MARKDOWN_FILTERS = [
 
 const isHttpUrl = (url: unknown): url is string => typeof url === 'string' && HTTP_URL_REG.test(url)
 
+// 移动端 UA：iPhone Safari（用户拍板 round16 新功能——网页模式底部工具栏
+// 可切换 PC / 移动端样式；setUserAgent 后必须 reload 才生效）。
+export const MOBILE_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+
 // 编辑器宿主窗口判定：MoMark 是 hash 路由 SPA，编辑器页为 #/editor，
 // 设置窗口为 #/preference。仅编辑器窗口允许挂载面板 webview。
 const isEditorHostContents = (contents: WebContents): boolean => {
@@ -63,6 +68,7 @@ interface GuestRuntimeState {
   error: string | null
   url: string
   title: string
+  deviceMode: 'pc' | 'mobile'
 }
 
 const pageRecords = new Map<string, BpPageRecord>()
@@ -70,12 +76,15 @@ const pageRecords = new Map<string, BpPageRecord>()
 const guestStates = new Map<number, GuestRuntimeState>()
 // attach 时尚未 bp:register 的 guest 与宿主对应关系
 const pendingGuests = new Map<number, { host: WebContents; guest: WebContents }>()
+// round16：guest 的 PC/移动端切换函数（closure 持有 originalUa 派生逻辑）
+const deviceModeAppliers = new Map<number, (mode: 'pc' | 'mobile') => void>()
 
 const freshRuntimeState = (): GuestRuntimeState => ({
   loading: false,
   error: null,
   url: '',
-  title: ''
+  title: '',
+  deviceMode: 'pc'
 })
 
 // ── guest 上锁（did-attach-webview）─────────────────────────────────
@@ -90,11 +99,23 @@ const hardenGuest = (host: WebContents, guest: WebContents): void => {
   // CloudFront WAF，识别 Electron/产品名 UA 直接 403（页面白屏）。
   // 剥离 UA 里的 Electron/墨记 标识，伪装成同内核标准 Chrome——
   // 实测：带 Electron 标识的 UA 请求 403、纯 Chrome UA 301 正常。
-  const cleanUa = guest
-    .getUserAgent()
-    .replace(/\sElectron\/[\d.]+/g, '')
-    .replace(/\s墨记\/[\d.]+/g, '')
+  // round16：原始 UA 留存一份，PC/移动端切换时从它派生（setUserAgent
+  // 后再 getUserAgent 返回的是已替换值，重复剥离会丢失基准）。
+  const originalUa = guest.getUserAgent()
+  const cleanUa = originalUa.replace(/\sElectron\/[\d.]+/g, '').replace(/\s墨记\/[\d.]+/g, '')
+  const uaByMode = (mode: 'pc' | 'mobile') => (mode === 'mobile' ? MOBILE_UA : cleanUa)
   guest.setUserAgent(cleanUa)
+  st.deviceMode = 'pc'
+
+  // round16：PC / 移动端样式切换。setUserAgent 只影响后续请求，
+  // 当前页面内容不会变化，切换后 reload 让站点按新 UA 重排。
+  const applyDeviceMode = (mode: 'pc' | 'mobile'): void => {
+    if (st.deviceMode === mode) return
+    st.deviceMode = mode
+    guest.setUserAgent(uaByMode(mode))
+    if (!guest.isDestroyed()) guest.reload()
+  }
+  deviceModeAppliers.set(guestId, applyDeviceMode)
 
   // 新窗口请求：http(s) → 面板内新建 Dock 页（渲染层监听 bp:new-window-request），
   // 其余一律拒绝。外开系统浏览器只走底部地址栏箭头（bp:openExternal）。
@@ -139,6 +160,7 @@ const hardenGuest = (host: WebContents, guest: WebContents): void => {
   guest.on('destroyed', () => {
     pendingGuests.delete(guestId)
     guestStates.delete(guestId)
+    deviceModeAppliers.delete(guestId)
     for (const [pageId, record] of pageRecords) {
       if (record.webContentsId === guestId) pageRecords.delete(pageId)
     }
@@ -316,6 +338,15 @@ export const registerBrowserPanelIpc = (): void => {
     if (guest && !guest.isDestroyed()) guest.reload()
   })
 
+  // round16：PC / 移动端样式切换（navBar 底部工具栏按钮）。
+  ipcMain.handle('bp:setDeviceMode', (event, id: string, mode: unknown) => {
+    if (mode !== 'pc' && mode !== 'mobile') return false
+    const guest = resolveGuest(id, event.sender)
+    if (!guest || guest.isDestroyed()) return false
+    deviceModeAppliers.get(guest.id)?.(mode)
+    return true
+  })
+
   ipcMain.handle('bp:getState', (event, id: string) => {
     const record = pageRecords.get(id)
     const guest = resolveGuest(id, event.sender)
@@ -325,7 +356,8 @@ export const registerBrowserPanelIpc = (): void => {
       url: record?.url ?? '',
       title: '',
       loading: false,
-      error: null
+      error: null,
+      deviceMode: 'pc' as 'pc' | 'mobile'
     }
     if (!guest || guest.isDestroyed()) return fallback
     const st = guestStates.get(guest.id) ?? freshRuntimeState()
@@ -343,7 +375,8 @@ export const registerBrowserPanelIpc = (): void => {
       url: st.url || guest.getURL() || record?.url || '',
       title: st.title || guest.getTitle(),
       loading: st.loading || guest.isLoading(),
-      error: st.error
+      error: st.error,
+      deviceMode: st.deviceMode
     }
   })
 

@@ -236,6 +236,7 @@ const bpAPI = {
   back: (id: string) => invoke('bp:back', id),
   forward: (id: string) => invoke('bp:forward', id),
   reload: (id: string) => invoke('bp:reload', id),
+  setDeviceMode: (id: string, mode: 'pc' | 'mobile') => invoke('bp:setDeviceMode', id, mode),
   getState: (id: string) => invoke('bp:getState', id),
   openExternal: (url: string) => invoke('bp:openExternal', url),
   pickDoc: () => invoke('bp:pickDoc'),

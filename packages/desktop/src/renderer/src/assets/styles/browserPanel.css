@@ -14,15 +14,17 @@
   position: relative;
 }
 
-/* 双屏分栏：左栏与右文档窗格内容顶部对齐、padding 对称（48px），
+/* 双屏分栏：左栏与右文档窗格内容顶部对齐、padding 对称。
    左列 max-width 放开（原型 .win-body.split .editor .col 在本工程对应
    muya 引擎的 .mu-container）。本文件最后引入，覆盖 claude-editor.css
    与引擎默认列宽/内边距。 */
 .win-body.split .editor-component .mu-container {
   /* round27 三次（用户拍板）：两侧文档统一——左边 2.5%、右边 0（贴分隔线）。
-     不再用 max-width 95% 居中（视觉右边距仍偏大），直接满宽 + 左内边距。 */
+     不再用 max-width 95% 居中（视觉右边距仍偏大），直接满宽 + 左内边距。
+     round16（用户反馈「文档开头水平线低、上方空一大块」）：顶部内边距
+     48px → 12px，标题贴紧工具区，分屏下不浪费首屏高度。 */
   max-width: none;
-  padding: 48px 0 100px 2.5%;
+  padding: 12px 0 100px 2.5%;
 }
 
 /* round27 四次（用户拍板）：左文档滚动条挪进左右文档中间的分隔带正中

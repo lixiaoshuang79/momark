@@ -47,6 +47,10 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   // 不落盘，重启回 288px 默认）。文档分屏的宽度归 split.width 管。
   const urlWidth = ref(288)
 
+  // round16（用户拍板）：网页 PC / 移动端样式。面板级状态——切换作用于
+  // 当前激活页（主进程换 UA + reload），新建页沿用当前模式。
+  const deviceMode = ref<'pc' | 'mobile'>('pc')
+
   let unlistenNewWindow: (() => void) | null = null
 
   function SET_URL_WIDTH(value: number): void {
@@ -97,10 +101,25 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
         error: null
       })
       activePageId.value = id
+      // 面板处于移动端模式时，新页沿用当前模式（attach 后主进程换 UA）。
+      if (deviceMode.value === 'mobile') await window.bp.setDeviceMode(id, 'mobile')
       return id
     } catch {
       notice.notify({ message: '无法打开网址（仅支持 http/https）', type: 'error', time: 2500 })
       return null
+    }
+  }
+
+  // round16：PC / 移动端样式切换（底部工具栏按钮）。切换只作用于当前
+  // 激活页；主进程 setUserAgent + reload，页面按新 UA 重排。
+  async function TOGGLE_DEVICE_MODE(): Promise<void> {
+    const id = activePageId.value
+    if (!id) return
+    const next: 'pc' | 'mobile' = deviceMode.value === 'pc' ? 'mobile' : 'pc'
+    const ok = await window.bp.setDeviceMode(id, next)
+    if (ok) {
+      deviceMode.value = next
+      UPDATE_PAGE_STATE(id, { loading: true, error: null })
     }
   }
 
@@ -188,6 +207,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     dragState,
     urlWidth,
     htmlDoc,
+    deviceMode,
     SET_OPEN,
     TOGGLE_PANEL,
     SET_MODE,
@@ -202,6 +222,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     CLOSE_HTML_DOC,
     OPEN_EXTERNAL,
     LISTEN,
-    STOP_LISTENING
+    STOP_LISTENING,
+    TOGGLE_DEVICE_MODE
   }
 })
