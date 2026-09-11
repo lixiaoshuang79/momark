@@ -55,9 +55,13 @@ HTML 代码块不再是一段源码，而是真实渲染的画面——数据图
 
 <img src="docs/screenshots/data-report.png" alt="数据分析报告" width="760" />
 
-**对照写 PRD** —— 左侧写需求文档，右侧同步对照设计稿：
+**边写边查** —— 左侧写需求文档，右侧同步查阅网页资料：
 
-<img src="docs/screenshots/prd-split-prototype.png" alt="PRD 与设计稿对照" width="760" />
+<img src="docs/screenshots/prd-with-web.png" alt="PRD 与网页对照" width="760" />
+
+**双文档分屏** —— 左右两篇文档并排对照：
+
+<img src="docs/screenshots/split-docs.png" alt="双文档分屏" width="760" />
 
 ## 安装
 
