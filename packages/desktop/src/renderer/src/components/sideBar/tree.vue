@@ -14,15 +14,6 @@
         <mo-icon name="i-file" />
         <span class="fname">{{ file.name }}</span>
         <span v-if="isCurrentFile(file.pathname)" class="cur-group">
-          <!-- round11 新功能：当前文档行的「在访达中打开」按钮，「当前」标记之前 -->
-          <button
-            class="reveal-btn"
-            :title="t('sideBar.tree.revealInFinder')"
-            @click.stop="revealInFinder(file.pathname)"
-          >
-            <mo-icon name="i-folder" />
-            <span class="reveal-label">{{ t('sideBar.tree.revealInFinder') }}</span>
-          </button>
           <span class="cur">{{ t('sideBar.tree.currentFile') }}</span>
         </span>
       </div>
@@ -101,11 +92,6 @@ const handleFileClick = (pathname: string): void => {
     window.electron.ipcRenderer.send('mt::open-file', pathname, {})
   }
 }
-
-// round11 新功能（用户拍板）：在访达中打开该文件所在位置并高亮该文件。
-const revealInFinder = (pathname: string): void => {
-  window.electron.shell.showItemInFolder(pathname)
-}
 </script>
 
 <style scoped>
@@ -172,12 +158,12 @@ const revealInFinder = (pathname: string): void => {
   flex: 1;
 }
 
-/* 当前文件行尾「当前」墨蓝标记 + 「在访达中打开」按钮（round11 新功能） */
+/* round13（用户拍板）：行尾只留「当前」墨蓝标记——「在访达中打开」移到
+   顶栏文件名 hover 出现的小箭头按钮（titleBar），行尾不再拥挤。 */
 .sb-row .cur-group {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   flex: none;
 }
 
@@ -185,41 +171,6 @@ const revealInFinder = (pathname: string): void => {
   font-size: 11px;
   color: var(--accent);
   font-weight: 600;
-  flex: none;
-}
-
-.sb-row .reveal-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 22px;
-  padding: 0 7px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  flex: none;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-.sb-row .reveal-btn:hover {
-  background: var(--hover);
-  color: var(--accent);
-}
-
-.sb-row .reveal-btn:active {
-  transform: scale(0.97);
-}
-
-.sb-row .reveal-btn svg {
-  width: 12px;
-  height: 12px;
   flex: none;
 }
 

@@ -44,6 +44,16 @@
             @dblclick.stop="startRename"
             >{{ titleLabel }}</span
           >
+          <!-- round13（用户拍板）：鼠标移到文件名上时右侧出现小箭头按钮，
+               点击在访达中打开该文件（原左栏行尾按钮移来此处，行尾不再拥挤）。 -->
+          <button
+            v-if="!renaming && pathname"
+            class="reveal-title-btn title-no-drag"
+            :title="t('sideBar.tree.revealInFinder')"
+            @click.stop="revealInFinder"
+          >
+            <mo-icon name="i-external" />
+          </button>
           <template v-if="rightDocName">
             <span class="title-sep" aria-hidden="true">|</span>
             <span
@@ -403,6 +413,13 @@ const cancelRename = () => {
   renaming.value = false
 }
 
+// round13（用户拍板）：顶栏文件名 hover 的小箭头——在访达中打开并高亮。
+const revealInFinder = () => {
+  if (props.pathname) {
+    window.electron.shell.showItemInFolder(props.pathname)
+  }
+}
+
 // round11（用户反馈）：双击右侧文档名同样发出重命名（竖线两侧都有效）。
 // 复用 RENAME_FILE（= 标签栏右键重命名口径：激活该文档后弹重命名框）。
 const renameRightDoc = () => {
@@ -511,6 +528,37 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+
+/* round13（用户拍板）：文件名 hover 出现的小箭头按钮——在访达中打开 */
+.reveal-title-btn {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.title-path:hover .reveal-title-btn {
+  opacity: 1;
+}
+.reveal-title-btn:hover {
+  background: var(--hover);
+  color: var(--accent);
+}
+.reveal-title-btn svg {
+  width: 13px;
+  height: 13px;
 }
 
 /* round13：就地重命名输入框——与标题同位、细描边、墨蓝 focus 环 */
