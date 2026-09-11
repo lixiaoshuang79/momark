@@ -96,6 +96,9 @@ const FRAME_DEFAULT_HEIGHT = 400;
 function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
     const shell = document.createElement('div');
     shell.classList.add(CLASS_NAMES.MU_HTML_FRAME);
+    // The author's inline style (e.g. `width:100%;height:400px`) is
+    // preserved verbatim: return to it when the user resets to 100%.
+    const authorStyle = frame.getAttribute('style') ?? '';
 
     const toolbar = document.createElement('div');
     toolbar.classList.add(CLASS_NAMES.MU_HTML_FRAME_TOOLBAR);
@@ -125,16 +128,17 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
     let baseH = 0;
     let curW = 0;
     let curH = 0;
+    let curZoom = 1;
     let userTouched = false;
     let frameLoaded = false;
 
-    // Synchronous baseline read used by user actions. Once the user has
-    // taken control the baseline is frozen: re-reading after every zoom
-    // would compound (1.1x × 1.2x × … — reproduced as a 96k-px frame).
-    // Also gated on the iframe load event: measuring before load can catch
-    // an unsettled layout (observed 88%-width first-paint reads).
+    // Synchronous baseline read used by user actions. Frozen once the user
+    // has anchored a viewport (curW), so re-reading after every zoom would
+    // compound (1.1x × 1.2x × … — reproduced as a 96k-px frame). Also gated
+    // on the iframe load event: measuring before load can catch an unsettled
+    // layout (observed 88%-width first-paint reads).
     const readBaseNow = () => {
-        if (userTouched || !frameLoaded)
+        if (!frameLoaded || curW)
             return;
         baseW = frame.offsetWidth || baseW;
         baseH = frame.offsetHeight || FRAME_DEFAULT_HEIGHT;
@@ -150,6 +154,15 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 readBaseNow();
+                // A late-loading frame with a pending zoom/drag anchors the
+                // viewport and applies the user's settings once the
+                // baseline exists.
+                if (userTouched && !curW && baseW) {
+                    curW = baseW;
+                    curH = baseH;
+                }
+                if (userTouched && curW)
+                    apply();
             });
         });
     };
@@ -158,7 +171,7 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
     // baseline at its final layout size.
     frame.addEventListener('load', () => {
         frameLoaded = true;
-        if (!userTouched) {
+        if (!curW) {
             baseW = 0;
             readBase();
         }
@@ -178,51 +191,75 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
         // the author's CSS (`width:100%`) untouched so it follows the editor
         // layout (split view, window resize). Any inline px write would
         // permanently break that.
-        if (!userTouched || !baseW)
+        if (!userTouched || !baseW || !frameLoaded)
             return;
-        // The shell tracks the frame's real viewport: the whole block grows
-        // and shrinks with a drag (overflowing the editor pane horizontally
-        // when the viewport is wider than the container, like a large image).
+        // Two independent controls, browser semantics:
+        // - zoom (± / %): content scales like Chrome page zoom. The iframe
+        //   gets CSS `zoom` and a compensated layout size (width ÷ zoom), so
+        //   its VISUAL box — and the shell around it — keeps the user's
+        //   viewport size while the embedded page reflows at a smaller
+        //   layout viewport and is rendered bigger.
+        // - drag: changes the real viewport size (curW/curH); the shell
+        //   tracks it, so the whole block grows/shrinks.
         shell.style.width = `${curW}px`;
-        frame.style.width = `${curW}px`;
-        frame.style.height = `${curH}px`;
-        pct.textContent = `${Math.round((curW / baseW) * 100)}%`;
+        frame.style.zoom = `${curZoom}`;
+        frame.style.width = `${curW / curZoom}px`;
+        frame.style.height = `${curH / curZoom}px`;
+        pct.textContent = `${Math.round(curZoom * 100)}%`;
     };
 
-    // Geometric zoom relative to the frame's current size (each click = +10%
-    // / -10%), bounded by FRAME_ZOOM_MIN/MAX against the frozen baseline.
-    // The percentage label is always relative to the author's original size.
+    // Drop every inline override so the author's CSS (width:100%) takes
+    // over again and the block follows the editor layout.
+    const release = () => {
+        shell.style.width = '';
+        frame.setAttribute('style', authorStyle);
+    };
+
+    // Geometric content zoom, bounded by FRAME_ZOOM_MIN/MAX. The viewport
+    // (block) size stays untouched — Chrome page-zoom semantics.
     const zoomBy = (factor: number) => {
         userTouched = true;
-        if (!baseW)
+        if (!frameLoaded || !baseW)
             return;
-        // First user action anchors the working size at the baseline.
+        // First user action anchors the working viewport at the baseline.
         if (!curW) {
             curW = baseW;
             curH = baseH;
         }
-        const minW = baseW * FRAME_ZOOM_MIN;
-        const maxW = baseW * FRAME_ZOOM_MAX;
-        const minH = baseH * FRAME_ZOOM_MIN;
-        const maxH = baseH * FRAME_ZOOM_MAX;
-        curW = Math.min(maxW, Math.max(minW, curW * factor));
-        curH = Math.min(maxH, Math.max(minH, curH * factor));
+        curZoom = Math.min(
+            FRAME_ZOOM_MAX,
+            Math.max(FRAME_ZOOM_MIN, curZoom * factor),
+        );
         apply();
     };
 
     const zoomTo = (scale: number) => {
-        userTouched = true;
-        if (!baseW || !Number.isFinite(scale))
+        if (!frameLoaded || !baseW || !Number.isFinite(scale))
             return;
-        const clamped = Math.min(FRAME_ZOOM_MAX, Math.max(FRAME_ZOOM_MIN, scale));
-        curW = Math.max(FRAME_MIN_WIDTH, baseW * clamped);
-        curH = Math.max(FRAME_MIN_HEIGHT, baseH * clamped);
+        curZoom = Math.min(
+            FRAME_ZOOM_MAX,
+            Math.max(FRAME_ZOOM_MIN, scale),
+        );
+        if (curZoom === 1 && curW === baseW) {
+            // Back to the pristine state: follow the editor layout again.
+            userTouched = false;
+            curW = 0;
+            curH = 0;
+            release();
+            pct.textContent = '100%';
+            return;
+        }
+        userTouched = true;
+        if (!curW) {
+            curW = baseW;
+            curH = baseH;
+        }
         apply();
     };
 
     const resizeTo = (width: number, height: number) => {
         userTouched = true;
-        if (!baseW)
+        if (!baseW || !frameLoaded)
             return;
         curW = Math.max(FRAME_MIN_WIDTH, width);
         curH = Math.max(FRAME_MIN_HEIGHT, height);
