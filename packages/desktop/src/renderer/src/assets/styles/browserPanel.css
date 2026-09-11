@@ -20,10 +20,9 @@
    与引擎默认列宽/内边距。 */
 .win-body.split .editor-component .mu-container {
   max-width: none;
-  /* round26（用户反馈）：左右 56→20——分栏下两侧 56px 内边距在左右
-     编辑器之间留下约 116px 的空白带（红框），内容宽度即使 100% 也
-     填不满；收窄到 20px，两侧对称。 */
-  padding: 48px 20px 100px;
+  /* round26 二次反馈：左右 20 仍嫌中间空——分栏内容直接顶满窗格
+     （水平内边距 0），两侧文档视觉上由分隔线分隔。 */
+  padding: 48px 0 100px;
 }
 
 .win-body.dragging-split,
@@ -612,8 +611,9 @@
   flex-direction: column;
   overflow: hidden;
   /* round11（用户拍板）：顶部 padding 0——文档内容开始线直接与左主编辑器
-     对齐（引擎 mu-container 自带 48px 内容上边距，足够远离卡片圆角）。 */
-  padding: 0 8px 0;
+     对齐（引擎 mu-container 自带 48px 内容上边距，足够远离卡片圆角）。
+     round26：左右 padding 同步归 0——分栏内容顶满窗格，与左栏对称。 */
+  padding: 0;
   box-sizing: border-box;
   /* dock-panel 卡片化后画布由 .bp-inner 提供，本层不再刷底色 */
   background: transparent;
