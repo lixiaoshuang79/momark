@@ -402,11 +402,13 @@ class HTMLPreview extends Parent {
             // Restore placeholders as real iframes. Scripts run behind an
             // opaque origin via `sandbox="allow-scripts"` (no
             // `allow-same-origin`), so the embedded page cannot touch the
-            // editor or the local filesystem; native `loading="lazy"` defers
-            // rendering until the block scrolls into view. Mirrors Typora's
-            // documented model ("scripts are allowed inside an iframe but
-            // wrapped with sandbox attributes, no access to your writing
-            // content nor local files").
+            // editor or the local filesystem. No `loading="lazy"`: in the
+            // split-view right pane the pane mounts mid-layout and Chromium
+            // can classify the frame as off-viewport, leaving the block blank
+            // until a scroll — HTML blocks are document content, load them
+            // eagerly. Mirrors Typora's documented model ("scripts are
+            // allowed inside an iframe but wrapped with sandbox attributes,
+            // no access to your writing content nor local files").
             for (const [slot, attrs] of frames) {
                 const holder = findFrameSlot(this.domNode!, slot);
 
@@ -416,7 +418,6 @@ class HTMLPreview extends Parent {
                 const frame = document.createElement('iframe');
                 frame.setAttribute('src', getIframeSrc(attrs.src));
                 frame.setAttribute('sandbox', 'allow-scripts');
-                frame.setAttribute('loading', 'lazy');
 
                 if (attrs.style)
                     frame.setAttribute('style', attrs.style);
