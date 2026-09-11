@@ -19,11 +19,21 @@
    muya 引擎的 .mu-container）。本文件最后引入，覆盖 claude-editor.css
    与引擎默认列宽/内边距。 */
 .win-body.split .editor-component .mu-container {
+  /* round27 三次（用户拍板）：两侧文档统一——左边 2.5%、右边 0（贴分隔线）。
+     不再用 max-width 95% 居中（视觉右边距仍偏大），直接满宽 + 左内边距。 */
   max-width: none;
-  /* round11（用户拍板）：左右 32→56——分屏后左窗格变窄，原 32px 内容
-     快贴到窗格边缘，放宽到 56px 呼吸感与全屏观感一致（右窗格同规则生效，
-     两侧对称）。 */
-  padding: 48px 56px 100px;
+  padding: 48px 0 100px 2.5%;
+}
+
+/* round27 四次（用户拍板）：左文档滚动条挪进左右文档中间的分隔带正中
+   （容器右缘右移 ~5px，滚动条落在 ~9px 分隔带的中央）。
+   右栏编辑器（.bpanel 内）不受影响，滚动条留在面板右缘。 */
+.win-body.split .editor-component {
+  margin-right: -5px;
+}
+
+.win-body.split .bpanel .editor-component {
+  margin-right: 0;
 }
 
 .win-body.dragging-split,
@@ -612,8 +622,9 @@
   flex-direction: column;
   overflow: hidden;
   /* round11（用户拍板）：顶部 padding 0——文档内容开始线直接与左主编辑器
-     对齐（引擎 mu-container 自带 48px 内容上边距，足够远离卡片圆角）。 */
-  padding: 0 8px 0;
+     对齐（引擎 mu-container 自带 48px 内容上边距，足够远离卡片圆角）。
+     round26：左右 padding 同步归 0——分栏内容顶满窗格，与左栏对称。 */
+  padding: 0;
   box-sizing: border-box;
   /* dock-panel 卡片化后画布由 .bp-inner 提供，本层不再刷底色 */
   background: transparent;
@@ -691,7 +702,21 @@
   padding: 4px 2px;
   white-space: pre-line;
 }
-/* ── 底部条：网址模式 = 40px 导航条；文档模式 = 36px 打开文件（顶部 hairline）── */
+/* ── 底部条：网址模式 = 40px 导航条；文档模式 = 36px 打开文件/新建文件（顶部 hairline）── */
+.bp-doc-actions {
+  flex: none;
+  display: flex;
+  border-top: 1px solid var(--line);
+}
+.bp-doc-actions .bp-openfile {
+  flex: 1;
+  justify-content: center;
+  border-top: none;
+  padding: 0 10px;
+}
+.bp-doc-actions .bp-openfile + .bp-openfile {
+  border-left: 1px solid var(--line);
+}
 .bp-openfile {
   flex: none;
   display: flex;
@@ -718,6 +743,65 @@
 .bp-openfile svg {
   width: 14px;
   height: 14px;
+}
+/* ── 文档模式的 HTML 渲染页（编辑器内嵌 HTML「在侧栏打开」落点）── */
+.bp-html-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #fff;
+}
+.bp-html-view iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+/* 缩放控制条：右下角 hover 显示（与编辑器内嵌 html 块同一语义） */
+.bp-html-zoom {
+  position: absolute;
+  right: 20px;
+  bottom: 6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.bp-html-view:hover .bp-html-zoom {
+  opacity: 1;
+}
+.bp-zoom-btn {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.bp-zoom-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.bp-zoom-pct {
+  min-width: 44px;
+  text-align: center;
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  padding: 4px 2px;
+  border-radius: 5px;
+}
+.bp-zoom-pct:hover {
+  background: rgba(255, 255, 255, 0.18);
 }
 .bp-browserbar {
   flex: none;

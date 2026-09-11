@@ -128,6 +128,7 @@ export const CLASS_NAMES = genUpper2LowerKeyHash([
     'MU_HTML_ESCAPE',
     'MU_HTML_ESCAPE_MARKER',
     'MU_HTML_PREVIEW',
+    'MU_HTML_IFRAME',
     'MU_HTML_TAG',
     'MU_IMAGE_FAIL',
     'MU_IMAGE_BUTTONS',
@@ -198,6 +199,10 @@ export const CLASS_NAMES = genUpper2LowerKeyHash([
     'MU_VEGA_LITE',
     'MU_WARN',
     'MU_SHOW_QUICK_INSERT_HINT',
+    // Interactive HTML embeds: wrapper shell, hover zoom toolbar, resize handle
+    'MU_HTML_FRAME',
+    'MU_HTML_FRAME_TOOLBAR',
+    'MU_HTML_FRAME_RESIZER',
 ]);
 
 export const PARAGRAPH_TYPES = [

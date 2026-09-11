@@ -169,7 +169,7 @@ export const usePreferencesStore = defineStore('preferences', {
     codeBlockLineNumbers: false,
     trimUnnecessaryCodeBlockEmptyLines: true,
     wrapCodeBlocks: false,
-    editorLineWidth: '',
+    editorLineWidth: '100%',
 
     autoPairBracket: true,
     autoPairMarkdownSyntax: true,

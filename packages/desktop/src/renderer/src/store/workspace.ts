@@ -17,8 +17,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const splitStore = useSplitStore()
   const bpStore = useBrowserPanelStore()
 
-  // 左侧标签集合：分屏 doc 已被拆出的文档不参与（互斥由推导保证）。
-  const visibleTabs = computed(() => editorStore.tabs.filter((t) => t.id !== splitStore.tabId))
+  // 左侧标签集合：分屏 doc 保留在标签栏（round27 用户反馈——拖出唯一
+  // 标签分屏时标签条整条空白；保留后点击即把左编辑器切回该文档）。
+  const visibleTabs = computed(() => editorStore.tabs)
 
   // round9（用户拍板）：标签条所有场景常驻渲染（原 PHASE2-SPEC §10 的
   // 「single 隐藏标签栏整行」作废——拖回标签栏后单文档标签需立即可见）。

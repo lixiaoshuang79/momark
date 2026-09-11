@@ -398,9 +398,6 @@ export class ParagraphFrontButton {
             this._cleanup = null;
         }
 
-        const styles = window.getComputedStyle(domNode!);
-        const paddingTop = Number.parseFloat(styles.paddingTop);
-
         // round11（用户反馈「H 离文字有点远」）：徽标不再随段落 paddingTop 右移
         // （h1 padding-top 20px 时徽标距文字 20px 悬空），统一贴文字左缘 6px。
         const dynamicMainAxis = 6;

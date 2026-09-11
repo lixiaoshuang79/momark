@@ -39,7 +39,7 @@ const ABSOLUTE_LOCAL_REG = /^(?:\/|\\\\|[a-z]:\\|[a-z]:\/).+/i;
  * to `/` first (Chromium loads `file://` URLs with forward slashes regardless
  * of platform). `.` and `..` segments are collapsed.
  */
-function resolveRelativePath(base: string, relative: string): string {
+export function resolveRelativePath(base: string, relative: string): string {
     const normalizedBase = base.replace(/\\/g, '/').replace(/\/+$/, '');
     const combined = `${normalizedBase}/${relative.replace(/\\/g, '/')}`;
     // Isolate the root that `..` must never collapse past (mirroring
@@ -67,7 +67,7 @@ function resolveRelativePath(base: string, relative: string): string {
     return tail ? `${root}/${tail}` : root;
 }
 
-function localPathToFileUrl(src: string): string {
+export function localPathToFileUrl(src: string): string {
     const normalized = src.replace(/\\/g, '/');
 
     if (/^\/\/[^/]+\/[^/]+/.test(normalized))
@@ -138,6 +138,43 @@ export function getImageSrc(src: string) {
             };
         }
     }
+}
+
+// Resolve an `<iframe src>` inside an HTML block: remote URLs and `file://`
+// URLs pass through unchanged; a relative path is anchored to the document
+// directory (`window.DIRNAME`), mirroring `getImageSrc`'s local-path handling.
+export function getIframeSrc(src: string): string {
+    // http[s] (domain or IPv4 or localhost or IPv6) [port] /not-white-space
+    const URL_REG
+        = /^https?:\/\/(?:[\w\-.~]+\.[a-z]{2,}|[0-9.]+|localhost|\[[a-f0-9.:]+\])(?::\d{1,5})?\/\S+/i;
+
+    let resolved: string;
+    if (URL_REG.test(src) || /^file:\/\//i.test(src))
+        resolved = src;
+    else if (ABSOLUTE_LOCAL_REG.test(src))
+        resolved = localPathToFileUrl(src);
+    else {
+        const baseUrl
+            = typeof window !== 'undefined' ? window.DIRNAME : undefined;
+        if (baseUrl)
+            resolved = localPathToFileUrl(resolveRelativePath(baseUrl, src));
+        else
+            // No document directory (headless / no open file): leave as-is so the
+            // browser resolves it against the current page instead of loading nothing.
+            resolved = src;
+    }
+
+    // round27：本地文件的 iframe 加随机 query——同一文档左右同开时两个
+    // frame 指向同一 file URL，Chromium 偶发只让一个完成渲染（另一侧白框）。
+    // query 只改变 URL 身份，file 协议忽略它照样加载（实测）。
+    if (/^file:\/\//i.test(resolved)) {
+        const [pathPart, hashPart] = resolved.split(/#/, 2);
+        const sep = pathPart.includes('?') ? '&' : '?';
+        resolved = pathPart + sep + 'mt=' + Math.random().toString(36).slice(2)
+            + (hashPart != null ? `#${hashPart}` : '');
+    }
+
+    return resolved;
 }
 
 export async function loadImage(url: string, detectContentType = false): Promise<{

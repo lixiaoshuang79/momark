@@ -7,7 +7,28 @@
     <!-- round11（用户拍板）：右栏不再有任何顶部占位/头条——文档内容开始线
          与左主编辑器对齐由 .bp-inner margin-top 0 + .bp-doc padding-top 0
          保证（两侧 mu-container 同 top）。 -->
-    <doc-editor-pane v-if="hasContent" />
+    <!-- HTML 渲染页：编辑器内嵌 HTML 块「在侧栏打开」的落点，sandbox 与
+         编辑器内嵌同一隔离等级。与分屏 md 文档互斥。关闭走标题栏右侧
+         文档名的 ×（直接关掉整个右侧栏，不落空白文档态）。 -->
+    <div v-if="htmlDoc" ref="htmlViewRef" class="bp-html-view">
+      <iframe
+        ref="htmlFrameRef"
+        :src="htmlDoc.src"
+        sandbox="allow-scripts"
+        :title="htmlDoc.title"
+      />
+      <!-- 缩放控制条（右下角 hover 显示）：− / 100% / +，语义与编辑器
+           内嵌 html 块一致——内容缩放（CSS zoom + 布局补偿），视图窗口
+           尺寸不变、跟随右侧栏宽度。 -->
+      <div class="bp-html-zoom">
+        <button class="bp-zoom-btn" type="button" title="Zoom out" @click="zoomBy(1 / 1.1)">
+          −
+        </button>
+        <span class="bp-zoom-pct" title="Reset zoom" @click="zoomTo(1)">{{ zoomPct }}</span>
+        <button class="bp-zoom-btn" type="button" title="Zoom in" @click="zoomBy(1.1)">+</button>
+      </div>
+    </div>
+    <doc-editor-pane v-else-if="hasContent" />
     <div v-else class="bp-doc-empty">
       <div class="bp-recents-title">
         {{ t('welcome.recentTitle') }}
@@ -32,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useBrowserPanelStore } from '@/store/browserPanel'
@@ -50,8 +71,72 @@ import DocEditorPane from './docEditorPane.vue'
 const workspaceStore = useWorkspaceStore()
 const bpStore = useBrowserPanelStore()
 const { splitDocTab } = storeToRefs(workspaceStore)
+const { htmlDoc } = storeToRefs(bpStore)
 
 const hasContent = computed(() => !!splitDocTab.value)
+
+// ── HTML 渲染页缩放（语义与编辑器内嵌 html 块一致）──────────────────
+// CSS zoom（内容缩放，Chrome 页面缩放语义）+ 布局补偿：iframe 视觉盒保持
+// 容器尺寸（跟随右侧栏宽度），内页按缩放比例重排放大。50%–200% 几何递进；
+// 100% 时不写内联尺寸，iframe 保持 width/height 100% 跟随面板。
+const htmlViewRef = ref<HTMLDivElement | null>(null)
+const htmlFrameRef = ref<HTMLIFrameElement | null>(null)
+const htmlZoom = ref(1)
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 2
+
+const zoomPct = computed(() => `${Math.round(htmlZoom.value * 100)}%`)
+
+const applyZoom = () => {
+  const host = htmlViewRef.value
+  const frame = htmlFrameRef.value
+  if (!host || !frame) return
+  if (htmlZoom.value === 1) {
+    frame.style.zoom = ''
+    frame.style.width = ''
+    frame.style.height = ''
+    return
+  }
+  const w = host.clientWidth
+  const h = host.clientHeight
+  frame.style.zoom = `${htmlZoom.value}`
+  frame.style.width = `${w / htmlZoom.value}px`
+  frame.style.height = `${h / htmlZoom.value}px`
+}
+
+const zoomBy = (factor: number) => {
+  htmlZoom.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, htmlZoom.value * factor))
+  applyZoom()
+}
+
+const zoomTo = (scale: number) => {
+  if (!Number.isFinite(scale)) return
+  htmlZoom.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale))
+  applyZoom()
+}
+
+// 缩放后拖动右侧栏分隔线：容器尺寸变化时按新尺寸重算补偿（zoom=1 时
+// 无内联样式，天然跟随）。换文档/关闭时复位缩放。
+let resizeObserver: ResizeObserver | null = null
+watch(
+  () => htmlDoc.value,
+  async (doc) => {
+    htmlZoom.value = 1
+    resizeObserver?.disconnect()
+    resizeObserver = null
+    if (!doc) return
+    await nextTick()
+    applyZoom()
+    resizeObserver = new ResizeObserver(() => applyZoom())
+    if (htmlViewRef.value) resizeObserver.observe(htmlViewRef.value)
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+})
 
 // 空态最近打开列表：主进程系统级最近文档（同欢迎页数据源，≤8 条）。
 type RecentItem = { path: string; name: string; dirname: string; mtime: number }
@@ -75,6 +160,9 @@ onMounted(loadRecents)
 const openFileByPath = async (path: string, markdown: string) => {
   const editorStore = useEditorStore()
   const splitStore = useSplitStore()
+
+  // 打开/新建文档时清掉 HTML 渲染页（两种内容互斥）。
+  bpStore.CLOSE_HTML_DOC()
 
   // 文件已在标签集合：直接进分屏。若该文档已在右屏（分屏中），
   // 左栏也切到它，实现左右同文档双开。
@@ -136,5 +224,22 @@ const openFile = async () => {
   await openFileByPath(result.path, result.markdown ?? '')
 }
 
-defineExpose({ openFile })
+// 「新建文件」由 index.vue 底部条调用：新建未落盘 untitled 标签并直接
+// 进入右栏分屏编辑（左栏保持当前文档）；保存时走主 store 的「另存为」
+// 对话框选择落盘路径（与左编辑器新建文档同一管线）。
+const newFile = () => {
+  const editorStore = useEditorStore()
+  const splitStore = useSplitStore()
+
+  bpStore.CLOSE_HTML_DOC()
+  editorStore.NEW_UNTITLED_TAB({ selected: false })
+  const tab = editorStore.tabs[editorStore.tabs.length - 1]
+  if (!tab || tab.pathname !== '') return
+
+  bpStore.SET_OPEN(true)
+  bpStore.SET_MODE('doc')
+  splitStore.DRAG_TO_SPLIT(tab.id, { keepCurrent: true })
+}
+
+defineExpose({ openFile, newFile })
 </script>

@@ -71,7 +71,11 @@ export class PreviewToolBar extends BaseFloat {
 
     render() {
         const { _iconContainer: iconContainer, _oldVNode: oldVNode } = this;
-        const children = ICONS.map((i) => {
+        // The side-panel action only makes sense for HTML embeds (a math
+        // block cannot be rendered in the side panel).
+        const items
+            = this._block?.blockName === 'html-block' ? ICONS : ICONS.slice(0, 2);
+        const children = items.map((i) => {
             const iconWrapperSelector = 'div.icon-wrapper';
             const icon = h(
                 'i.icon',
@@ -138,6 +142,20 @@ export class PreviewToolBar extends BaseFloat {
                 );
                 block!.replaceWith(newBlock);
                 cursorBlock = newBlock.firstContentInDescendant();
+                break;
+            }
+
+            case 'open-sidebar': {
+                // Only meaningful for HTML embeds; the host app listens for
+                // this event and renders the page in the right side panel.
+                const frame = block!.domNode!.querySelector('iframe');
+                const src = frame?.getAttribute('src');
+                if (src) {
+                    this.muya.eventCenter.emit('muya-html-open-sidebar', {
+                        src,
+                        title: frame!.getAttribute('title') || src,
+                    });
+                }
                 break;
             }
         }

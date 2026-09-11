@@ -23,7 +23,7 @@
   "codeBlockLineNumbers": false,
   "trimUnnecessaryCodeBlockEmptyLines": true,
   "wrapCodeBlocks": false,
-  "editorLineWidth": "",
+  "editorLineWidth": "100%",
   "autoPairBracket": true,
   "autoPairMarkdownSyntax": true,
   "autoPairQuote": true,
@@ -34,7 +34,7 @@
   "trimTrailingNewline": 2,
   "textDirection": "ltr",
   "hideQuickInsertHint": false,
-  "imageInsertAction": "path",
+  "imageInsertAction": "upload",
   "imagePreferRelativeDirectory": false,
   "imageRelativeDirectoryBase": "file",
   "imageRelativeDirectoryName": "assets",
@@ -70,5 +70,7 @@
   "searchIncludeHidden": false,
   "searchNoIgnore": false,
   "searchFollowSymlinks": true,
-  "watcherUsePolling": false
+  "watcherUsePolling": false,
+  "imageUploaderEnabled": true,
+  "imageUploaderService": "picgo"
 }
