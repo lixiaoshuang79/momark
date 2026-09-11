@@ -148,20 +148,33 @@ export function getIframeSrc(src: string): string {
     const URL_REG
         = /^https?:\/\/(?:[\w\-.~]+\.[a-z]{2,}|[0-9.]+|localhost|\[[a-f0-9.:]+\])(?::\d{1,5})?\/\S+/i;
 
+    let resolved: string;
     if (URL_REG.test(src) || /^file:\/\//i.test(src))
-        return src;
+        resolved = src;
+    else if (ABSOLUTE_LOCAL_REG.test(src))
+        resolved = localPathToFileUrl(src);
+    else {
+        const baseUrl
+            = typeof window !== 'undefined' ? window.DIRNAME : undefined;
+        if (baseUrl)
+            resolved = localPathToFileUrl(resolveRelativePath(baseUrl, src));
+        else
+            // No document directory (headless / no open file): leave as-is so the
+            // browser resolves it against the current page instead of loading nothing.
+            resolved = src;
+    }
 
-    if (ABSOLUTE_LOCAL_REG.test(src))
-        return localPathToFileUrl(src);
+    // round27：本地文件的 iframe 加随机 query——同一文档左右同开时两个
+    // frame 指向同一 file URL，Chromium 偶发只让一个完成渲染（另一侧白框）。
+    // query 只改变 URL 身份，file 协议忽略它照样加载（实测）。
+    if (/^file:\/\//i.test(resolved)) {
+        const [pathPart, hashPart] = resolved.split(/#/, 2);
+        const sep = pathPart.includes('?') ? '&' : '?';
+        resolved = pathPart + sep + 'mt=' + Math.random().toString(36).slice(2)
+            + (hashPart != null ? `#${hashPart}` : '');
+    }
 
-    const baseUrl
-        = typeof window !== 'undefined' ? window.DIRNAME : undefined;
-    if (baseUrl)
-        return localPathToFileUrl(resolveRelativePath(baseUrl, src));
-
-    // No document directory (headless / no open file): leave as-is so the
-    // browser resolves it against the current page instead of loading nothing.
-    return src;
+    return resolved;
 }
 
 export async function loadImage(url: string, detectContentType = false): Promise<{

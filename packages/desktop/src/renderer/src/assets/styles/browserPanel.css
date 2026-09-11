@@ -25,6 +25,17 @@
   padding: 48px 0 100px 2.5%;
 }
 
+/* round27 四次（用户拍板）：左文档滚动条挪进左右文档中间的分隔带正中
+   （容器右缘右移 ~5px，滚动条落在 ~9px 分隔带的中央）。
+   右栏编辑器（.bpanel 内）不受影响，滚动条留在面板右缘。 */
+.win-body.split .editor-component {
+  margin-right: -5px;
+}
+
+.win-body.split .bpanel .editor-component {
+  margin-right: 0;
+}
+
 .win-body.dragging-split,
 .win-body.dragging-split * {
   cursor: col-resize !important;
