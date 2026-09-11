@@ -99,6 +99,11 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
     // The author's inline style (e.g. `width:100%;height:400px`) is
     // preserved verbatim: return to it when the user resets to 100%.
     const authorStyle = frame.getAttribute('style') ?? '';
+    // The outer block container (`figure.mu-html-block`) must track the
+    // viewport too: otherwise a shrunk frame leaves a grey gutter of the
+    // container's own width on the right. Resolved lazily — during the
+    // first update() the preview node is not yet attached to its figure.
+    const figureOf = () => shell.closest('figure');
 
     const toolbar = document.createElement('div');
     toolbar.classList.add(CLASS_NAMES.MU_HTML_FRAME_TOOLBAR);
@@ -200,8 +205,14 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
         //   viewport size while the embedded page reflows at a smaller
         //   layout viewport and is rendered bigger.
         // - drag: changes the real viewport size (curW/curH); the shell
-        //   tracks it, so the whole block grows/shrinks.
+        //   and the outer figure track it, so the whole block grows/shrinks.
         shell.style.width = `${curW}px`;
+        const fig = figureOf();
+        // max-width (not width): the Muya engine writes its own measured
+        // inline width to the figure, which must not override the user's
+        // shrunken viewport (otherwise a grey gutter stays behind).
+        if (fig)
+            fig.style.maxWidth = `${curW}px`;
         frame.style.zoom = `${curZoom}`;
         frame.style.width = `${curW / curZoom}px`;
         frame.style.height = `${curH / curZoom}px`;
@@ -212,6 +223,9 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
     // over again and the block follows the editor layout.
     const release = () => {
         shell.style.width = '';
+        const fig = figureOf();
+        if (fig)
+            fig.style.maxWidth = '';
         frame.setAttribute('style', authorStyle);
     };
 
