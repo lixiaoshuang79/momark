@@ -77,6 +77,204 @@ function findFrameSlot(root: HTMLElement, slot: string): HTMLSpanElement | null 
     return null;
 }
 
+// Zoom range for embedded HTML (viewport-size scaling, like a browser
+// window; the page reflows so charts redraw to fit).
+const FRAME_ZOOM_MIN = 0.5;
+const FRAME_ZOOM_MAX = 2;
+const FRAME_ZOOM_STEP = 0.1;
+// Minimum viewport for dragging, and default height when the author did not
+// specify one (the HTML default of 150px is useless for charts/prototypes).
+const FRAME_MIN_WIDTH = 240;
+const FRAME_MIN_HEIGHT = 160;
+const FRAME_DEFAULT_HEIGHT = 400;
+
+// Wrap the restored iframe in a shell that adds two viewport controls:
+// a hover zoom toolbar (− / +, percentage click resets to 100%) and a
+// bottom-right drag handle that resizes the frame (the embedded page gets a
+// real, different viewport and reflows). State is session-local on purpose:
+// never written back into the source markdown.
+function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
+    const shell = document.createElement('div');
+    shell.classList.add(CLASS_NAMES.MU_HTML_FRAME);
+
+    const toolbar = document.createElement('div');
+    toolbar.classList.add(CLASS_NAMES.MU_HTML_FRAME_TOOLBAR);
+    const pct = document.createElement('span');
+    pct.classList.add('mu-html-frame-zoom');
+    pct.textContent = '100%';
+    pct.title = 'Reset zoom';
+    const btnOut = document.createElement('button');
+    btnOut.type = 'button';
+    btnOut.textContent = '−';
+    btnOut.title = 'Zoom out';
+    const btnIn = document.createElement('button');
+    btnIn.type = 'button';
+    btnIn.textContent = '+';
+    btnIn.title = 'Zoom in';
+    toolbar.append(btnOut, pct, btnIn);
+
+    const resizer = document.createElement('div');
+    resizer.classList.add(CLASS_NAMES.MU_HTML_FRAME_RESIZER);
+    resizer.title = 'Drag to resize';
+
+    shell.append(frame, toolbar, resizer);
+
+    // Keep author-specified CSS untouched; control size exclusively through
+    // inline width/height once the user starts zooming/dragging.
+    let baseW = 0;
+    let baseH = 0;
+    let curW = 0;
+    let curH = 0;
+    let userTouched = false;
+
+    // Synchronous baseline read used by user actions. Once the user has
+    // taken control the baseline is frozen: re-reading after every zoom
+    // would compound (1.1x × 1.2x × … — reproduced as a 96k-px frame).
+    const readBaseNow = () => {
+        if (userTouched)
+            return;
+        baseW = frame.offsetWidth || baseW;
+        baseH = frame.offsetHeight || FRAME_DEFAULT_HEIGHT;
+    };
+
+    const readBase = () => {
+        // The Muya editor renders blocks incrementally, so a frame measured
+        // in its first animation frame can catch an unsettled layout (the
+        // first HTML block measured ~17% narrower than its siblings).
+        // Re-read over two frames and keep the later value. Baseline only:
+        // while untouched, the author's CSS (`width:100%`) keeps sizing the
+        // frame natively.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                readBaseNow();
+            });
+        });
+    };
+
+    // Once the frame has loaded (lazy iframes load late), re-anchor the
+    // baseline at its final layout size.
+    frame.addEventListener('load', () => {
+        if (!userTouched) {
+            baseW = 0;
+            readBase();
+        }
+    });
+
+    // Before the user takes control, follow the editor layout (window
+    // resize, sidebar toggle) exactly like a plain `width:100%` iframe.
+    const observeLayout = new ResizeObserver(() => {
+        if (!userTouched && baseW && baseW !== frame.offsetWidth) {
+            readBase();
+        }
+    });
+    observeLayout.observe(frame);
+
+    const apply = () => {
+        if (!baseW)
+            return;
+        frame.style.width = `${curW}px`;
+        frame.style.height = `${curH}px`;
+        pct.textContent = `${Math.round((curW / baseW) * 100)}%`;
+    };
+
+    // Geometric zoom relative to the frame's current size (each click = +10%
+    // / -10%), bounded by FRAME_ZOOM_MIN/MAX against the frozen baseline.
+    // The percentage label is always relative to the author's original size.
+    const zoomBy = (factor: number) => {
+        userTouched = true;
+        if (!baseW)
+            return;
+        // First user action anchors the working size at the baseline.
+        if (!curW) {
+            curW = baseW;
+            curH = baseH;
+        }
+        const minW = baseW * FRAME_ZOOM_MIN;
+        const maxW = baseW * FRAME_ZOOM_MAX;
+        const minH = baseH * FRAME_ZOOM_MIN;
+        const maxH = baseH * FRAME_ZOOM_MAX;
+        curW = Math.min(maxW, Math.max(minW, curW * factor));
+        curH = Math.min(maxH, Math.max(minH, curH * factor));
+        apply();
+    };
+
+    const zoomTo = (scale: number) => {
+        userTouched = true;
+        if (!baseW || !Number.isFinite(scale))
+            return;
+        const clamped = Math.min(FRAME_ZOOM_MAX, Math.max(FRAME_ZOOM_MIN, scale));
+        curW = Math.max(FRAME_MIN_WIDTH, baseW * clamped);
+        curH = Math.max(FRAME_MIN_HEIGHT, baseH * clamped);
+        apply();
+    };
+
+    const resizeTo = (width: number, height: number) => {
+        userTouched = true;
+        if (!baseW)
+            return;
+        curW = Math.max(FRAME_MIN_WIDTH, width);
+        curH = Math.max(FRAME_MIN_HEIGHT, height);
+        apply();
+    };
+
+    btnOut.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        zoomBy(1 / (1 + FRAME_ZOOM_STEP));
+    });
+    btnIn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        zoomBy(1 + FRAME_ZOOM_STEP);
+    });
+    pct.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        zoomTo(1);
+    });
+
+    // Stop hover-control clicks from leaking into editor block selection.
+    toolbar.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+    });
+    resizer.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+    });
+
+    // Drag resize via pointer capture on the handle.
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragStartW = 0;
+    let dragStartH = 0;
+    resizer.addEventListener('pointerdown', (event) => {
+        readBaseNow();
+        dragStartX = event.clientX;
+        dragStartY = event.clientY;
+        dragStartW = curW || baseW;
+        dragStartH = curH || baseH;
+        resizer.setPointerCapture(event.pointerId);
+    });
+    resizer.addEventListener('pointermove', (event) => {
+        if (!resizer.hasPointerCapture(event.pointerId))
+            return;
+        resizeTo(
+            dragStartW + (event.clientX - dragStartX),
+            dragStartH + (event.clientY - dragStartY),
+        );
+    });
+    resizer.addEventListener('pointercancel', () => {
+        dragStartW = 0;
+    });
+
+    // Read the author CSS size once laid out. Also restore the px size after
+    // scrolling re-renders (Muya may refresh preview blocks, see update()).
+    requestAnimationFrame(readBase);
+
+    return shell;
+}
+
 class HTMLPreview extends Parent {
     private _html: string;
 
@@ -168,7 +366,7 @@ class HTMLPreview extends Parent {
 
                 frame.setAttribute('title', attrs.title || attrs.src);
                 frame.classList.add(CLASS_NAMES.MU_HTML_IFRAME);
-                holder.replaceWith(frame);
+                holder.replaceWith(createFrameShell(frame));
             }
         }
     }
