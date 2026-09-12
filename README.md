@@ -85,7 +85,7 @@ pnpm build:mac          # 默认 arm64；另有 build:mac:x64
 产物：
 
 - 应用：`dist/mac-arm64/墨记.app`
-- 安装包：`dist/momark-mac-arm64-1.1.0.dmg` / `dist/momark-mac-arm64-1.1.0.zip`
+- 安装包：`dist/momark-mac-arm64-1.2.0.dmg` / `dist/momark-mac-arm64-1.2.0.zip`
 
 ## 开发
 
@@ -103,12 +103,7 @@ pnpm dev      # 开发实例，渲染进程运行于 localhost:9333
 | `packages/muya`    | 块级编辑内核（TypeScript）           |
 | `packages/muyajs`  | 编辑内核构建产物                     |
 | `packages/website` | 官网 / 文档站                        |
-| `docs/`            | 架构、分支规范、路线图等文档         |
-
-## 文档
-
-- [架构说明](docs/ARCHITECTURE.md)
-- [路线图](docs/ROADMAP.md)
+| `docs/`            | 分支规范等开发文档                   |
 
 ## License
 
