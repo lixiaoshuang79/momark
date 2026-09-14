@@ -276,7 +276,8 @@
     border-color 0.15s ease,
     box-shadow 0.2s ease;
 }
-.ud-item:hover {
+.ud-item:hover,
+.ud-item.hoverpin {
   transform: translateX(-3px) scale(1.08);
   z-index: 3;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
@@ -307,7 +308,9 @@
   width: 13px;
   height: 13px;
 }
-/* hover 关闭 ×：悬于图标与左侧 URL 气泡之间的小圆钮，hover 该项才出现 */
+/* hover 关闭 ×：图标左侧的小圆钮。
+   显示由 JS hoverpin 状态控制（纯 CSS :hover 会让鼠标移向 × 途中收起、
+   × 永远点不到）；hoverpin 期间 item 保持弹出位，× 持续可见。 */
 .ud-close {
   position: absolute;
   left: -26px;
@@ -332,7 +335,7 @@
   width: 10px;
   height: 10px;
 }
-.ud-item:hover .ud-close {
+:is(.ud-item:hover, .ud-item.hoverpin) .ud-close {
   opacity: 1;
   pointer-events: auto;
 }
@@ -340,35 +343,9 @@
   background: var(--accent);
   color: #fff;
 }
-/* 完整 URL HUD 气泡（左）：右缘停在 × 按钮左侧 8px 处（× 占 -26..-8px，
-   气泡右缘 -34px），气泡 | × | 图标 三者分离，× 居中且始终高于气泡。 */
-.ud-bubble {
-  position: absolute;
-  right: calc(100% + 34px);
-  top: 50%;
-  transform: translateY(-50%);
-  background: var(--hudbg);
-  color: var(--hudfg);
-  font-size: var(--f11);
-  line-height: 1.4;
-  padding: 6px 10px;
-  border-radius: 8px;
-  white-space: nowrap;
-  box-shadow: var(--shadow-pop);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 4;
-  transition: opacity 0.15s ease 0.05s;
-}
-.ud-item:hover .ud-bubble {
-  opacity: 1;
-}
-/* hover 时相邻项让位（macOS dock 效应） */
-.url-dock:hover .ud-item:not(:hover) {
+/* hover 时相邻项让位（macOS dock 效应）；hoverpin 项同样不让位 */
+.url-dock:hover .ud-item:not(:hover):not(.hoverpin) {
   transform: scale(0.96);
-}
-.url-dock:hover .ud-item:hover {
-  transform: translateX(-3px) scale(1.08);
 }
 /* 末尾虚线 + 新增 */
 .ud-add {
