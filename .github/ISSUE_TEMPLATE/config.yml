@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Ask a Question
-    url: https://github.com/marktext/marktext/discussions
-    about: Use GitHub Discussions for questions, help, and general conversation about MarkText.
-  - name: Documentation
-    url: https://github.com/marktext/marktext/tree/develop/docs
-    about: Check the docs before asking — your answer may already be there.
+  - name: 使用疑问 / 功能设想
+    url: https://github.com/lixiaoshuang79/momark/issues/new?template=feature_request.md
+    about: 用法上的疑问或想法，都可以开一条 issue 一起聊。
+  - name: 使用文档
+    url: https://github.com/lixiaoshuang79/momark/tree/main/docs
+    about: 提问前先看文档，答案可能已经写在里面了。
+  - name: 下载最新版本
+    url: https://github.com/lixiaoshuang79/momark/releases/latest
+    about: 遇到问题时，请先确认使用的是最新版本。

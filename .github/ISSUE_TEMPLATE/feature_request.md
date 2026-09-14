@@ -1,31 +1,30 @@
 ---
-name: Feature Request
-about: Suggest an idea or improvement for MarkText
-title: "[Feature] "
-labels: ["enhancement"]
+name: 功能建议
+about: 为墨记 MoMark 提一个想法或改进建议
+title: '[Feature] '
+labels: ['enhancement']
 ---
 
 <!--
-  Before submitting: search existing issues and discussions to avoid duplicates.
-  If a similar request exists, react with 👍 to show your support.
+  提交前先搜索已有 issue 与需求，避免重复；已有相似建议时，用 👍 表示支持即可。
 -->
 
-### Summary
+### 需求概述
 
-<!-- A clear and concise summary of the feature you'd like -->
+<!-- 一句话说清你希望增加或改进什么 -->
 
-### Problem it solves
+### 它解决什么问题
 
-<!-- What problem does this feature address? Why is it needed? -->
+<!-- 你遇到的场景是什么？现在处理起来哪里别扭？ -->
 
-### Proposed solution
+### 期望的形态
 
-<!-- Describe how you envision this feature working -->
+<!-- 你设想的交互或效果，越具体越好 -->
 
-### Alternatives considered [optional]
+### 其他方案 [可选]
 
-<!-- Any alternative approaches you've thought about? -->
+<!-- 你考虑过的替代做法 -->
 
-### Additional context [optional]
+### 补充信息 [可选]
 
-<!-- Screenshots, mockups, or any other context about the feature request -->
+<!-- 截图、示意图或其他上下文 -->
