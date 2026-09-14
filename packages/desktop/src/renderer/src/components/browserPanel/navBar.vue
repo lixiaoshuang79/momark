@@ -115,12 +115,17 @@ const toggleDeviceMode = () => {
   bpStore.TOGGLE_DEVICE_MODE()
 }
 
-// 回车导航当前激活页（地址栏输入 → 智能判断 URL vs 搜索）。
+// 回车导航当前激活页（地址栏输入 → 智能判断 URL vs 搜索）；
+// 尚无任何页面时（activePageId 为空）用输入创建第一页。
 const locationGo = () => {
   const id = activePageId.value
-  if (!id) return
   const target = resolveInput(locationText.value)
   if (!target) return
+  if (!id) {
+    bpStore.ADD_WEB_PAGE(locationText.value).catch(() => {})
+    locationText.value = ''
+    return
+  }
   bpStore.UPDATE_PAGE_STATE(id, { url: target, loading: true, error: null })
 }
 

@@ -19,6 +19,8 @@ import { defineStore } from 'pinia'
 import { usePreferencesStore } from './preferences'
 import { useProjectStore } from './project'
 import { useLayoutStore } from './layout'
+import { useSplitStore } from './split'
+import { useWorkspaceStore } from './workspace'
 import { useMainStore } from '.'
 import { t } from '../i18n'
 import { debouncedSendBufferedState, sendBufferedState } from './bufferedState'
@@ -517,11 +519,12 @@ export const useEditorStore = defineStore('editor', {
     },
 
     FILE_SAVE(): void {
-      if (!this.currentFile) return
       this.flushActiveEditor()
       const projectStore = useProjectStore()
-      const { id, filename, pathname, markdown } = this.currentFile
-      const options = getOptionsFromState(this.currentFile)
+      const target = this.getSaveTarget()
+      if (!target) return
+      const { id, filename, pathname, markdown } = target
+      const options = getOptionsFromState(target)
       const defaultPath = getRootFolderFromState(projectStore)
       if (id) {
         window.electron.ipcRenderer.send(
@@ -536,6 +539,18 @@ export const useEditorStore = defineStore('editor', {
       }
     },
 
+    // Cmd+S 保存目标：光标在右侧分屏文档编辑器时保存右侧文档，
+    // 否则保存左侧当前文档（round：右栏编辑可直接保存，无需拖回左边）。
+    getSaveTarget(): IFileState | null {
+      const splitStore = useSplitStore()
+      const workspaceStore = useWorkspaceStore()
+      if (splitStore.active && splitStore.kind === 'doc' && splitStore.docFocused) {
+        const splitTab = workspaceStore.splitDocTab
+        if (splitTab) return splitTab
+      }
+      return this.currentFile ?? null
+    },
+
     // need pass some data to main process when `save` menu item clicked
     LISTEN_FOR_SAVE(): void {
       window.electron.ipcRenderer.on('mt::editor-ask-file-save', () => {
@@ -547,11 +562,12 @@ export const useEditorStore = defineStore('editor', {
     },
 
     FILE_SAVE_AS(): void {
-      if (!this.currentFile) return
       this.flushActiveEditor()
       const projectStore = useProjectStore()
-      const { id, filename, pathname, markdown } = this.currentFile
-      const options = getOptionsFromState(this.currentFile)
+      const target = this.getSaveTarget()
+      if (!target) return
+      const { id, filename, pathname, markdown } = target
+      const options = getOptionsFromState(target)
       const defaultPath = getRootFolderFromState(projectStore)
 
       if (id) {

@@ -161,7 +161,15 @@ onMounted(() => {
   })
 
   bus.on('language-changed', handleLocale)
+
+  // 保存前 flush：与左编辑器同款——把引擎 rAF 批中排队的编辑先落进
+  // markdown，否则同一帧内的编辑在保存读取时被丢（#3803 同因）。
+  bus.on('flush-active-editor', handleFlush)
 })
+
+const handleFlush = () => {
+  muya?.flush()
+}
 
 // 外部内容变化回填：文件监听（file-changed）更新 tab.markdown 时同步进右编辑器；
 // 右栏自身编辑经 LISTEN_FOR_CONTENT_CHANGE 写回的 markdown 与引擎一致 → 跳过。
@@ -199,6 +207,7 @@ watch(
 
 onBeforeUnmount(() => {
   bus.off('language-changed', handleLocale)
+  bus.off('flush-active-editor', handleFlush)
   if (muya) {
     muya.destroy()
     muya = null

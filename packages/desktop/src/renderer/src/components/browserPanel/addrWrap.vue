@@ -38,7 +38,8 @@ import { useBrowserPanelStore } from '@/store/browserPanel'
  * 单页「+」胶囊（PHASE2-SPEC §5）：34×34 卡片底描边 right:6px top:8px；
  * + 与 Google 搜索栏是一个控件的两种状态 —— hover 自动展开为网址栏
  * width min(320px, 100% - 12px)（.46s --ease-grow），移出收起；点击
- * 仍可切换。含 Google 彩 G 图标 + 输入框 + 前往按钮。
+ * 已展开的网址栏不收起（保护键入/paste 输入）。含 Google 彩 G 图标 +
+ * 输入框 + 前往按钮。
  * 输入判断：URL（含协议/域名样式无空格）→ 自动补 https://；否则 Google 搜索。
  */
 
@@ -58,10 +59,14 @@ const onPlusEnter = () => {
 
 const onPlusClick = () => {
   cancelCollapse()
-  bpStore.SET_DOCK_ADDR_OPEN(!dockAddrOpen.value)
+  // 已展开（hover 先行触发）时点击不切换收起：点击网址栏的意图是聚焦
+  // 输入（键入/paste），切换会打断输入。收起交给移出、失焦、前往。
   if (dockAddrOpen.value) {
     setTimeout(() => inputEl.value?.focus(), 60)
+    return
   }
+  bpStore.SET_DOCK_ADDR_OPEN(true)
+  setTimeout(() => inputEl.value?.focus(), 60)
 }
 
 const scheduleCollapse = () => {
