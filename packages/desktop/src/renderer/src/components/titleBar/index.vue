@@ -238,6 +238,9 @@ const rightDocName = computed(() => {
   if (splitStore.active) {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     if (!tab) return ''
+    // 未落盘文档（新建 Untitled.md，pathname 为空）直接显示文件名——
+    // compactPathLabel('') 返回空串会让顶栏右文档名消失。
+    if (!tab.pathname) return tab.filename
     return collapsed.value ? tab.filename : compactPathLabel(tab.pathname)
   }
   // HTML 渲染页（编辑器内嵌 html「在侧栏打开」）：右文档名槽位显示页面标题。
