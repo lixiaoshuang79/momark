@@ -5,25 +5,30 @@
 <h1 align="center">墨记 MoMark</h1>
 
 <p align="center">
-  一款为 macOS 打造的极简、专注的 Markdown 编辑器
+  为 macOS 打造的中文优先 Markdown 编辑器<br />
+  标签拖拽分屏 · 网页与文档双模右栏 · 图表原型直接渲染在文档里
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.0-3D5A80" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.2.1-3D5A80" alt="version" />
   <img src="https://img.shields.io/badge/platform-macOS%20arm64%20%7C%20x64-lightgrey" alt="platform" />
   <img src="https://img.shields.io/badge/license-MIT-7BA3C9" alt="license" />
   <img src="https://img.shields.io/github/stars/lixiaoshuang79/momark?style=social" alt="stars" />
 </p>
 
+---
+
+墨记把「写作时手边要有的一切」放进同一个窗口：左边写，右边放资料；需要对照就拖一个标签出去并排；数据图表和交互原型不必另开浏览器，直接长在文档里。中文输入的每一处细节都按中文写作的习惯重新趟过一遍。
+
 ## 特色
 
 ### 标签拖拽分屏
 
-标签页拖拽即可把文档放入右栏，左右双文档并行编辑——对照资料、迁移内容、边写边改。分屏边距经过精心调校，滚动条居中于分隔带，不侵占正文。
+标签页拖出即可把文档放入右栏，左右双文档并行编辑——对照资料、迁移内容、边写边改。分屏边距经过精心调校，滚动条居中于分隔带，不侵占正文。
 
 ### 网页 / 文档双模右栏
 
-右侧面板在「网页」与「文档」之间一键切换：一边浏览网页资料，一边随手把内容整理进左侧文档。
+右侧面板在「网页」与「文档」之间一键切换，并带独立的网页标签页与地址栏：一边浏览网页资料，一边随手把内容整理进左侧文档。
 
 ### HTML 代码块内嵌渲染
 
@@ -47,7 +52,7 @@ HTML 代码块不再是一段源码，而是真实渲染的画面——数据图
 
 ## 效果预览
 
-**图文笔记** —— 生物复习笔记，彩色插图与表格混排：
+**图文笔记** —— 表格与彩色插图混排，图片即文档内容：
 
 <img src="docs/screenshots/notes-biology.png" alt="生物图文笔记" width="760" />
 
@@ -65,7 +70,7 @@ HTML 代码块不再是一段源码，而是真实渲染的画面——数据图
 
 ## 安装
 
-下载构建产物，将 `墨记.app` 拖入「应用程序」。
+从 [Releases](https://github.com/lixiaoshuang79/momark/releases/latest) 下载构建产物，将 `墨记.app` 拖入「应用程序」。
 
 > macOS 版本当前未做公证签名，首次打开若提示「已损坏」，执行：
 >
@@ -85,7 +90,7 @@ pnpm build:mac          # 默认 arm64；另有 build:mac:x64
 产物：
 
 - 应用：`dist/mac-arm64/墨记.app`
-- 安装包：`dist/momark-mac-arm64-1.2.0.dmg` / `dist/momark-mac-arm64-1.2.0.zip`
+- 安装包：`dist/momark-mac-arm64-1.2.1.dmg` / `dist/momark-mac-arm64-1.2.1.zip`
 
 ## 开发
 
@@ -104,6 +109,10 @@ pnpm dev      # 开发实例，渲染进程运行于 localhost:9333
 | `packages/muyajs`  | 编辑内核构建产物                     |
 | `packages/website` | 官网 / 文档站                        |
 | `docs/`            | 分支规范等开发文档                   |
+
+## 更新日志
+
+每个版本的改动见 [Releases](https://github.com/lixiaoshuang79/momark/releases)。
 
 ## License
 
