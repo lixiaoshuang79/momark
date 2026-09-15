@@ -15,6 +15,7 @@ import type {
   IpcSendChannels,
   IpcSyncChannels,
   IpcMainEventChannels,
+  BpZoomAction,
   BootInfo
 } from '@shared/types/ipc'
 
@@ -252,6 +253,18 @@ const bpAPI = {
     }
     ipcRenderer.on('bp:new-window-request', subscription)
     return () => ipcRenderer.removeListener('bp:new-window-request', subscription)
+  },
+  onZoomCommand: (
+    handler: (payload: { pageId: string; action: BpZoomAction }) => void
+  ): (() => void) => {
+    const subscription = (
+      _event: IpcRendererEvent,
+      payload: { pageId: string; action: BpZoomAction }
+    ): void => {
+      handler(payload)
+    }
+    ipcRenderer.on('bp:zoom-command', subscription)
+    return () => ipcRenderer.removeListener('bp:zoom-command', subscription)
   }
 }
 

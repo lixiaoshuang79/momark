@@ -225,6 +225,10 @@ export interface IpcSendChannels {
   // guest 页面发起 window.open / target=_blank（http/https）→ 渲染层在面板内新建
   // Dock 页（setWindowOpenHandler 已 deny 掉原生新窗口）。
   'bp:new-window-request': [payload: { url: string; fromPageId: string | null }]
+  // guest 拿到键盘焦点时按下的缩放快捷键（Cmd/Ctrl + = / - / 0）：宿主菜单加速键
+  // 在 guest 内不生效，主进程只做「按键 → 意图」翻译，缩放由渲染层执行（与工具栏
+  // 「适应宽度」共用同一条 applyZoom 路径）。
+  'bp:zoom-command': [payload: { pageId: string; action: BpZoomAction }]
   'screen-capture': [payload: unknown]
   'set-image-folder-path': [path: string]
   'set-user-preference': [partial: unknown]
@@ -352,6 +356,12 @@ export interface BpPageState {
   error: string | null
   deviceMode: 'pc' | 'mobile'
 }
+
+/**
+ * 网页面板缩放意图：in=放大、out=缩小、reset=回到 100%。
+ * guest 内的键盘快捷键与工具栏按钮都归一到这三个动作。
+ */
+export type BpZoomAction = 'in' | 'out' | 'reset'
 
 export interface BootInfo {
   platform: NodeJS.Platform

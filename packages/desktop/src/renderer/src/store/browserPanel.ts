@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import notice from '@/services/notification'
+import type { BpZoomAction } from '@shared/types/ipc'
 import { useSplitStore } from './split'
 
 /**
@@ -17,10 +18,25 @@ export interface WebPage {
   favicon: string | null
   loading: boolean
   error: string | null
+  // round17：页面缩放（1 = 100%）。快捷键、工具栏与「适应宽度」共用这一份状态。
+  zoom: number
+  // 「适应宽度」开关：打开后由 webview 组件按内容实际宽度反算 zoom。
+  // 用户手动缩放（快捷键/工具栏）会关掉它，避免自动值覆盖手动意图。
+  fitWidth: boolean
 }
 
 export type BpMode = 'url' | 'doc'
 export type BpDragState = 'none' | 'over' | 'blocked'
+
+// 缩放钳位与步进：几何递进 ×1.1。下限取 0.2 而非编辑器 HTML 块的 0.5——
+// 面板只有 ~288px 宽，固定 1200px 宽的后台页要完整显示必须能缩到 ~0.25。
+// 0.25 是 Blink 页面缩放的硬下限（实测 setZoomFactor(0.2/0.22/0.24) 一律按
+// 0.25 渲染，getZoomFactor 却回显传入值），写更小的数只会让显示百分比撒谎。
+export const ZOOM_MIN = 0.25
+export const ZOOM_MAX = 3
+const ZOOM_STEP = 1.1
+const clampZoom = (value: number): number =>
+  Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value)) * 1000) / 1000
 
 // 地址输入判断（report 3.md §4）：已有协议直接加载；域名样式/IP/localhost
 // 自动补 https://；其余转 Google 搜索。
@@ -52,6 +68,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   const deviceMode = ref<'pc' | 'mobile'>('pc')
 
   let unlistenNewWindow: (() => void) | null = null
+  let unlistenZoomCommand: (() => void) | null = null
 
   function SET_URL_WIDTH(value: number): void {
     const win = window.innerWidth
@@ -98,7 +115,11 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
         title: target,
         favicon: null,
         loading: true,
-        error: null
+        error: null,
+        // 新页默认开启「适应宽度」：窄面板里固定宽度站点会要求左右滑动，
+        // 自适应站点量不到溢出、不会被缩放（因子保持 1）。
+        zoom: 1,
+        fitWidth: true
       })
       activePageId.value = id
       // 面板处于移动端模式时，新页沿用当前模式（attach 后主进程换 UA）。
@@ -152,6 +173,59 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     dockAddrOpen.value = value
   }
 
+  // ── 缩放（round17）────────────────────────────────────────────────
+  // 状态唯一来源在这里：键盘快捷键（主进程翻译成意图后回传）、工具栏
+  // 按钮、「适应宽度」的反算结果最终都落到 page.zoom，由 webviewPage.vue
+  // 单点执行 setZoomFactor。
+
+  function SET_PAGE_ZOOM(id: string, factor: number): void {
+    const page = urlPages.value.find((p) => p.id === id)
+    if (!page) return
+    page.zoom = clampZoom(factor)
+  }
+
+  function SET_FIT_WIDTH(id: string, value: boolean): void {
+    const page = urlPages.value.find((p) => p.id === id)
+    if (!page) return
+    page.fitWidth = value
+  }
+
+  // 缩放浮标（HUD）：只在用户主动操作时出现——「适应宽度」的自动反算不打扰。
+  // seq 用于同文案连续触发时也能重置组件的隐藏计时器。
+  const zoomHint = ref<{ text: string; seq: number } | null>(null)
+  let zoomHintSeq = 0
+
+  function SHOW_ZOOM_HINT(text: string): void {
+    zoomHint.value = { text, seq: ++zoomHintSeq }
+  }
+
+  // 手动缩放（快捷键 / 工具栏）：一旦手动介入就关掉「适应宽度」，
+  // 否则下一次反算会把手动值覆盖掉（round15 HTML 块缩放的同一教训）。
+  function APPLY_ZOOM_ACTION(id: string, action: BpZoomAction): void {
+    const page = urlPages.value.find((p) => p.id === id)
+    if (!page) return
+    if (action === 'reset') {
+      page.fitWidth = false
+      page.zoom = 1
+      SHOW_ZOOM_HINT('100%')
+      return
+    }
+    page.fitWidth = false
+    const next = action === 'in' ? page.zoom * ZOOM_STEP : page.zoom / ZOOM_STEP
+    page.zoom = clampZoom(next)
+    SHOW_ZOOM_HINT(`${Math.round(page.zoom * 100)}%`)
+  }
+
+  function TOGGLE_FIT_WIDTH(): void {
+    const id = activePageId.value
+    if (!id) return
+    const page = urlPages.value.find((p) => p.id === id)
+    if (!page) return
+    page.fitWidth = !page.fitWidth
+    // 开：先出「适应宽度 开」，组件量完宽度后会把浮标细化成「适应宽度 · 78%」。
+    SHOW_ZOOM_HINT(page.fitWidth ? '适应宽度' : '适应宽度 · 关')
+  }
+
   // ── 文档模式的 HTML 渲染页 ────────────────────────────────────────────
   // 编辑器内嵌 HTML 块的工具条「在侧栏打开」落点：右栏文档模式下以
   // sandbox iframe（与编辑器内嵌同一隔离等级，不透明源）渲染该页面。
@@ -186,16 +260,22 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   }
 
   // guest 内 window.open / target=_blank（http/https）→ 面板内新建 Dock 页。
+  // round17：外加 guest 内的缩放快捷键（主进程 before-input-event 翻译后回传）。
   function LISTEN(): void {
     if (unlistenNewWindow) return
     unlistenNewWindow = window.bp.onNewWindowRequest(({ url }) => {
       ADD_WEB_PAGE(url)
+    })
+    unlistenZoomCommand = window.bp.onZoomCommand(({ pageId, action }) => {
+      APPLY_ZOOM_ACTION(pageId, action)
     })
   }
 
   function STOP_LISTENING(): void {
     unlistenNewWindow?.()
     unlistenNewWindow = null
+    unlistenZoomCommand?.()
+    unlistenZoomCommand = null
   }
 
   return {
@@ -216,6 +296,12 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     CLOSE_PAGE,
     UPDATE_PAGE_STATE,
     SET_DOCK_ADDR_OPEN,
+    SET_PAGE_ZOOM,
+    SET_FIT_WIDTH,
+    APPLY_ZOOM_ACTION,
+    TOGGLE_FIT_WIDTH,
+    SHOW_ZOOM_HINT,
+    zoomHint,
     SET_DRAG_STATE,
     SET_URL_WIDTH,
     OPEN_HTML_DOC,

@@ -19,6 +19,14 @@
     <!-- 多网页态：右缘垂直 Dock -->
     <url-dock :pages="urlPages" :active-page-id="activePageId" />
 
+    <!-- round17：缩放浮标（快捷键 Cmd +/-/0 与「适应宽度」的即时反馈，
+         自动隐藏；放顶部居中避开右下角的 url-dock 与文档模式的缩放条） -->
+    <transition name="bp-hint">
+      <div v-if="zoomHint" :key="zoomHint.seq" class="bp-zoom-hint">
+        {{ zoomHint.text }}
+      </div>
+    </transition>
+
     <!-- 加载失败：原因 + 重试（-3 忽略、isMainFrame 判定已在上游处理） -->
     <div v-if="activePage && activePage.error" class="bp-fail">
       <mo-icon name="i-warn" />
@@ -41,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import { useBrowserPanelStore } from '@/store/browserPanel'
@@ -50,9 +58,29 @@ import AddrWrap from './addrWrap.vue'
 import UrlDock from './urlDock.vue'
 
 const bpStore = useBrowserPanelStore()
-const { urlPages, activePageId, dockAddrOpen } = storeToRefs(bpStore)
+const { urlPages, activePageId, dockAddrOpen, zoomHint } = storeToRefs(bpStore)
 
 const activePage = computed(() => urlPages.value.find((p) => p.id === activePageId.value) ?? null)
+
+// 缩放浮标自动隐藏：seq 变化（同文案连按）也会重置计时。
+let hintTimer: number | null = null
+watch(
+  () => zoomHint.value?.seq,
+  (seq) => {
+    if (hintTimer !== null) window.clearTimeout(hintTimer)
+    if (!seq) {
+      hintTimer = null
+      return
+    }
+    hintTimer = window.setTimeout(() => {
+      bpStore.zoomHint = null
+      hintTimer = null
+    }, 1400)
+  }
+)
+onBeforeUnmount(() => {
+  if (hintTimer !== null) window.clearTimeout(hintTimer)
+})
 
 // 完成过一次加载的页面不再显示整层 loading 覆盖（后续导航只显示进度线）。
 const loadedOnce = ref<Set<string>>(new Set())
