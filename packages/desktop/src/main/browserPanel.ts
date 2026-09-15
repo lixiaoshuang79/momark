@@ -16,7 +16,7 @@
  */
 
 import { app, dialog, ipcMain, session, shell, BrowserWindow } from 'electron'
-import type { Event, WebContents, WebPreferences } from 'electron'
+import type { Event, Input, WebContents, WebPreferences } from 'electron'
 import log from 'electron-log'
 import crypto from 'crypto'
 import fs from 'fs/promises'
@@ -25,6 +25,7 @@ import {
   getChromeCookieGuideState,
   markChromeCookieGuideShown
 } from './chromeCookieSync'
+import type { BpZoomAction } from '@shared/types/ipc'
 
 // ── 常量 ─────────────────────────────────────────────────────────────
 
@@ -40,6 +41,28 @@ const MARKDOWN_FILTERS = [
 ]
 
 const isHttpUrl = (url: unknown): url is string => typeof url === 'string' && HTTP_URL_REG.test(url)
+
+// round17：guest 缩放快捷键识别。Cmd（mac）/ Ctrl（其他平台）+ =、-、0；
+// 主键盘与小键盘都接受（浏览器约定：Cmd+= 与 Cmd+Shift+= 同为放大）。
+const zoomActionForInput = (input: Input): BpZoomAction | null => {
+  if (input.type !== 'keyDown') return null
+  const modifier = process.platform === 'darwin' ? input.meta : input.control
+  if (!modifier) return null
+  switch (input.key) {
+    case '=':
+    case '+':
+    case 'Add':
+      return 'in'
+    case '-':
+    case '_':
+    case 'Subtract':
+      return 'out'
+    case '0':
+      return 'reset'
+    default:
+      return null
+  }
+}
 
 // 移动端 UA：iPhone Safari（用户拍板 round16 新功能——网页模式底部工具栏
 // 可切换 PC / 移动端样式；setUserAgent 后必须 reload 才生效）。
@@ -153,6 +176,24 @@ const hardenGuest = (host: WebContents, guest: WebContents): void => {
   guest.on('did-navigate', (_e, url) => {
     st.url = url
     st.error = null
+  })
+  // round17（用户反馈「登录后底部网址还是 /login」）：SPA 的路由切换走
+  // history.pushState/replaceState，只触发 did-navigate-in-page，不触发
+  // did-navigate——漏听它会让 st.url 停留在上一个整页导航的地址，
+  // 从而经 bp:getState 把过期 URL 回灌给地址栏。
+  guest.on('did-navigate-in-page', (_e, url, isMainFrame) => {
+    if (!isMainFrame) return
+    st.url = url
+  })
+  // round17：guest 内的缩放快捷键。webview 标签不暴露 before-input-event，
+  // 只有主进程的 webContents 能拿到；菜单加速键在 guest 聚焦时同样不生效。
+  // 这里只做「按键 → 意图」翻译并转交渲染层，缩放状态由渲染层统一持有。
+  guest.on('before-input-event', (event, input) => {
+    const action = zoomActionForInput(input)
+    if (!action) return
+    event.preventDefault()
+    const pageId = [...pageRecords.values()].find((r) => r.webContentsId === guestId)?.id
+    if (pageId) host.send('bp:zoom-command', { pageId, action })
   })
   guest.on('page-title-updated', (_e, title) => {
     st.title = title
@@ -372,7 +413,9 @@ export const registerBrowserPanelIpc = (): void => {
     return {
       canGoBack,
       canGoForward,
-      url: st.url || guest.getURL() || record?.url || '',
+      // round17：guest 自己的实时 URL 优先——st.url 只在导航事件里被写，
+      // 任何事件缺口（如被拦掉的路由）都会让旧值永久覆盖真实地址。
+      url: guest.getURL() || st.url || record?.url || '',
       title: st.title || guest.getTitle(),
       loading: st.loading || guest.isLoading(),
       error: st.error,

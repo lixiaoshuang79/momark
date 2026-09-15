@@ -17,6 +17,18 @@
     >
       <mo-icon :name="deviceMode === 'pc' ? 'i-monitor' : 'i-phone'" />
     </button>
+    <!-- round17：适应宽度。文字按钮而非图标——面板只有 288px，宽度状态本身
+         就是最有用的信息（开着显示「适应」，关着显示当前比例）。 -->
+    <button
+      class="bp-fit"
+      :class="{ on: !!activePage?.fitWidth }"
+      :title="fitTitle"
+      :aria-label="fitTitle"
+      :disabled="!activePage"
+      @click="toggleFitWidth"
+    >
+      {{ fitLabel }}
+    </button>
     <span class="bp-location-wrap">
       <input
         ref="locationEl"
@@ -113,6 +125,19 @@ const reload = () => {
 // round16：PC / 移动端样式切换（无激活页时静默忽略）。
 const toggleDeviceMode = () => {
   bpStore.TOGGLE_DEVICE_MODE()
+}
+
+// round17：适应面板宽度。开着时由 webview 组件量内容宽度反算 zoom，
+// 手动缩放（Cmd +/-）会自动关掉它并回到百分比显示。
+const zoomPct = computed(() => Math.round((activePage.value?.zoom ?? 1) * 100))
+const fitLabel = computed(() => (activePage.value?.fitWidth ? '适应' : `${zoomPct.value}%`))
+const fitTitle = computed(() =>
+  activePage.value?.fitWidth
+    ? `适应面板宽度：开（当前 ${zoomPct.value}%）· 点击关闭`
+    : `当前 ${zoomPct.value}% · 点击适应面板宽度`
+)
+const toggleFitWidth = () => {
+  bpStore.TOGGLE_FIT_WIDTH()
 }
 
 // 回车导航当前激活页（地址栏输入 → 智能判断 URL vs 搜索）；

@@ -9,7 +9,8 @@ import type {
   IpcSyncChannels,
   IpcMainEventChannels,
   BootInfo,
-  BpPageState
+  BpPageState,
+  BpZoomAction
 } from '@shared/types/ipc'
 import type { MenuTemplate, MenuPopupPosition } from '@shared/types/menu'
 import type { SerializedStat } from '@shared/types/files'
@@ -181,6 +182,7 @@ declare global {
     onNewWindowRequest(
       handler: (payload: { url: string; fromPageId: string | null }) => void
     ): () => void
+    onZoomCommand(handler: (payload: { pageId: string; action: BpZoomAction }) => void): () => void
   }
 
   interface ProcessShim {
