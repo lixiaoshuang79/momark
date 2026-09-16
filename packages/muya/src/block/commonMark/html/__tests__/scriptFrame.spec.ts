@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import { buildSandboxDocument, hasInlineScript } from '../htmlPreview';
+import { buildFrameSourceMessage, hasInlineScript, scriptFramePageUrl } from '../htmlPreview';
 
-// 块内含脚本 → 整个块进沙箱 iframe（srcdoc = 作者原始源码），这样「单个 .md
-// 自带可交互原型/脚本图表」才成立：不依赖同目录的 html 文件，也不依赖联网。
+// 块内含脚本 → 整个块进沙箱 iframe：源码投递给随应用打包的 file:// 引导页
+// （src/renderer/public/html-frame.html），由它 document.write 解析执行。
+// 不能用 srcdoc —— 本地文档会继承渲染层 CSP（script-src 'self'），内联脚本被拦。
 describe('hasInlineScript', () => {
     it('detects a script tag next to plain HTML', () => {
         expect(hasInlineScript('<div id="c"></div>\n<script>draw()</script>')).toBe(true);
@@ -24,17 +25,14 @@ describe('hasInlineScript', () => {
     });
 });
 
-describe('buildSandboxDocument', () => {
-    const source = '<div id="a"></div><script>document.getElementById("a").textContent = "1";</script>';
-
-    it('keeps the author source verbatim (the script is the point)', () => {
-        expect(buildSandboxDocument(source).startsWith(source)).toBe(true);
+describe('sandbox frame plumbing', () => {
+    it('resolves the bootstrap page next to the renderer document', () => {
+        expect(scriptFramePageUrl().endsWith('/html-frame.html')).toBe(true);
     });
 
-    it('appends the height reporter after the author content', () => {
-        const doc = buildSandboxDocument('<p>x</p>');
+    it('carries the author source verbatim in the delivery message', () => {
+        const source = '<div id="a"></div><script>document.getElementById("a").textContent = "1";</script>';
 
-        expect(doc).toContain('momark-html-frame-height');
-        expect(doc.indexOf('<p>x</p>')).toBeLessThan(doc.indexOf('momark-html-frame-height'));
+        expect(buildFrameSourceMessage(source)).toEqual({ type: 'momark-html-frame-source', html: source });
     });
 });

@@ -98,32 +98,38 @@ const FRAME_HEIGHT_EVENT = 'mu-html-frame-height-change';
 // `<iframe src="chart.html">`，但那要求把 html 文件一起发出、或者指向联网资源，
 // 单个 .md 文件带不动。
 //
-// 因此：块内出现 `<script>` 时，整个块改在沙箱 iframe 里渲染，srcdoc 用作者的
-// **原始源码**（不能净化，否则脚本就没了）。安全靠沙箱而不是净化：`allow-scripts`
-// 不带 `allow-same-origin`，脚本跑在不透明源里，既碰不到编辑器/文档，也读不到
-// 本地文件 —— 与外部 iframe 嵌入（见上）同一套模型，也正是 Typora 的模型。
+// 因此：块内出现 `<script>` 时，整个块改在沙箱 iframe 里渲染，源码原样投递给
+// 一个随应用打包的 file:// 引导页（见 SCRIPT_FRAME_PAGE），由它 document.write
+// 重新解析并执行脚本。**不能**用 `srcdoc`：`srcdoc`/`about:blank`/`blob:` 这类
+// 本地文档会继承渲染层的 CSP（`script-src 'self'`），内联脚本被静默拦掉 ——
+// 实测帧渲染出来了、脚本却没跑。`file:` 文档不继承，所以脚本能跑。
 //
-// 作者源码本来就在 .md 里（`_serializeHtmlBlock` 原样写回），所以一个文件发给
-// 别人、离线打开，图照样画得出来。
+// 安全靠沙箱而不是净化：`allow-scripts` 不带 `allow-same-origin`，作者脚本跑在
+// 不透明源里，既碰不到编辑器/文档，也读不到本地文件 —— 与外部 iframe 嵌入（见上）
+// 同一套模型，也正是 Typora 的模型。作者源码本来就在 .md 里
+// （`_serializeHtmlBlock` 原样写回），所以一个文件发给别人、离线打开照样能跑。
 const SCRIPT_TAG_REG = /<script[\s>/]/i;
 
 export function hasInlineScript(html: string): boolean {
     return SCRIPT_TAG_REG.test(html);
 }
 
-// 注入到 srcdoc 末尾的自动高度上报：块内容多高、iframe 就多高，避免短片段的
-// 图表被塞在 400px 的白框里（作者源码不受影响，只在渲染时拼接）。
-const AUTOSIZE_SCRIPT = `<script>(function(){
-  var post = function () {
-    parent.postMessage({ type: 'momark-html-frame-height', height: Math.ceil(document.documentElement.scrollHeight) }, '*');
-  };
-  window.addEventListener('load', post);
-  if (window.ResizeObserver) { new ResizeObserver(post).observe(document.documentElement); }
-  post();
-})();<\/script>`;
+// 引导页文件名（随渲染层打包，与 index.html 同级）。用相对 URL 解析，因此 dev
+// （Vite 服务器）与打包（file:// out/renderer/）两种形态都成立。
+const SCRIPT_FRAME_PAGE = 'html-frame.html';
 
-export function buildSandboxDocument(html: string): string {
-    return `${html}\n${AUTOSIZE_SCRIPT}`;
+export function scriptFramePageUrl(): string {
+    return new URL(SCRIPT_FRAME_PAGE, document.baseURI).href;
+}
+
+// 父页面 → 引导页的源码投递消息（协议另一端在 src/renderer/public/html-frame.html）。
+export interface IFrameSourceMessage {
+    type: 'momark-html-frame-source';
+    html: string;
+}
+
+export function buildFrameSourceMessage(html: string): IFrameSourceMessage {
+    return { type: 'momark-html-frame-source', html };
 }
 
 // Wrap the restored iframe in a shell that adds two viewport controls:
@@ -400,9 +406,11 @@ function onFrameHeightMessage(event: MessageEvent) {
     if (!Number.isFinite(height))
         return;
 
-    // 只认沙箱脚本帧（`[srcdoc]`）自己发来的消息，因此不需要按块登记/解绑监听器
-    // —— 块被重渲染丢弃后自然不再匹配。
-    const frames = document.querySelectorAll<HTMLIFrameElement>(`iframe.${CLASS_NAMES.MU_HTML_IFRAME}[srcdoc]`);
+    // 只认沙箱脚本帧（src 指向引导页）自己发来的消息，因此不需要按块登记/解绑
+    // 监听器 —— 块被重渲染丢弃后自然不再匹配。
+    const frames = document.querySelectorAll<HTMLIFrameElement>(
+        `iframe.${CLASS_NAMES.MU_HTML_IFRAME}[src*="${SCRIPT_FRAME_PAGE}"]`,
+    );
 
     for (const frame of frames) {
         if (frame.contentWindow !== event.source || autoSizeStop.has(frame))
@@ -425,8 +433,8 @@ function bindHeightListenerOnce() {
     heightListenerBound = true;
 }
 
-// 块内含脚本时的落点：整个块进沙箱 iframe（srcdoc = 作者原始源码），外壳沿用
-// 嵌入 iframe 的「缩放 + 拖拽」体验。
+// 块内含脚本时的落点：整个块进沙箱 iframe，源码投递给引导页由它 document.write
+// 执行；外壳沿用嵌入 iframe 的「缩放 + 拖拽」体验。
 function createScriptFrame(source: string): HTMLDivElement {
     bindHeightListenerOnce();
 
@@ -437,7 +445,18 @@ function createScriptFrame(source: string): HTMLDivElement {
     frame.setAttribute('title', 'HTML');
     frame.setAttribute('style', `width:100%;height:${FRAME_DEFAULT_HEIGHT}px`);
     frame.classList.add(CLASS_NAMES.MU_HTML_IFRAME);
-    frame.srcdoc = buildSandboxDocument(source);
+    frame.setAttribute('src', scriptFramePageUrl());
+
+    // 引导页解析完自己的脚本后才挂上消息监听，因此等 load 再投递源码。
+    // 文档被 document.write 重写会再触发一次 load，只投递第一次。
+    let delivered = false;
+    frame.addEventListener('load', () => {
+        if (delivered)
+            return;
+
+        delivered = true;
+        frame.contentWindow?.postMessage(buildFrameSourceMessage(source), '*');
+    });
 
     const shell = createFrameShell(frame);
     // 用户一动手（拖拽尺寸或缩放，鼠标或键盘激活都算），尺寸就归外壳管，自适配让位。
