@@ -7,6 +7,7 @@
   >
     <div ref="editorRef" class="editor-component" />
     <HtmlPasteChooser
+      ref="htmlChooserRef"
       :visible="htmlPasteChooser.visible"
       :x="htmlPasteChooser.x"
       :y="htmlPasteChooser.y"
@@ -113,6 +114,7 @@ import {
 import { applyCursor, isIndexCursor } from '@/util/cursor'
 import EditorSearch from '../search/index.vue'
 import HtmlPasteChooser from './HtmlPasteChooser.vue'
+import { placeBubble } from '@/util/bubblePosition'
 import bus from '@/bus'
 import { DEFAULT_EDITOR_FONT_FAMILY, DEFAULT_CODE_FONT_FAMILY } from '@/config'
 import notice from '@/services/notification'
@@ -278,23 +280,60 @@ const { projectTree } = storeToRefs(projectStore)
 // 编辑器只在粘贴事件里发出 `muya-html-file-pasted`，此时文档尚未改动；用户在这里
 // 做出选择后才真正落内容。
 const htmlPasteChooser = reactive({ visible: false, x: 0, y: 0, path: '', name: '' })
+const htmlChooserRef = ref<InstanceType<typeof HtmlPasteChooser> | null>(null)
 
-const showHtmlPasteChooser = (payload: { path: string; name: string }) => {
-  // 气泡是 fixed 定位，直接贴光标（选区）下方；越界时收回视口内。
+const readSelectionRect = (): DOMRect | null => {
   const selection = window.getSelection()
-  const rect =
-    selection && selection.rangeCount > 0 ? selection.getRangeAt(0).getBoundingClientRect() : null
-  const bubbleWidth = 320
-  const bubbleHeight = 170
+  if (!selection || selection.rangeCount === 0) return null
+  return selection.getRangeAt(0).getBoundingClientRect()
+}
+
+// 几何全部交给 util/bubblePosition（纯函数、有单测）：
+// - 锚点=光标/选区矩形；空文档里 collapsed range 给的是 0×0 的原点矩形，那不代表
+//   「光标在窗口左上角」，工具会识别并退到编辑区左上角；
+// - 边界=**编辑区**而不是整个窗口，所以气泡永远不会盖住标签栏/标题栏。
+// 取**可见**编辑区的矩形：本组件的 ref、以及 DOM 里任何真实占位的 .editor-component
+// 都算候选。只认组件 ref 是不够的——多标签下（或编辑器重挂载的瞬间）它可能量到
+// 0×0，退化成「窗口左上角」，气泡就会贴到标签栏上（1.2.6 的实际表现）。
+const readEditorBounds = (): DOMRect => {
+  const candidates: (HTMLElement | null)[] = [
+    editorRef.value,
+    ...Array.from(document.querySelectorAll<HTMLElement>('.editor-component'))
+  ]
+  for (const el of candidates) {
+    const rect = el?.getBoundingClientRect()
+    if (rect && rect.width > 0 && rect.height > 0) return rect
+  }
+  // 连一个可见编辑区都没有（理论上不该发生）：退到窗口，至少不会 NaN。
+  return new DOMRect(0, 0, window.innerWidth, window.innerHeight)
+}
+
+const showHtmlPasteChooser = async (payload: { path: string; name: string }) => {
+  const anchor = readSelectionRect()
+  const bounds = readEditorBounds()
 
   htmlPasteChooser.path = payload.path
   htmlPasteChooser.name = payload.name || payload.path.split(/[/\\]/).pop() || 'index.html'
-  htmlPasteChooser.x = Math.max(12, Math.min(rect?.left ?? 80, window.innerWidth - bubbleWidth))
-  htmlPasteChooser.y = Math.max(
-    12,
-    Math.min((rect?.bottom ?? 120) + 8, window.innerHeight - bubbleHeight)
-  )
+
+  // 先用估算尺寸落位（不让用户看见量尺寸前的跳动），量到真实尺寸后再纠正一次：
+  // 两次更新都在 Vue 的同一次刷新里落地，视觉上仍是直接出现在最终位置。
+  const estimate = placeBubble({ anchor, bounds })
+  htmlPasteChooser.x = estimate.x
+  htmlPasteChooser.y = estimate.y
   htmlPasteChooser.visible = true
+
+  await nextTick()
+
+  const el = htmlChooserRef.value?.$el
+  if (!(el instanceof HTMLElement)) return
+
+  const measured = placeBubble({
+    anchor,
+    bounds,
+    bubble: { width: el.offsetWidth, height: el.offsetHeight }
+  })
+  htmlPasteChooser.x = measured.x
+  htmlPasteChooser.y = measured.y
 }
 
 const closeHtmlPasteChooser = () => {
@@ -2013,7 +2052,10 @@ onMounted(() => {
   // 由用户决定「内嵌进文档」（单文件可带走）还是「上传图床并插入链接」。编辑器侧
   // 只负责发事件，文档在这之前没有任何改动。
   muya.on('muya-html-file-pasted', (payload: { path: string; name: string }) => {
-    showHtmlPasteChooser(payload)
+    // 气泡只是交互增强：定位出问题不该影响粘贴流程，但要显式接住 promise。
+    showHtmlPasteChooser(payload).catch((err) => {
+      console.error('[html-paste] 气泡定位失败', err)
+    })
   })
 
   // Seed the save-tracking baseline for the mount-loaded document (from the

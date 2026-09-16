@@ -109,6 +109,30 @@ export const hasMarkdownExtension = (filename: string): boolean => {
 }
 
 /**
+ * Strip a trailing markdown extension: `note.md` → `note`.
+ *
+ * `path.basename(name, '.md')` only knows `.md`, so `note.markdown` survives and
+ * gets a second extension appended downstream (`note.markdown.md`). Match the
+ * whole family instead.
+ */
+export const stripMarkdownExtension = (filename: string): string => {
+  if (!filename || typeof filename !== 'string') return ''
+  const lower = filename.toLowerCase()
+  const hit = MARKDOWN_EXTENSIONS.find((ext) => lower.endsWith(`.${ext}`))
+  return hit ? filename.slice(0, filename.length - hit.length - 1) : filename
+}
+
+/**
+ * Ensure a filename carries a markdown extension — idempotently.
+ *
+ * The save dialog's suggested name comes from the tab's filename, and an unsaved
+ * tab is already named `Untitled-1.md`; concatenating `.md` unconditionally
+ * produced `Untitled-1.md.md` (reported 2026-09-16).
+ */
+export const ensureMarkdownExtension = (filename: string): string =>
+  hasMarkdownExtension(filename) ? filename : `${filename}.md`
+
+/**
  * Returns true if the path is an image file.
  */
 export const isImageFile = (filepath: string): boolean => {

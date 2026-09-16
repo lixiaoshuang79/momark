@@ -13,8 +13,10 @@ import log from 'electron-log'
 import { isDirectory, isFile, exists } from 'common/filesystem'
 import {
   MARKDOWN_EXTENSIONS,
+  ensureMarkdownExtension,
   isDangerousExecutableFile,
-  isMarkdownFile
+  isMarkdownFile,
+  stripMarkdownExtension
 } from 'common/filesystem/paths'
 import { userSetting } from './marktext'
 import { showTabBar } from './view'
@@ -142,7 +144,8 @@ const handleResponseForExport = async (e: IpcMainEvent, payload: ExportPayload):
 
   const extension = (EXTENSION_HASN as Record<string, string>)[type]
   const dirname = pathname ? path.dirname(pathname) : getPath('documents')
-  let nakedFilename = pathname ? path.basename(pathname, '.md') : title
+  // 标签名可能已经带扩展名（未落盘标签就叫 Untitled-1.md），先剥掉再交给 pandoc
+  let nakedFilename = stripMarkdownExtension(pathname ? path.basename(pathname) : title)
   if (!nakedFilename) {
     nakedFilename = 'Untitled'
   }
@@ -284,7 +287,10 @@ const handleResponseForSave = async (
 
   if (!filePath) {
     const { filePath: dialogPath, canceled } = await dialog.showSaveDialog(win, {
-      defaultPath: path.join(defaultPath || getPath('documents'), `${recommendFilename}.md`)
+      defaultPath: path.join(
+        defaultPath || getPath('documents'),
+        ensureMarkdownExtension(recommendFilename)
+      )
     })
 
     if (dialogPath && !canceled) {
@@ -478,7 +484,8 @@ ipcMain.on(
 
     let { filePath, canceled } = await dialog.showSaveDialog(win, {
       defaultPath:
-        pathname || path.join(defaultPath || getPath('documents'), `${recommendFilename}.md`)
+        pathname ||
+        path.join(defaultPath || getPath('documents'), ensureMarkdownExtension(recommendFilename))
     })
 
     if (filePath && !canceled) {

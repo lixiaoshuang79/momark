@@ -43,6 +43,16 @@ Conventional commits：`feat(ui): …` / `fix(muya): …`，描述用中文。
 - 构建产物路径由开发者**报告**，用户自行打开验收；开发者不自动安装到 `/Applications`
 - 交付安装包（dmg/zip）放 OneDrive `deepseek/2026-09-05/momark-electron/`
 
+## 发布前必须用户验收（2026-09-16 用户拍板）
+
+**打 tag、发 Release、往 OneDrive 放安装包之前，必须先让用户验收。** 开发者自测通过只算「可以交付验收」，
+不算「可以发布」：先把构建产物的路径（`dist/mac-arm64/墨记.app`）报给用户，等用户明确说「可以发」再走
+下面的 tag / Release / OneDrive 流程。
+
+原因：1.2.6 是开发者自测通过后直接发布的，用户装上后立刻发现两个自测没覆盖的问题（空文档里粘贴时气泡
+贴在窗口左上角压住标签栏；另存为把未落盘标签的建议名 `Untitled-1.md` 又拼一次 `.md`）。这类问题只有真
+人在真实文档里操作才会暴露——自测只能证明「我想到的场景是对的」。
+
 ## GitHub Release 铁律：每一版都必须发
 
 **只推 tag 不算交付。** 每次合入 `main`、打完 tag 之后，必须同步在 GitHub 上为这个 tag 建立 Release，
