@@ -382,6 +382,13 @@
   background: var(--ud-bg);
   color: var(--muted);
   box-shadow: none;
+  /* 生长动效与单页悬浮「+」严格同源：同样的 0.46s + --ease-grow（悬浮落点
+     过渡的是 wrapper 的 width，dock 落点的 wrapper 是 Dock 列的 34px 槽位动
+     不得，所以把这条过渡搬到胶囊自身的宽度上，视觉曲线一致）。 */
+  transition:
+    width 0.46s var(--ease-grow),
+    background 0.15s ease,
+    border-radius 0.32s cubic-bezier(0.2, 0.85, 0.3, 1);
 }
 .bp-addrwrap.dock .bp-plus:hover {
   background: var(--hover);
@@ -898,8 +905,14 @@
 .bp-browserbar .bp-fit {
   width: auto;
   min-width: 28px;
-  padding: 0 5px;
-  gap: 2px;
+  padding: 0 7px;
+  gap: 3px;
+  /* 工具栏按钮基类是 display:grid + place-items:center，两个子元素（读数 + caret）
+     会各占一行 —— 必须改回单行 flex，否则「适应」和 caret 上下两行。 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
   font-family: var(--font-body);
   font-size: 11px;
   line-height: 1;
