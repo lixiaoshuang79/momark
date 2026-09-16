@@ -93,7 +93,7 @@ const FRAME_DEFAULT_HEIGHT = 400;
 const FRAME_HEIGHT_EVENT = 'mu-html-frame-height-change';
 
 // ── 块内含脚本的 HTML（单文件交互原型/图表）──────────────────────────────
-// 不脚本的 HTML 块直接进编辑器 DOM，并经过 DOMPurify 净化 —— `<script>` 会被
+// 无脚本的 HTML 块直接进编辑器 DOM，并经过 DOMPurify 净化 —— `<script>` 会被
 // 剥掉，所以「脚本画出来的图」在纯 HTML 块里永远不出现。此前唯一的替代通道是
 // `<iframe src="chart.html">`，但那要求把 html 文件一起发出、或者指向联网资源，
 // 单个 .md 文件带不动。
