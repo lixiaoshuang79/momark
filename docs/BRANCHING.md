@@ -43,6 +43,35 @@ Conventional commits：`feat(ui): …` / `fix(muya): …`，描述用中文。
 - 构建产物路径由开发者**报告**，用户自行打开验收；开发者不自动安装到 `/Applications`
 - 交付安装包（dmg/zip）放 OneDrive `deepseek/2026-09-05/momark-electron/`
 
+## GitHub Release 铁律：每一版都必须发
+
+**只推 tag 不算交付。** 每次合入 `main`、打完 tag 之后，必须同步在 GitHub 上为这个 tag 建立 Release，
+并把 dmg / zip 作为附件上传（`momark/1.0.0`、`1.2.0`、`1.2.1` 的 Release 都带附件；`1.2.2` / `1.2.3`
+漏发，用户 2026-09-16 因此追问「release 也得更新啊」）。
+
+约定：
+
+- 标题 `墨记 V<x.y.z>`，tag 用已推上 `origin` 的 `momark/<x.y.z>`，target `main`
+- 正文含：一句话产品定位 → 本版改了什么（分「修复与优化」，按面板/模块分组）→「## 安装」段
+  （下载 dmg/zip、拖入「应用程序」、arm64 架构说明、未公证签名的 `xattr -cr /Applications/墨记.app`）
+- 附件命名与 OneDrive 一致：`momark-mac-arm64-<x.y.z>.dmg` + `.zip`（dmg 用 `application/octet-stream`，
+  zip 用 `application/zip`）
+- **若中间版本漏发 Release，最新一版的正文要把这些改动一并收录**（用户看到的是 1.2.1 → 最新版），
+  并在回复里说明漏发的版本
+- 本机无 `gh` CLI：用 REST API 建 Release 与传附件，令牌取钥匙串里既有的 GitHub 凭据
+  （`printf "protocol=https\nhost=github.com\n\n" | git credential fill`），**不要把令牌写进文件或输出**
+
+```bash
+TOKEN=$(printf "protocol=https\nhost=github.com\n\n" | git credential fill 2>/dev/null | awk -F= '/^password=/{print substr($0,10)}')
+# 建 Release（正文用 --data-binary @file，避免中文被 shell 转义）
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
+  https://api.github.com/repos/lixiaoshuang79/momark/releases --data-binary @release.json
+# 传附件（uploads.github.com，大文件用 -T 流式上传，别 --data-binary 整个读进内存）
+curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/octet-stream" \
+  -T momark-mac-arm64-<x.y.z>.dmg \
+  "https://uploads.github.com/repos/lixiaoshuang79/momark/releases/<id>/assets?name=momark-mac-arm64-<x.y.z>.dmg"
+```
+
 ## 远端说明
 
 - `origin` → github.com/lixiaoshuang79/momark（发布仓库）
