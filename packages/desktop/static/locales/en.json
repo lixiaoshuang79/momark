@@ -1045,6 +1045,19 @@
       "languageMissing": "Spellcheck language missing {languageCode}",
       "switchError": "Spellcheck switch error for {languageCode}, {error}",
       "title": "Spellcheck"
+    },
+    "htmlFilePaste": {
+      "title": "Pasted an HTML file — what should we do?",
+      "embed": "Embed into document",
+      "upload": "Upload and insert link",
+      "hint": "Embedding inlines same-folder CSS, scripts and images so the .md travels on its own; uploading inserts a link instead.",
+      "embedDone": "Embedded {name}",
+      "embedFailed": "Failed to embed HTML",
+      "inlined": "Inlined {count} assets",
+      "missed": "{count} assets not inlined (unreadable)",
+      "uploadDone": "Uploaded and inserted link",
+      "uploadFailed": "Failed to upload HTML",
+      "uploadFailedHint": "The upload service did not return a link — check it in Preferences → Image."
     }
   },
   "statusBar": {

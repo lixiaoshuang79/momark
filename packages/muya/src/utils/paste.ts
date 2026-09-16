@@ -179,6 +179,33 @@ export function isStandaloneTableHtml(text: string) {
     return tmp.childElementCount === 1;
 }
 
+/** `.html` / `.htm` 文件扩展名（粘贴 html 文件时用来与图片区分）。 */
+export const HTML_FILE_EXT_REG = /\.html?$/i;
+
+/**
+ * Ask the `clipboardFilePath` hook where the clipboard's file lives.
+ *
+ * 钩子背后是一次主进程 IPC（macOS 读 `NSFilenamesPboardType`），**同一次粘贴只应
+ * 调用一次**：重复调用既浪费，也可能在两次调用之间读到已经变了的剪贴板。所以这里
+ * 只负责拿原始路径，由调用方按扩展名分流。
+ *
+ * Returns `''` when no hook is configured or it yields nothing usable. Hook
+ * errors are **not** swallowed here — the caller decides (the paste pipeline
+ * treats a throwing hook as "no file" so a broken hook never breaks paste).
+ *
+ * @param hook the `options.clipboardFilePath` callback, if configured
+ */
+export async function resolveClipboardPath(
+    hook: (() => Promise<string>) | undefined,
+): Promise<string> {
+    if (typeof hook !== 'function')
+        return '';
+
+    const path = await hook();
+
+    return typeof path === 'string' ? path : '';
+}
+
 /**
  * Resolve the `clipboardFilePath` paste hook to a usable inline-image path.
  *
@@ -192,12 +219,9 @@ export function isStandaloneTableHtml(text: string) {
 export async function resolveClipboardImagePath(
     hook: (() => Promise<string>) | undefined,
 ): Promise<string> {
-    if (typeof hook !== 'function')
-        return '';
+    const path = await resolveClipboardPath(hook);
 
-    const path = await hook();
-
-    if (typeof path === 'string' && path && IMAGE_EXT_REG.test(path))
+    if (path && IMAGE_EXT_REG.test(path))
         return path;
 
     return '';

@@ -109,10 +109,14 @@ async function insertImageSrc(
 async function resolveImageSrc(
     clipboard: Clipboard,
     imageFile: Nullable<File>,
+    // 由 `pasteSelection` 预先解析好的剪贴板文件路径（同一次粘贴只允许问一次系统
+    // 剪贴板：钩子要走一次主进程 IPC，重复调用既浪费也可能读到已经变了的剪贴板）。
+    // 传 `undefined` 表示调用方没解析过，这里自己问；传 '' 表示确实没有文件。
+    resolvedPath?: string,
 ): Promise<Nullable<string>> {
-    const imagePath = await resolveClipboardImagePath(
-        clipboard.muya.options.clipboardFilePath,
-    );
+    const imagePath = resolvedPath !== undefined
+        ? resolvedPath
+        : await resolveClipboardImagePath(clipboard.muya.options.clipboardFilePath);
     if (imagePath)
         return imagePath;
 
@@ -158,8 +162,9 @@ export async function tryPasteImage(
     clipboard: Clipboard,
     anchorBlock: Content,
     imageFile: Nullable<File>,
+    clipboardPath?: string,
 ): Promise<boolean> {
-    const src = await resolveImageSrc(clipboard, imageFile);
+    const src = await resolveImageSrc(clipboard, imageFile, clipboardPath);
     if (src == null)
         return false;
 

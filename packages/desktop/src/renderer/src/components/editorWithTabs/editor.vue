@@ -6,6 +6,14 @@
     :dir="textDirection"
   >
     <div ref="editorRef" class="editor-component" />
+    <HtmlPasteChooser
+      :visible="htmlPasteChooser.visible"
+      :x="htmlPasteChooser.x"
+      :y="htmlPasteChooser.y"
+      :file-name="htmlPasteChooser.name"
+      @choose="onHtmlPasteChoose"
+      @close="closeHtmlPasteChooser"
+    />
     <div v-show="imageViewerVisible" class="image-viewer">
       <span class="icon-close" @click="setImageViewerVisible(false)">
         <CloseIcon />
@@ -104,6 +112,7 @@ import {
 } from '@/util/exportHtml'
 import { applyCursor, isIndexCursor } from '@/util/cursor'
 import EditorSearch from '../search/index.vue'
+import HtmlPasteChooser from './HtmlPasteChooser.vue'
 import bus from '@/bus'
 import { DEFAULT_EDITOR_FONT_FAMILY, DEFAULT_CODE_FONT_FAMILY } from '@/config'
 import notice from '@/services/notification'
@@ -113,6 +122,7 @@ import { SpellChecker } from '@/spellchecker'
 import { isOsx, animatedScrollTo } from '@/util'
 import { moveImageToFolder, uploadImage } from '@/util/fileSystem'
 import { guessClipboardFilePath } from '@/util/clipboard'
+import { inlineHtmlDocument } from '@/util/htmlInline'
 import { dataURLToFile } from '@/util/dataURLToFile'
 import { getCssForOptions, getHtmlToc, type PdfCssOptions, type HtmlTocOptions } from '@/util/pdf'
 import { resolveTocHeadingElement } from '@/util/tocNavigation'
@@ -261,6 +271,102 @@ const lastTabId = ref<string | null>(null)
 
 // Project store refs
 const { projectTree } = storeToRefs(projectStore)
+
+// ---------------------------------------------------------------------------
+// 粘贴 .html 文件的二选一气泡（内嵌到文档 / 上传图床并插入链接）
+// ---------------------------------------------------------------------------
+// 编辑器只在粘贴事件里发出 `muya-html-file-pasted`，此时文档尚未改动；用户在这里
+// 做出选择后才真正落内容。
+const htmlPasteChooser = reactive({ visible: false, x: 0, y: 0, path: '', name: '' })
+
+const showHtmlPasteChooser = (payload: { path: string; name: string }) => {
+  // 气泡是 fixed 定位，直接贴光标（选区）下方；越界时收回视口内。
+  const selection = window.getSelection()
+  const rect =
+    selection && selection.rangeCount > 0 ? selection.getRangeAt(0).getBoundingClientRect() : null
+  const bubbleWidth = 320
+  const bubbleHeight = 170
+
+  htmlPasteChooser.path = payload.path
+  htmlPasteChooser.name = payload.name || payload.path.split(/[/\\]/).pop() || 'index.html'
+  htmlPasteChooser.x = Math.max(12, Math.min(rect?.left ?? 80, window.innerWidth - bubbleWidth))
+  htmlPasteChooser.y = Math.max(
+    12,
+    Math.min((rect?.bottom ?? 120) + 8, window.innerHeight - bubbleHeight)
+  )
+  htmlPasteChooser.visible = true
+}
+
+const closeHtmlPasteChooser = () => {
+  htmlPasteChooser.visible = false
+}
+
+// 「内嵌到文档」：读文件 → 内联同目录的 CSS/JS/图片 → 在光标处插入一个 HTML 块。
+// 转换后 .md 自包含（单文件可带走），脚本在渲染时由沙箱 iframe 执行。
+const embedHtmlFile = async (path: string, name: string) => {
+  try {
+    const raw = String(await window.fileUtils.readFile(path, 'utf8'))
+    const { html, inlined, missed } = await inlineHtmlDocument(raw, path)
+    editor.value?.insertHtmlBlock(html)
+
+    const detail = [
+      inlined.length ? t('editor.htmlFilePaste.inlined', { count: inlined.length }) : '',
+      missed.length ? t('editor.htmlFilePaste.missed', { count: missed.length }) : ''
+    ]
+      .filter(Boolean)
+      .join('；')
+
+    notice.notify({
+      title: t('editor.htmlFilePaste.embedDone', { name }),
+      type: missed.length ? 'warning' : 'primary',
+      message: detail
+    })
+  } catch (err) {
+    notice.notify({
+      title: t('editor.htmlFilePaste.embedFailed'),
+      type: 'error',
+      message: err as string
+    })
+  }
+}
+
+// 「上传图床并插入链接」：复用偏好设置里的上传服务（PicGo / 腾讯云 COS），拿到
+// URL 后在光标处插入一个 Markdown 链接。
+const uploadHtmlFile = async (path: string, name: string) => {
+  try {
+    const url = (await uploadImage(
+      currentFile.value?.pathname ?? '',
+      path,
+      preferencesStore.$state as unknown as import('@/util/fileSystem').UploadImagePreferences
+    )) as string
+
+    // 上传服务没配好、或它按「非图片不传」处理时，`uploadImage` 会把原路径原样返回。
+    // 那种值不是链接：插进文档只会得到一条指向本机文件的死链，还弹「已上传」误导人。
+    // 所以只认真正的 http(s) 链接，其余一律按失败如实报出来。
+    if (!url || !/^https?:\/\//i.test(url)) {
+      throw new Error(`uploader returned no url: ${url || '(empty)'}`)
+    }
+
+    editor.value?.insertMarkdownLink({ text: name, url })
+    notice.notify({ title: t('editor.htmlFilePaste.uploadDone'), type: 'primary', message: url })
+  } catch (err) {
+    notice.notify({
+      title: t('editor.htmlFilePaste.uploadFailed'),
+      type: 'warning',
+      message: `${t('editor.htmlFilePaste.uploadFailedHint')} ${err instanceof Error ? err.message : String(err)}`
+    })
+  }
+}
+
+const onHtmlPasteChoose = (action: 'embed' | 'upload') => {
+  const { path, name } = htmlPasteChooser
+  closeHtmlPasteChooser()
+  if (!path) return
+
+  // 两个分支内部各自 try/catch 并提示，这里不需要额外兜底。
+  if (action === 'embed') embedHtmlFile(path, name)
+  else uploadHtmlFile(path, name)
+}
 
 // Component state
 const defaultFontFamily = DEFAULT_EDITOR_FONT_FAMILY
@@ -1901,6 +2007,13 @@ onMounted(() => {
   // origin isolation as the in-editor embed).
   muya.on('muya-html-open-sidebar', (payload: { src: string; title: string }) => {
     bpStore.OPEN_HTML_DOC(payload.src, payload.title || 'HTML')
+  })
+
+  // 粘贴的是 .html 文件（而不是从浏览器复制的 HTML 内容）：弹一个二选一气泡，
+  // 由用户决定「内嵌进文档」（单文件可带走）还是「上传图床并插入链接」。编辑器侧
+  // 只负责发事件，文档在这之前没有任何改动。
+  muya.on('muya-html-file-pasted', (payload: { path: string; name: string }) => {
+    showHtmlPasteChooser(payload)
   })
 
   // Seed the save-tracking baseline for the mount-loaded document (from the

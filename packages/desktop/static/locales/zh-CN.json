@@ -1047,6 +1047,19 @@
       "errorSwitchingLanguage": "切换拼写检查语言时出错 {languageCode}",
       "languageMissing": "拼写检查语言缺失 {languageCode}",
       "switchError": "{languageCode} 拼写检查切换错误，{error}"
+    },
+    "htmlFilePaste": {
+      "title": "这个 HTML 文件怎么处理？",
+      "embed": "内嵌到文档",
+      "upload": "上传图床并插入链接",
+      "hint": "内嵌会把同目录的样式、脚本、图片一起写进文档，之后 .md 单文件即可带走；上传则插入一条链接。",
+      "embedDone": "已内嵌 {name}",
+      "embedFailed": "内嵌 HTML 失败",
+      "inlined": "已内联 {count} 个资源",
+      "missed": "{count} 个资源未内联（文件读不到）",
+      "uploadDone": "已上传并插入链接",
+      "uploadFailed": "上传 HTML 失败",
+      "uploadFailedHint": "上传服务没有返回链接，请在偏好设置 → 图像 里检查上传服务配置。"
     }
   },
   "statusBar": {

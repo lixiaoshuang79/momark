@@ -8,12 +8,19 @@ import type Clipboard from './index';
 import CodeBlockContent from '../block/content/codeBlockContent';
 import LangInputContent from '../block/content/langInputContent';
 import { ScrollPage } from '../block/scrollPage';
-import { URL_REG } from '../config';
+import { IMAGE_EXT_REG, URL_REG } from '../config';
 import { tokenizer } from '../inlineRenderer/lexer';
 import HtmlToMarkdown from '../state/htmlToMarkdown';
 import { MarkdownToState } from '../state/markdownToState';
 import { isAnyListState, isParagraphState } from '../state/types';
-import { getClipboardImageFile, getCopyTextType, isStandaloneTableHtml, normalizePastedHTML } from '../utils/paste';
+import {
+    HTML_FILE_EXT_REG,
+    getClipboardImageFile,
+    getCopyTextType,
+    isStandaloneTableHtml,
+    normalizePastedHTML,
+    resolveClipboardPath,
+} from '../utils/paste';
 import { mergePasteIntoHeading } from './mergePasteIntoHeading';
 import { tryPasteImage, tryReplaceSelectedImage } from './pasteImage';
 import { PasteType } from './types';
@@ -577,6 +584,10 @@ interface IPasteData {
     html: string;
     imageFile: File | null;
     pasteType: PasteType;
+    // 同一次粘贴里 `clipboardFilePath` 钩子（一次主进程 IPC）只解析一次，结果按
+    // 扩展名分流后往下传：这里是**已确认是图片**的路径，'' 表示不是图片。
+    // `undefined` = 调用方没解析过，图片分支自己去问钩子。
+    clipboardImagePath?: string;
 }
 
 // The paste pipeline, decoupled from the DOM `paste` event so it can be driven
@@ -622,7 +633,7 @@ async function applyPaste(clipboard: Clipboard, data: IPasteData): Promise<void>
     // When the clipboard holds an image — either a file resolved to a path
     // or an in-memory bitmap — insert it as an inline image
     // routed through `imageAction`, short-circuiting the text/HTML paste.
-    if (await tryPasteImage(clipboard, anchorBlock, imageFile))
+    if (await tryPasteImage(clipboard, anchorBlock, imageFile, data.clipboardImagePath))
         return;
 
     // Support pasted URLs from Firefox.
@@ -695,7 +706,7 @@ async function applyPaste(clipboard: Clipboard, data: IPasteData): Promise<void>
 }
 
 // Entry for a trusted DOM `paste` event (native Cmd/Ctrl+V).
-export function pasteSelection(
+export async function pasteSelection(
     clipboard: Clipboard,
     event: ClipboardEvent,
     // `event.clipboardData` is only valid synchronously while the paste event
@@ -720,7 +731,33 @@ export function pasteSelection(
     // detached after the first `await`.
     const imageFile = getClipboardImageFile(event.clipboardData);
 
-    return applyPaste(clipboard, { text, html, imageFile, pasteType: clipboard.pasteType });
+    // 粘贴的是 .html 文件本身（Finder 里「拷贝」一个 html 文件），而不是从浏览器
+    // 复制的 HTML 内容 —— 后者走下面的常规 html 粘贴路径。文件交给应用决定「内嵌
+    // 进文档」还是「上传图床并插入链接」，编辑器自身不落任何内容。
+    // 剪贴板钩子异常时按「没有 html 文件」处理，不能连累正常粘贴。
+    let clipboardPath = '';
+    try {
+        clipboardPath = await resolveClipboardPath(clipboard.muya.options.clipboardFilePath);
+    }
+    catch {
+        clipboardPath = '';
+    }
+    if (clipboardPath && HTML_FILE_EXT_REG.test(clipboardPath)) {
+        clipboard.muya.eventCenter.emit('muya-html-file-pasted', {
+            path: clipboardPath,
+            name: clipboardPath.split(/[/\\]/).pop() ?? '',
+        });
+
+        return;
+    }
+
+    return applyPaste(clipboard, {
+        text,
+        html,
+        imageFile,
+        pasteType: clipboard.pasteType,
+        clipboardImagePath: clipboardPath && IMAGE_EXT_REG.test(clipboardPath) ? clipboardPath : '',
+    });
 }
 
 // Entry for "Paste as Plain Text". The caller has already read the clipboard's

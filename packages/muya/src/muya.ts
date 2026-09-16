@@ -6,7 +6,7 @@ import type { ILocale } from './i18n/types';
 import type { IIndexCursor } from './selection/offsetCursor';
 import type { IHistorySelection, IPublicCursorInput } from './selection/types';
 import type { ITocItem } from './state/getTOC';
-import type { IBulletListState, IOrderListState, ITableState, ITaskListState, TState } from './state/types';
+import type { IBulletListState, IHtmlBlockState, IOrderListState, ITableState, ITaskListState, TState } from './state/types';
 import type { IMuyaOptions, Nullable } from './types';
 import Format from './block/base/format';
 import { canTurnInto, insertBlockBelowByLabel, insertFrontMatterAtStart, replaceBlockByLabel } from './block/blockTransforms';
@@ -924,6 +924,50 @@ export class Muya {
 
         block.remove();
         cursorBlock?.setCursor(0, 0, true);
+    }
+
+    /**
+     * 在光标所在块之后插入一个 HTML 块，内容为给定的 HTML 源码（逐行原样写回
+     * markdown，与载入时 `markdownToState` 产出的 html-block 状态一致）。
+     *
+     * 用于「把 html 文件内嵌进文档」这类由应用发起的插入：`insertImage` 那种在
+     * 段落文本里塞 markdown 的做法对块级状态不适用，所以照 `insertParagraph` 的
+     * 方式直接建块再挂到光标块后面。
+     */
+    insertHtmlBlock(source: string) {
+        const text = (source ?? '').trim();
+        const block = this._immediateBlockAtCursor();
+        if (!text || !block)
+            return;
+
+        const state: IHtmlBlockState = { name: 'html-block', text };
+        const newBlock = ScrollPage.loadBlock('html-block').create(this, state);
+        block.parent!.insertAfter(newBlock, block);
+    }
+
+    /**
+     * 在光标处插入一个 Markdown 链接 `[text](url)`，沿用 `insertImage` 的写法
+     * （走 `Format` 块的 text setter，状态与 DOM 同步）。返回插入的文本，未插入
+     * 时返回空串。
+     */
+    insertMarkdownLink({ text = '', url = '' }: { text?: string; url?: string }) {
+        const block = this.editor.activeContentBlock ?? this.editor.selection.anchorBlock;
+        if (!(block instanceof Format) || !url)
+            return '';
+
+        const cursor = block.getCursor();
+        if (cursor == null)
+            return '';
+
+        const { start, end } = cursor;
+        const { text: content } = block;
+        const label = text || url;
+        const linkText = `[${label}](${url})`;
+
+        block.text = content.substring(0, start.offset) + linkText + content.substring(end.offset);
+        block.setCursor(start.offset + linkText.length, start.offset + linkText.length, true);
+
+        return linkText;
     }
 
     createTable({ rows, columns }: { rows: number; columns: number }, { replace = false }: { replace?: boolean } = {}) {
