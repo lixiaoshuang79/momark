@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>HTML</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      // 墨记「块内含脚本的 HTML」的沙箱引导页。
+      //
+      // 为什么需要这个文件：渲染层 CSP 是 `script-src 'self'`，而 `srcdoc` /
+      // `about:blank` / `blob:` 这类本地文档会**继承**父文档的 CSP —— 内联脚本
+      // 会被静默拦掉（实测：帧渲染出来了，但脚本没跑）。`file:` 文档不在继承范围
+      // 内，所以由一个随应用打包的 file:// 页面承载内容，脚本才能执行。
+      //
+      // 流程：父页面（编辑器）在 iframe load 后 postMessage 投递作者源码 → 本页用
+      // document.write 重新解析（只有解析器插入的 <script> 才会执行，innerHTML 不会）
+      // → 再把内容高度上报给父页面（父页面据此收紧帧高）。
+      //
+      // 安全：iframe 带 `sandbox="allow-scripts"`（无 allow-same-origin），本页与作者
+      // 脚本都在不透明源里跑，碰不到编辑器、文档与本地文件。
+      (function () {
+        var written = false;
+
+        function reportHeight() {
+          if (!document.documentElement) return;
+          var height = Math.ceil(document.documentElement.scrollHeight);
+          try {
+            parent.postMessage({ type: 'momark-html-frame-height', height: height }, '*');
+          } catch (e) {
+            /* 父页面已销毁 */
+          }
+        }
+
+        window.addEventListener('message', function (event) {
+          var data = event.data;
+          if (!data || data.type !== 'momark-html-frame-source' || written) return;
+          // 只接受直接父窗口的投递（本页与父窗口不同源，拿不到对方 identity，只能靠
+          // source 与帧结构约束：外层 iframe 的投递恰好满足）。
+          if (event.source !== parent) return;
+
+          written = true;
+          document.open();
+          document.write(typeof data.html === 'string' ? data.html : '');
+          document.close();
+
+          // 内容已就位：立刻测一次，并跟随内容变化（图表重绘、字体加载）。
+          if (window.ResizeObserver) new ResizeObserver(reportHeight).observe(document.documentElement);
+          window.addEventListener('load', reportHeight);
+          reportHeight();
+          setTimeout(reportHeight, 120);
+          setTimeout(reportHeight, 600);
+        });
+      })();
+    </script>
+  </body>
+</html>
