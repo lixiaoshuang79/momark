@@ -25,7 +25,7 @@ import WelcomeWindow from '../windows/welcome'
 import AboutWindow from '../windows/about'
 import { setLanguage, t } from '../i18n'
 import { getNativeThemeSource, isDarkApplicationTheme } from './nativeTheme'
-import { installBrowserPanelSecurity } from '../browserPanel'
+import { installBrowserPanelSecurity, installPanelZoomKeyRouting } from '../browserPanel'
 import type Accessor from './accessor'
 import type WindowManager from './windowManager'
 
@@ -226,7 +226,12 @@ class App {
 
   ready = (): void => {
     const { _args: args, _openFilesCache } = this
-    const { preferences, editorBufferStore } = this._accessor
+    const { preferences, editorBufferStore, keybindings } = this._accessor
+
+    // round18：网页面板优先接管缩放快捷键。Cmd +=/-/0 在墨记里本是「段落标题
+    // 升降级」，面板展示网页时若不接管，用户按「网页放大」会改掉左侧文档的
+    // 段落级别（用户报的「放大缩小的效果转移到左侧文档」）。实现见 browserPanel.ts。
+    installPanelZoomKeyRouting(keybindings)
 
     // Initialize language settings
     const { startUpAction, defaultDirectoryToOpen, theme, language } = preferences.getAll()

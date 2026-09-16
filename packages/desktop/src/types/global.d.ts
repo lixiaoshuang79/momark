@@ -176,6 +176,12 @@ declare global {
     reload(id: string): Promise<void>
     setDeviceMode(id: string, mode: 'pc' | 'mobile'): Promise<boolean>
     getState(id: string): Promise<BpPageState>
+    setInputContext(ctx: {
+      open: boolean
+      mode: 'url' | 'doc'
+      activePageId: string | null
+      editorFocused: boolean
+    }): void
     openExternal(url: string): Promise<boolean>
     pickDoc(): Promise<{ path: string; markdown: string } | null>
     readDoc(path: string): Promise<{ path: string; markdown: string } | null>

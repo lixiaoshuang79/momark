@@ -27,20 +27,22 @@
         <mo-icon name="i-x" />
       </span>
     </button>
-    <button type="button" class="ud-add" title="新增网页" @click.stop="openAddr">
-      <mo-icon name="i-plus" />
-    </button>
+    <!-- round18：Dock 末尾的「+」= 同一个「+ / 搜索栏」控件（dock 落点）：
+         hover 就地展开搜索栏、右缘与 + 对齐（旧实现只有 click 且展开在右上角）。 -->
+    <addr-wrap variant="dock" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onBeforeUnmount } from 'vue'
 import MoIcon from '@/components/icons/MoIcon.vue'
+import AddrWrap from './addrWrap.vue'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 
 // 网址右缘 Dock（PHASE2-SPEC §5）：≥2 页显示；34×34 圆角 9px 底 --ud-bg；
 // hover translateX(-3px) scale(1.08)；当前=白底 1.5px 墨蓝边；
-// 相邻项 scale(.96)；末尾虚线 + 新增（展开网址栏）；每项 hover 出现关闭 ×
+// hover scale(.96)；末尾是「+ / 搜索栏」控件（round18：hover 就地展开，见 addrWrap
+// 的 dock 落点）；每项 hover 出现关闭 ×
 // （网址气泡已取消：底部有网址栏，不再冗余展示）。
 // hover 驻留：× 位于图标盒之外，纯 CSS :hover 会让鼠标在移向 × 的途中
 // 瞬间收起、× 点不到 —— 改为 JS 状态（hoverpin）：移出图标后延迟 260ms
@@ -83,10 +85,6 @@ const activate = (id: string) => {
 
 const close = (id: string) => {
   bpStore.CLOSE_PAGE(id)
-}
-
-const openAddr = () => {
-  bpStore.SET_DOCK_ADDR_OPEN(true)
 }
 
 const letterOf = (page: { url: string; title: string }): string => {
