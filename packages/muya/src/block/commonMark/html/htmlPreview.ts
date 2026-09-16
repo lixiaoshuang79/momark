@@ -88,6 +88,44 @@ const FRAME_MIN_WIDTH = 240;
 const FRAME_MIN_HEIGHT = 160;
 const FRAME_DEFAULT_HEIGHT = 400;
 
+// 自适配高度改动 frame 尺寸时广播，让外壳重读自己的尺寸基线：否则用户在自适配
+// 生效前拖拽/缩放，会以旧的 400px 基线锚定，一动手就跳一下。
+const FRAME_HEIGHT_EVENT = 'mu-html-frame-height-change';
+
+// ── 块内含脚本的 HTML（单文件交互原型/图表）──────────────────────────────
+// 不脚本的 HTML 块直接进编辑器 DOM，并经过 DOMPurify 净化 —— `<script>` 会被
+// 剥掉，所以「脚本画出来的图」在纯 HTML 块里永远不出现。此前唯一的替代通道是
+// `<iframe src="chart.html">`，但那要求把 html 文件一起发出、或者指向联网资源，
+// 单个 .md 文件带不动。
+//
+// 因此：块内出现 `<script>` 时，整个块改在沙箱 iframe 里渲染，srcdoc 用作者的
+// **原始源码**（不能净化，否则脚本就没了）。安全靠沙箱而不是净化：`allow-scripts`
+// 不带 `allow-same-origin`，脚本跑在不透明源里，既碰不到编辑器/文档，也读不到
+// 本地文件 —— 与外部 iframe 嵌入（见上）同一套模型，也正是 Typora 的模型。
+//
+// 作者源码本来就在 .md 里（`_serializeHtmlBlock` 原样写回），所以一个文件发给
+// 别人、离线打开，图照样画得出来。
+const SCRIPT_TAG_REG = /<script[\s>/]/i;
+
+export function hasInlineScript(html: string): boolean {
+    return SCRIPT_TAG_REG.test(html);
+}
+
+// 注入到 srcdoc 末尾的自动高度上报：块内容多高、iframe 就多高，避免短片段的
+// 图表被塞在 400px 的白框里（作者源码不受影响，只在渲染时拼接）。
+const AUTOSIZE_SCRIPT = `<script>(function(){
+  var post = function () {
+    parent.postMessage({ type: 'momark-html-frame-height', height: Math.ceil(document.documentElement.scrollHeight) }, '*');
+  };
+  window.addEventListener('load', post);
+  if (window.ResizeObserver) { new ResizeObserver(post).observe(document.documentElement); }
+  post();
+})();<\/script>`;
+
+export function buildSandboxDocument(html: string): string {
+    return `${html}\n${AUTOSIZE_SCRIPT}`;
+}
+
 // Wrap the restored iframe in a shell that adds two viewport controls:
 // a hover zoom toolbar (− / +, percentage click resets to 100%) and a
 // bottom-right drag handle that resizes the frame (the embedded page gets a
@@ -171,6 +209,9 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
             });
         });
     };
+
+    // 自适配高度改了 frame 尺寸 → 重读基线（用户已接管时 readBaseNow 自己跳过）。
+    frame.addEventListener(FRAME_HEIGHT_EVENT, readBase);
 
     // Once the frame has loaded (lazy iframes load late), re-anchor the
     // baseline at its final layout size.
@@ -338,8 +379,80 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
     return shell;
 }
 
+// 自适配高度的上限：一个失控的 scrollHeight（例如作者写了 100vh 的容器）不该
+// 把文档撑成一屏空白；超过就让 frame 内部自己滚动，用户仍可用拖拽手柄改大小。
+const FRAME_AUTOSIZE_MAX = 1200;
+// 下限比拖拽用的 FRAME_MIN_HEIGHT 小：脚本块常是矮小的徽标/计数器，被撑到
+// 160px 就只剩空白了。
+const FRAME_AUTOSIZE_MIN = 60;
+
+// 用户一旦动过缩放/拖拽手柄，尺寸就交给外壳（createFrameShell），自适配让位。
+const autoSizeStop = new WeakSet<HTMLIFrameElement>();
+
+function onFrameHeightMessage(event: MessageEvent) {
+    const data = event.data as { type?: string; height?: unknown } | null;
+
+    if (!data || data.type !== 'momark-html-frame-height')
+        return;
+
+    const height = Number(data.height);
+
+    if (!Number.isFinite(height))
+        return;
+
+    // 只认沙箱脚本帧（`[srcdoc]`）自己发来的消息，因此不需要按块登记/解绑监听器
+    // —— 块被重渲染丢弃后自然不再匹配。
+    const frames = document.querySelectorAll<HTMLIFrameElement>(`iframe.${CLASS_NAMES.MU_HTML_IFRAME}[srcdoc]`);
+
+    for (const frame of frames) {
+        if (frame.contentWindow !== event.source || autoSizeStop.has(frame))
+            continue;
+
+        frame.style.height = `${Math.min(Math.max(Math.ceil(height), FRAME_AUTOSIZE_MIN), FRAME_AUTOSIZE_MAX)}px`;
+        frame.dispatchEvent(new Event(FRAME_HEIGHT_EVENT));
+
+        return;
+    }
+}
+
+let heightListenerBound = false;
+
+function bindHeightListenerOnce() {
+    if (heightListenerBound)
+        return;
+
+    window.addEventListener('message', onFrameHeightMessage);
+    heightListenerBound = true;
+}
+
+// 块内含脚本时的落点：整个块进沙箱 iframe（srcdoc = 作者原始源码），外壳沿用
+// 嵌入 iframe 的「缩放 + 拖拽」体验。
+function createScriptFrame(source: string): HTMLDivElement {
+    bindHeightListenerOnce();
+
+    const frame = document.createElement('iframe');
+    // 与外部 iframe 嵌入同一条沙箱：脚本可跑，但拿不到同源身份，因此碰不到
+    // 编辑器、文档与本地文件。
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.setAttribute('title', 'HTML');
+    frame.setAttribute('style', `width:100%;height:${FRAME_DEFAULT_HEIGHT}px`);
+    frame.classList.add(CLASS_NAMES.MU_HTML_IFRAME);
+    frame.srcdoc = buildSandboxDocument(source);
+
+    const shell = createFrameShell(frame);
+    // 用户一动手（拖拽尺寸或缩放，鼠标或键盘激活都算），尺寸就归外壳管，自适配让位。
+    const stopAutoSize = () => autoSizeStop.add(frame);
+    shell.addEventListener('pointerdown', stopAutoSize, true);
+    shell.addEventListener('click', stopAutoSize, true);
+
+    return shell;
+}
+
 class HTMLPreview extends Parent {
     private _html: string;
+
+    // 当前沙箱脚本帧对应的源码（用于避免引擎刷新预览块时重载 srcdoc）。
+    private _scriptFrameSource = '';
 
     static override blockName = 'html-preview';
 
@@ -372,6 +485,32 @@ class HTMLPreview extends Parent {
             this._html = html;
 
         const { disableHtml } = this.muya.options;
+
+        // 块内含脚本 → 整个块进沙箱 iframe。净化会把 `<script>` 剥掉（交互原型
+        // 与脚本图表正是靠脚本产出画面），所以这条路径不净化，安全由沙箱负责；
+        // 作者源码本来就在 .md 里，因此单个文件发给别人、离线也能跑。
+        // `disableHtml`（关闭 HTML 渲染）优先：此时照旧走净化/转义路径。
+        //
+        // 注意：沙箱帧是不透明源，块内若另外写 `<iframe src="本地文件">`，本地文件
+        // 会被浏览器拒绝加载（远程 https 嵌入不受影响）——脚本与本地文件嵌入不要
+        // 混在同一个块里。
+        if (!disableHtml && hasInlineScript(html)) {
+            // 引擎会因滚动/布局刷新预览块。脚本帧重挂会重载 srcdoc：画面闪一下、
+            // 帧内状态（计数器、动画、滚动位置）清零。源码没变且外壳还在时直接复用。
+            const shellAlive = this.domNode!.firstElementChild?.classList.contains(CLASS_NAMES.MU_HTML_FRAME);
+
+            if (this._scriptFrameSource === html && shellAlive)
+                return;
+
+            this._scriptFrameSource = html;
+            this.domNode!.innerHTML = '';
+            this.domNode!.appendChild(createScriptFrame(html));
+
+            return;
+        }
+
+        this._scriptFrameSource = '';
+
         // `<iframe>` cannot survive the DOMPurify html profile (USE_PROFILES
         // replaces the tag whitelist), so interactive embeds are swapped out
         // for inert text placeholders before sanitization and restored as real
