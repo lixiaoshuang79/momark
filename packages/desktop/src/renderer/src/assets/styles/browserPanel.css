@@ -347,36 +347,75 @@
 .url-dock:hover .ud-item:not(:hover):not(.hoverpin) {
   transform: scale(0.96);
 }
-/* 末尾虚线 + 新增 */
-.ud-add {
+/* 末尾「+」= dock 落点的「+ / 搜索栏」控件（round18：原来是纯 click 的
+   .ud-add，展开的网址栏还长在右上角，用户反馈「要点击、位置也不对」）。
+   控件本体样式见下方 .bp-addrwrap.dock。 */
+
+/* ── round18：dock 落点（多页态右缘 Dock 末尾的「+」）──
+   与 Dock 其它项同款 34×34 虚线方块；wrapper 常驻 34px 占位（Dock 列布局
+   不受展开影响），里面的胶囊绝对定位、右缘对齐 Dock 右缘，展开时向左生长
+   —— 网址栏与 + 严丝合缝在同一行，且因为胶囊是 wrapper 的后代，鼠标从 +
+   移进网址栏不会触发 wrapper 的 mouseleave（hover 链路天然连贯）。 */
+.bp-addrwrap.dock {
+  position: relative;
+  /* corner 落点的绝对定位偏移（top:8px / right:6px）必须清零：position:relative
+     会把控件整体左移 6px、下移 8px，导致展开的网址栏右缘与「+」差 6px、而且
+     「+」比 Dock 其它项低 8px。 */
+  top: auto;
+  right: auto;
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  flex: none;
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+.bp-addrwrap.dock .bp-plus {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  transform: translateY(-50%);
   border: 1px dashed var(--line-strong);
+  border-radius: 9px;
   background: var(--ud-bg);
   color: var(--muted);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  transition:
-    transform 0.34s var(--ease-dock),
-    background 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease;
+  box-shadow: none;
 }
-.ud-add:hover {
-  transform: translateX(-3px) scale(1.08);
+.bp-addrwrap.dock .bp-plus:hover {
   background: var(--hover);
   color: var(--accent);
   border-color: var(--accent);
 }
-.ud-add svg {
-  width: 13px;
-  height: 13px;
+/* 展开态：wrapper 仍是 34px 槽位（Dock 列布局不动），只有里面的胶囊向左生长。
+   必须显式钉住宽度——基础规则 .bp-addrwrap.open 的 width:min(320px,100%-12px)
+   会把它拉窄，胶囊的 right:0 跟着偏左（实测右缘差 6px）。 */
+.bp-addrwrap.dock.open {
+  width: 34px;
+}
+.bp-addrwrap.dock.open .bp-plus {
+  /* 右缘钉在 Dock 右缘（=「+」原位）向左生长。可占宽度：面板右缘到控件右缘
+     18px（.bp-inner 外边距 10 + Dock right 8）+ 左余量 9px = 27px，保证展开的
+     网址栏不越出面板左缘。 */
+  width: min(320px, calc(var(--panel-w, 288px) - 27px));
+  border: 0.5px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-2);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+[data-theme='dark'] .bp-addrwrap.dock.open .bp-plus {
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+}
+/* 折叠态：面板收起时整块淡出（与 corner 落点同源，仅去掉位移动画）。 */
+.bpanel.collapsed .bp-addrwrap.dock {
+  opacity: 0;
+  transform: none;
+  pointer-events: none;
 }
 
-/* ── 单页悬浮「+」胶囊（34×34，right:6px top:8px；点击生长为网址栏）── */
+/* ── 单页悬浮「+」胶囊（34×34，right:6px top:8px；hover 生长为网址栏）── */
 .bp-addrwrap {
   position: absolute;
   top: 8px;
@@ -848,18 +887,31 @@
   transform: translateX(-50%) translateY(-4px);
 }
 
-/* round17：适应宽度按钮（文字型，宽度随内容；开着时用墨蓝实底标记状态）。
-   面板默认只有 288px 宽，字号与内边距都压到最小以免挤占地址栏。 */
+/* round18：缩放控件（zoomMenu.vue）= 状态读数按钮 + 显式菜单。
+   触发器保持 round17 的文字型小按钮（面板默认只有 288px 宽），另加 caret
+   表明「点开有菜单」；菜单在按钮上方弹出，四个动作各写明含义。 */
+.bp-zoomwrap {
+  position: relative;
+  flex: none;
+  display: flex;
+}
 .bp-browserbar .bp-fit {
   width: auto;
   min-width: 28px;
   padding: 0 5px;
+  gap: 2px;
   font-family: var(--font-body);
   font-size: 11px;
   line-height: 1;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
+}
+.bp-browserbar .bp-fit .caret {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  opacity: 0.55;
 }
 .bp-browserbar .bp-fit.on {
   background: var(--accent);
@@ -868,6 +920,81 @@
 .bp-browserbar .bp-fit.on:hover {
   background: var(--accent-hover);
   color: var(--accent-on);
+}
+.bp-browserbar .bp-fit.on .caret {
+  opacity: 0.8;
+}
+.bp-zoommenu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  min-width: 172px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 0.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: var(--shadow-pop);
+}
+[data-theme='dark'] .bp-zoommenu {
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+.bp-browserbar .bp-zoommenu button {
+  width: 100%;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--f11);
+  text-align: left;
+}
+.bp-browserbar .bp-zoommenu button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.bp-zoommenu .tick {
+  width: 12px;
+  flex: none;
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
+}
+.bp-zoommenu .txt {
+  flex: 1;
+  white-space: nowrap;
+}
+.bp-zoommenu kbd {
+  flex: none;
+  color: var(--faint);
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+.bp-zoommenu .sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+.bp-menu-enter-active,
+.bp-menu-leave-active {
+  transition:
+    opacity 0.14s ease,
+    transform 0.16s var(--ease-grow);
+}
+.bp-menu-enter-from,
+.bp-menu-leave-to {
+  opacity: 0;
+  transform: translateY(5px) scale(0.985);
 }
 .bp-location-wrap {
   height: 28px;

@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import notice from '@/services/notification'
 import type { BpZoomAction } from '@shared/types/ipc'
@@ -69,6 +69,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
 
   let unlistenNewWindow: (() => void) | null = null
   let unlistenZoomCommand: (() => void) | null = null
+  let unlistenInputContext: (() => void) | null = null
 
   function SET_URL_WIDTH(value: number): void {
     const win = window.innerWidth
@@ -122,6 +123,9 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
         fitWidth: true
       })
       activePageId.value = id
+      // round18：新建页后收起搜索栏（单页↔多页切换时「+ / 搜索栏」控件会换
+      // 落点，展开态跨落点复用会留下一个凭空展开的搜索栏）。
+      dockAddrOpen.value = false
       // 面板处于移动端模式时，新页沿用当前模式（attach 后主进程换 UA）。
       if (deviceMode.value === 'mobile') await window.bp.setDeviceMode(id, 'mobile')
       return id
@@ -156,6 +160,8 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     if (index === -1) return
     urlPages.value.splice(index, 1)
     window.bp.closePage(id)
+    // round18：页数变化会换「+ / 搜索栏」的落点，顺手收起展开态（同上）。
+    dockAddrOpen.value = false
     if (activePageId.value === id) {
       const next = urlPages.value[Math.min(index, urlPages.value.length - 1)] ?? null
       activePageId.value = next ? next.id : null
@@ -259,6 +265,40 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     await window.bp.openExternal(url)
   }
 
+  // round18：把「面板输入上下文」推给主进程，供缩放快捷键归属判定使用。
+  // 判定规则（主进程 browserPanel.ts）：面板正在展示网页 + 光标不在编辑器里
+  // → Cmd +=/-/0 归网页缩放；光标在编辑器里 → 保留原有段落快捷键语义。
+  // 只推 4 个布尔/字符串，不参与渲染，也不进任何持久化。
+  function installInputContextPush(): () => void {
+    const isEditorFocused = (): boolean => {
+      const el = document.activeElement as HTMLElement | null
+      if (!el || !el.closest('.editor-component')) return false
+      // 面板内的文档预览编辑器不算「在写文档」。
+      return !el.closest('.bpanel')
+    }
+    const push = (): void => {
+      window.bp.setInputContext({
+        open: open.value,
+        mode: mode.value,
+        activePageId: activePageId.value,
+        editorFocused: isEditorFocused()
+      })
+    }
+    // focusout 触发时焦点还没落到新元素上（activeElement 仍是旧值），延一帧再读。
+    const pushAfterFocusMove = (): void => {
+      window.setTimeout(push, 0)
+    }
+    const stopWatch = watch([open, mode, activePageId], push)
+    document.addEventListener('focusin', push)
+    document.addEventListener('focusout', pushAfterFocusMove)
+    push()
+    return () => {
+      stopWatch()
+      document.removeEventListener('focusin', push)
+      document.removeEventListener('focusout', pushAfterFocusMove)
+    }
+  }
+
   // guest 内 window.open / target=_blank（http/https）→ 面板内新建 Dock 页。
   // round17：外加 guest 内的缩放快捷键（主进程 before-input-event 翻译后回传）。
   function LISTEN(): void {
@@ -269,6 +309,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     unlistenZoomCommand = window.bp.onZoomCommand(({ pageId, action }) => {
       APPLY_ZOOM_ACTION(pageId, action)
     })
+    unlistenInputContext = installInputContextPush()
   }
 
   function STOP_LISTENING(): void {
@@ -276,6 +317,8 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     unlistenNewWindow = null
     unlistenZoomCommand?.()
     unlistenZoomCommand = null
+    unlistenInputContext?.()
+    unlistenInputContext = null
   }
 
   return {

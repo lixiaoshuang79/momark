@@ -229,6 +229,17 @@ export interface IpcSendChannels {
   // 在 guest 内不生效，主进程只做「按键 → 意图」翻译，缩放由渲染层执行（与工具栏
   // 「适应宽度」共用同一条 applyZoom 路径）。
   'bp:zoom-command': [payload: { pageId: string; action: BpZoomAction }]
+  // round18：面板输入上下文（渲染层推送）。主进程据此判定 Cmd +=/-/0 的归属：
+  // 面板正在展示网页且光标不在编辑器里 → 这三个键做网页缩放，不再落到文档上
+  // （它们在墨记里本是段落标题升降级）。
+  'bp:setInputContext': [
+    payload: {
+      open: boolean
+      mode: 'url' | 'doc'
+      activePageId: string | null
+      editorFocused: boolean
+    }
+  ]
   'screen-capture': [payload: unknown]
   'set-image-folder-path': [path: string]
   'set-user-preference': [partial: unknown]

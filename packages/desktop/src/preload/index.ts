@@ -239,6 +239,14 @@ const bpAPI = {
   reload: (id: string) => invoke('bp:reload', id),
   setDeviceMode: (id: string, mode: 'pc' | 'mobile') => invoke('bp:setDeviceMode', id, mode),
   getState: (id: string) => invoke('bp:getState', id),
+  // round18：面板输入上下文（面板开合/模式/激活页/编辑器焦点）。主进程据它
+  // 判定缩放快捷键归属，避免 Cmd +=/-/0 落到左侧文档的段落标题快捷键上。
+  setInputContext: (ctx: {
+    open: boolean
+    mode: 'url' | 'doc'
+    activePageId: string | null
+    editorFocused: boolean
+  }) => send('bp:setInputContext', ctx),
   openExternal: (url: string) => invoke('bp:openExternal', url),
   pickDoc: () => invoke('bp:pickDoc'),
   readDoc: (path: string) => invoke('bp:readDoc', path),

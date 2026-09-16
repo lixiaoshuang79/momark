@@ -13,8 +13,8 @@
       <p>点击右上角分屏按钮搜索或输入网址<br />即可在面板内浏览网页</p>
     </div>
 
-    <!-- 单页悬浮胶囊 / Dock 新增时展开的网址栏 -->
-    <addr-wrap v-if="urlPages.length <= 1 || dockAddrOpen" />
+    <!-- 单页态：右上角悬浮「+」胶囊（多页态由右缘 Dock 末尾的「+」承担） -->
+    <addr-wrap v-if="urlPages.length <= 1" />
 
     <!-- 多网页态：右缘垂直 Dock -->
     <url-dock :pages="urlPages" :active-page-id="activePageId" />
@@ -58,7 +58,7 @@ import AddrWrap from './addrWrap.vue'
 import UrlDock from './urlDock.vue'
 
 const bpStore = useBrowserPanelStore()
-const { urlPages, activePageId, dockAddrOpen, zoomHint } = storeToRefs(bpStore)
+const { urlPages, activePageId, zoomHint } = storeToRefs(bpStore)
 
 const activePage = computed(() => urlPages.value.find((p) => p.id === activePageId.value) ?? null)
 

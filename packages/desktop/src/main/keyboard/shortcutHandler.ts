@@ -16,11 +16,19 @@ import type { AppEnvironment } from '../app/env'
 
 type ShortcutCallback = (win: BrowserWindow) => void
 
+/**
+ * round18：加速键抢占钩子。某些模块需要优先于命令拿到某个加速键
+ * （右侧网页面板要接管 Cmd +=/-/0 —— 它们在墨记里是「标题升降级」，
+ * 面板展示网页时必须改成网页缩放）。钩子返回 true = 已处理，原命令不执行。
+ */
+type AcceleratorInterceptor = (id: string, accelerator: string, win: BrowserWindow) => boolean
+
 class Keybindings {
   configPath: string
   commandManager: CommandManager
   userKeybindings: Map<string, string>
   keys: Map<string, string>
+  acceleratorInterceptor: AcceleratorInterceptor | null = null
 
   /**
    * @param commandManager The command manager instance.
@@ -80,10 +88,21 @@ class Keybindings {
     for (const [id, accelerator] of this.keys) {
       if (accelerator && accelerator.length > 1) {
         this.registerAccelerator(win, accelerator, () => {
+          // 抢占钩子先跑：命中即不再执行原命令（默认动作已被 preventDefault）。
+          if (this.acceleratorInterceptor?.(id, accelerator, win)) {
+            return
+          }
           this.commandManager.execute(id, win)
         })
       }
     }
+  }
+
+  /**
+   * 安装加速键抢占钩子（同一时刻只有一个；传 null 卸载）。
+   */
+  setAcceleratorInterceptor(interceptor: AcceleratorInterceptor | null): void {
+    this.acceleratorInterceptor = interceptor
   }
 
   openConfigInFileManager(): void {

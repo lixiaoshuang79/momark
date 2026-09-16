@@ -26,6 +26,11 @@ import {
   markChromeCookieGuideShown
 } from './chromeCookieSync'
 import type { BpZoomAction } from '@shared/types/ipc'
+import {
+  panelOwnsZoomKey,
+  zoomActionForCommand,
+  type PanelInputContext
+} from './browserPanelKeyRouting'
 
 // ── 常量 ─────────────────────────────────────────────────────────────
 
@@ -101,6 +106,34 @@ const guestStates = new Map<number, GuestRuntimeState>()
 const pendingGuests = new Map<number, { host: WebContents; guest: WebContents }>()
 // round16：guest 的 PC/移动端切换函数（closure 持有 originalUa 派生逻辑）
 const deviceModeAppliers = new Map<number, (mode: 'pc' | 'mobile') => void>()
+
+// round18：面板输入上下文与缩放键归属判定（纯逻辑见 browserPanelKeyRouting.ts）
+const panelInputContexts = new Map<number, PanelInputContext>()
+
+/**
+ * 缩放快捷键归属判定（由 Keybindings 的抢占钩子在命令执行前调用）。
+ * 命中返回 true：意图已转交网页缩放，原命令不再执行。
+ */
+export const maybeRoutePanelZoomKey = (win: BrowserWindow, commandId: string): boolean => {
+  const action = zoomActionForCommand(commandId)
+  if (!action) return false
+  if (!win || win.isDestroyed()) return false
+  if (!panelOwnsZoomKey(panelInputContexts.get(win.webContents.id))) return false
+  const ctx = panelInputContexts.get(win.webContents.id)
+  win.webContents.send('bp:zoom-command', { pageId: ctx!.activePageId, action })
+  return true
+}
+
+/**
+ * 装上面板对缩放快捷键的抢占（app ready 时调用一次）。
+ */
+export const installPanelZoomKeyRouting = (keybindings: {
+  setAcceleratorInterceptor: (
+    fn: ((id: string, accelerator: string, win: BrowserWindow) => boolean) | null
+  ) => void
+}): void => {
+  keybindings.setAcceleratorInterceptor((id, _accelerator, win) => maybeRoutePanelZoomKey(win, id))
+}
 
 const freshRuntimeState = (): GuestRuntimeState => ({
   loading: false,
@@ -188,12 +221,19 @@ const hardenGuest = (host: WebContents, guest: WebContents): void => {
   // round17：guest 内的缩放快捷键。webview 标签不暴露 before-input-event，
   // 只有主进程的 webContents 能拿到；菜单加速键在 guest 聚焦时同样不生效。
   // 这里只做「按键 → 意图」翻译并转交渲染层，缩放状态由渲染层统一持有。
+  // round18：定位不到页面时**不再吞键**（旧实现无条件 preventDefault 后
+  // 找不到 pageId 就丢弃，表现为「按了完全没反应」）——优先按 guest 映射，
+  // 退而用宿主的面板激活页；两者都没有就放行给页面自己处理。
   guest.on('before-input-event', (event, input) => {
     const action = zoomActionForInput(input)
     if (!action) return
+    const pageId =
+      [...pageRecords.values()].find((r) => r.webContentsId === guestId)?.id ??
+      panelInputContexts.get(host.id)?.activePageId ??
+      null
+    if (!pageId) return
     event.preventDefault()
-    const pageId = [...pageRecords.values()].find((r) => r.webContentsId === guestId)?.id
-    if (pageId) host.send('bp:zoom-command', { pageId, action })
+    host.send('bp:zoom-command', { pageId, action })
   })
   guest.on('page-title-updated', (_e, title) => {
     st.title = title
@@ -265,6 +305,10 @@ export const installBrowserPanelSecurity = (): void => {
       contents.on('will-navigate', (event: Event) => {
         event.preventDefault()
       })
+      // round18：宿主窗口销毁后清掉它的输入上下文（避免 id 复用读到旧面板状态）。
+      contents.on('destroyed', () => {
+        panelInputContexts.delete(contents.id)
+      })
       contents.setWindowOpenHandler(() => ({ action: 'deny' }))
     } else if (contents.getType() === 'webview') {
       // guest 内容：安全兜底——不允许 guest 再挂载 webview（webviewTag 已关）。
@@ -320,6 +364,18 @@ export const installBrowserPanelSecurity = (): void => {
 // ── IPC 注册 ────────────────────────────────────────────────────────
 
 export const registerBrowserPanelIpc = (): void => {
+  // round18：面板输入上下文（渲染层在「面板开合 / 模式 / 激活页 / 编辑器焦点」
+  // 变化时推送）。只为缩放快捷键归属判定服务，不参与任何渲染。
+  ipcMain.on('bp:setInputContext', (event, payload: PanelInputContext) => {
+    if (!payload || typeof payload !== 'object') return
+    panelInputContexts.set(event.sender.id, {
+      open: !!payload.open,
+      mode: payload.mode === 'doc' ? 'doc' : 'url',
+      activePageId: typeof payload.activePageId === 'string' ? payload.activePageId : null,
+      editorFocused: !!payload.editorFocused
+    })
+  })
+
   ipcMain.handle('bp:createPage', (event, url: string) => {
     if (!isHttpUrl(url)) {
       log.warn('[browserPanel] bp:createPage rejected:', url)

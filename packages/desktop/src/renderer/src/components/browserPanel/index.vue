@@ -67,7 +67,10 @@ const { panelWidthPx } = storeToRefs(workspaceStore)
 const docModeRef = ref<InstanceType<typeof DocMode> | null>(null)
 
 const panelStyle = computed(() => ({
-  width: bpanelOpen.value ? `${panelWidthPx.value}px` : '0px'
+  width: bpanelOpen.value ? `${panelWidthPx.value}px` : '0px',
+  // round18：面板宽度的 CSS 变量——Dock 落点的网址栏要按面板宽度撑开
+  // （它挂在 34px 的 Dock 项里，百分比量不到面板宽）。
+  '--panel-w': `${panelWidthPx.value}px`
 }))
 
 const activePageLoading = computed(() => {
