@@ -5,6 +5,7 @@ import { sanitize } from '../../../utils';
 import { getIframeSrc, getImageSrc } from '../../../utils/image';
 import logger from '../../../utils/logger';
 import Parent from '../../base/parent';
+import { rememberFrameSource } from '../../../utils/htmlFrameSource';
 
 const debug = logger('htmlPreview:');
 
@@ -439,6 +440,7 @@ function createScriptFrame(source: string): HTMLDivElement {
     bindHeightListenerOnce();
 
     const frame = document.createElement('iframe');
+    rememberFrameSource(frame, source);
     // 与外部 iframe 嵌入同一条沙箱：脚本可跑，但拿不到同源身份，因此碰不到
     // 编辑器、文档与本地文件。
     frame.setAttribute('sandbox', 'allow-scripts');
@@ -472,6 +474,7 @@ class HTMLPreview extends Parent {
 
     // 当前沙箱脚本帧对应的源码（用于避免引擎刷新预览块时重载 srcdoc）。
     private _scriptFrameSource = '';
+
 
     static override blockName = 'html-preview';
 

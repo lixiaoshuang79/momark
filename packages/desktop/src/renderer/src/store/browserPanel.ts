@@ -240,14 +240,17 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   interface HtmlDocView {
     src: string
     title: string
+    // 块源码：侧栏 iframe 与编辑器内嵌用的是同一个引导页空壳，必须由父窗口
+    // 投递源码（协议另一端在 src/renderer/public/html-frame.html）。
+    html?: string
   }
 
   const htmlDoc = ref<HtmlDocView | null>(null)
 
-  function OPEN_HTML_DOC(src: string, title: string): void {
+  function OPEN_HTML_DOC(src: string, title: string, html = ''): void {
     SET_OPEN(true)
     SET_MODE('doc')
-    htmlDoc.value = { src, title }
+    htmlDoc.value = { src, title, html }
   }
 
   function CLOSE_HTML_DOC(): void {

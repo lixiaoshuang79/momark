@@ -16,6 +16,7 @@
         :src="htmlDoc.src"
         sandbox="allow-scripts"
         :title="htmlDoc.title"
+        @load="deliverHtmlSource"
       />
       <!-- 缩放控制条（右下角 hover 显示）：− / 100% / +，语义与编辑器
            内嵌 html 块一致——内容缩放（CSS zoom + 布局补偿），视图窗口
@@ -80,6 +81,16 @@ const hasContent = computed(() => !!splitDocTab.value)
 // 容器尺寸（跟随右侧栏宽度），内页按缩放比例重排放大。50%–200% 几何递进；
 // 100% 时不写内联尺寸，iframe 保持 width/height 100% 跟随面板。
 const htmlViewRef = ref<HTMLDivElement | null>(null)
+
+// 引导页解析完自己的脚本后才挂上消息监听，因此等 iframe load 再投递源码——与
+// 编辑器内嵌块（muya htmlPreview）用的是同一套协议同一份引导页。内容被
+// document.write 重写会再触发一次 load，引导页自身有 written 标志，重复投递无害。
+const deliverHtmlSource = () => {
+  const frame = htmlFrameRef.value
+  const html = htmlDoc.value?.html
+  if (!frame || !html) return
+  frame.contentWindow?.postMessage({ type: 'momark-html-frame-source', html }, '*')
+}
 const htmlFrameRef = ref<HTMLIFrameElement | null>(null)
 const htmlZoom = ref(1)
 const ZOOM_MIN = 0.5

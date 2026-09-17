@@ -2044,8 +2044,8 @@ onMounted(() => {
   // HTML embed toolbar's "open in side panel" action: render the embedded
   // page in the right panel's document mode (sandboxed iframe, same opaque
   // origin isolation as the in-editor embed).
-  muya.on('muya-html-open-sidebar', (payload: { src: string; title: string }) => {
-    bpStore.OPEN_HTML_DOC(payload.src, payload.title || 'HTML')
+  muya.on('muya-html-open-sidebar', (payload: { src: string; title: string; html?: string }) => {
+    bpStore.OPEN_HTML_DOC(payload.src, payload.title || 'HTML', payload.html || '')
   })
 
   // 粘贴的是 .html 文件（而不是从浏览器复制的 HTML 内容）：弹一个二选一气泡，

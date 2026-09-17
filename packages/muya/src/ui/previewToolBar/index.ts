@@ -3,6 +3,7 @@ import type HTMLBlock from '../../block/commonMark/html';
 import type MathBlock from '../../block/extra/math';
 import type { Muya } from '../../index';
 import { ScrollPage } from '../../block/scrollPage';
+import { getFrameSource } from '../../utils/htmlFrameSource';
 import { BLOCK_DOM_PROPERTY } from '../../config';
 import { isMouseEvent, throttle } from '../../utils';
 import { h, patch } from '../../utils/snabbdom';
@@ -151,9 +152,13 @@ export class PreviewToolBar extends BaseFloat {
                 const frame = block!.domNode!.querySelector('iframe');
                 const src = frame?.getAttribute('src');
                 if (src) {
+                    // 带上块源码：侧栏加载的是同一个引导页空壳（html-frame.html），
+                    // 只是父窗口换成了右栏 iframe；不带源码过去就没人 document.write，
+                    // 右栏只会是一片空白（用户实测反馈的原问题）。
                     this.muya.eventCenter.emit('muya-html-open-sidebar', {
                         src,
                         title: frame!.getAttribute('title') || src,
+                        html: getFrameSource(frame),
                     });
                 }
                 break;
