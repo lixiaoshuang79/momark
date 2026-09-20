@@ -76,10 +76,7 @@ interface AppMenuLike {
 }
 
 interface EditorBufferStoreLike {
-  handleClose(
-    restoreBufferId: string | undefined,
-    windows: { id: number; win: BaseWindow }[]
-  ): void
+  handleClose(restoreBufferId: string | undefined, windows: { id: number; win: BaseWindow }[]): void
 }
 
 class WindowManager extends TypedEmitter<WindowManagerEvents> {
@@ -286,13 +283,15 @@ class WindowManager extends TypedEmitter<WindowManagerEvents> {
     for (let i = 0; i < len; ++i) {
       let { id: windowId, score } = filePathScores![i]
 
-      if (score === -1) {
-        // Skip files that already opened.
-        continue
-      } else if (score === 0) {
+      if (score === 0) {
         // There is no best window to open the file(s) in.
         windowId = lastActiveEditorId
       }
+      // score === -1 表示该文件已经在这个窗口里打开：不能像以前那样 continue
+      // 丢弃——那会让「Finder 右键 → 用墨记打开」在文件已打开时彻底静默
+      // （连窗口都不会带到前台，用户看到的就是「点了没反应」）。保留 windowId
+      // 交给上层 openTabsFromPaths 幂等地切到已有标签页并激活窗口，这也正是
+      // 单窗口时（windowCount <= 1 提前返回）本来就有的语义。
 
       let item = buf.find((w) => w.windowId === windowId)
       if (!item) {

@@ -145,7 +145,7 @@ const handleResponseForExport = async (e: IpcMainEvent, payload: ExportPayload):
   const extension = (EXTENSION_HASN as Record<string, string>)[type]
   const dirname = pathname ? path.dirname(pathname) : getPath('documents')
   // 标签名可能已经带扩展名（未落盘标签就叫 Untitled-1.md），先剥掉再交给 pandoc
-  let nakedFilename = stripMarkdownExtension(pathname ? path.basename(pathname) : title)
+  let nakedFilename = stripMarkdownExtension(pathname ? path.basename(pathname) : (title ?? ''))
   if (!nakedFilename) {
     nakedFilename = 'Untitled'
   }

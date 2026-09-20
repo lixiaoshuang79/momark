@@ -78,6 +78,7 @@ class App {
 
     app.on('second-instance', (_event, argv, workingDirectory) => {
       const { _openFilesCache, _windowManager } = this
+      log.info('[second-instance] argv:', argv.slice(1).join(' '))
       const args = parseArgs(argv.slice(1)) as CliArgs
 
       const buf: PathInfo[] = []
@@ -439,6 +440,7 @@ class App {
 
   openFile = (event: Electron.Event, pathname: string): void => {
     event.preventDefault()
+    log.info('[open-file] 系统请求打开:', pathname)
     const info = normalizeMarkdownPath(pathname)
     if (info) {
       this._openFilesCache.push(info as PathInfo)
@@ -676,8 +678,13 @@ class App {
         for (const item of windowList) {
           const { windowId, fileList } = item
 
-          // File list is empty when all files are already opened.
+          // 已打开的文件现在会回到它所在的窗口，理论上这里不会再出现空列表；
+          // 真出现说明既打不开也定位不到窗口，至少要留痕并激活窗口，
+          // 绝不能像以前那样静默地什么都不做。
           if (fileList.length === 0) {
+            log.warn('[open-path] 没有可打开的文件，改为激活当前窗口')
+            const activeWindow = _windowManager.getActiveWindow()
+            activeWindow?.bringToFront()
             continue
           }
 
