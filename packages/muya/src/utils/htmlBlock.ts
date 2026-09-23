@@ -115,44 +115,105 @@ function htmlBlockStart(line: string, previousBlank: boolean): ((l: string) => b
     return null;
 }
 
+/** 一个块级 HTML 块在 markdown 里的行范围（`end` 不含，空行终结符也不算块内）。 */
+export interface IHtmlBlockSpan {
+    /** 起始行号，0 起 */
+    start: number;
+    /** 结束行号，不含 */
+    end: number;
+    /** 块内原始文本（不含空行终结符） */
+    text: string;
+    /** 是否由一行空行终结：是则该空行紧跟在 `end` 之后，属于块的分隔而非块本身 */
+    blankTerminated: boolean;
+}
+
 /**
- * 剔掉 markdown 里的块级内嵌 HTML，保留其余内容与段落边界。
+ * 扫描 markdown，按出现顺序返回所有块级内嵌 HTML 块的位置。
+ * 与 `stripHtmlBlocks` 共用同一套起始/结束判定，段落上下文（`previousBlank`）
+ * 也按同样规则推进：块被剔掉后等同于「上一行是空行」。
  */
-export function stripHtmlBlocks(markdown: string): string {
-    const kept: string[] = [];
+export function findHtmlBlockSpans(markdown: string): IHtmlBlockSpan[] {
+    const lines = markdown.split('\n');
+    const spans: IHtmlBlockSpan[] = [];
     let fence: string | null = null;
     let end: ((l: string) => boolean) | null = null;
+    let start = -1;
+    let previousBlank = true;
 
-    for (const line of markdown.split('\n')) {
-        // HTML 块内部：整段丢弃，按结束条件判断何时收尾
+    const take = (from: number, to: number, blankTerminated = false) => {
+        spans.push({
+            start: from,
+            end: to,
+            text: lines.slice(from, to).join('\n'),
+            blankTerminated,
+        });
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // HTML 块内部：按结束条件判断何时收尾
         if (end) {
-            if (end(line))
+            if (end(line)) {
                 end = null;
+                // 空行只是终结符，不属于块；闭合标签（</script> 等）属于块。
+                if (normalize(line).trim() === '')
+                    take(start, i, true);
+                else
+                    take(start, i + 1);
+            }
             continue;
         }
         const fenceMatch = FENCE_RE.exec(line);
         if (fenceMatch) {
             const marker = fenceMatch[1][0];
             fence = fence === null ? marker : fence === marker ? null : fence;
-            kept.push(line);
+            previousBlank = normalize(line).trim() === '';
             continue;
         }
-        // 围栏代码块内部原样保留
+        // 围栏代码块内部：原样保留，也不在其中认块
         if (fence !== null) {
-            kept.push(line);
+            previousBlank = normalize(line).trim() === '';
             continue;
         }
-        const previousBlank = kept.length === 0 || normalize(kept[kept.length - 1]).trim() === '';
-        const start = htmlBlockStart(line, previousBlank);
-        if (start) {
-            // 用一行空行占位：别把被 HTML 块隔开的前后两段正文粘成一段。
-            kept.push('');
-            if (!start(line))
-                end = start;
+        const opener = htmlBlockStart(line, previousBlank);
+        if (opener) {
+            start = i;
+            if (opener(line))
+                take(i, i + 1);
+            else
+                end = opener;
+            previousBlank = true;
             continue;
         }
-        kept.push(line);
+        previousBlank = normalize(line).trim() === '';
     }
+
+    // 直到文件末尾都没有闭合的块，同样算一块。
+    if (end && start >= 0)
+        take(start, lines.length);
+
+    return spans;
+}
+
+/**
+ * 剔掉 markdown 里的块级内嵌 HTML，保留其余内容与段落边界。
+ */
+export function stripHtmlBlocks(markdown: string): string {
+    const spans = findHtmlBlockSpans(markdown);
+    if (!spans.length)
+        return markdown;
+
+    const lines = markdown.split('\n');
+    const kept: string[] = [];
+    let cursor = 0;
+
+    for (const span of spans) {
+        // 每块用一行空行占位：别把被 HTML 块隔开的前后两段正文粘成一段。
+        kept.push(...lines.slice(cursor, span.start), '');
+        // 空行终结符原本就随块一起被吞掉，这里保持同样的输出。
+        cursor = span.blankTerminated ? span.end + 1 : span.end;
+    }
+    kept.push(...lines.slice(cursor));
 
     return kept.join('\n');
 }

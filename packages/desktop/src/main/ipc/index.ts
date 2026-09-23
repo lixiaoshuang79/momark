@@ -4,6 +4,7 @@ import { registerPathHandlers } from './paths'
 import { registerRipgrepHandlers } from './ripgrep'
 import { registerUploaderHandlers } from './uploader'
 import { registerFontsHandlers } from './fonts'
+import { registerExportHtmlFrameHandlers } from './exportHtmlFrame'
 import { registerShellHandlers } from './shell'
 import { registerWindowHandlers } from './window'
 import { registerCmdHandlers } from './cmd'
@@ -17,6 +18,7 @@ export const registerSandboxIpcHandlers = (): void => {
   registerRipgrepHandlers()
   registerUploaderHandlers()
   registerFontsHandlers()
+  registerExportHtmlFrameHandlers()
   registerShellHandlers()
   registerWindowHandlers()
   registerCmdHandlers()

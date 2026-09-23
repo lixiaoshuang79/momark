@@ -16,7 +16,11 @@ const debug = logger('jsonState:');
 // document as `TState[]`; bridging the two requires `unknown` casts that
 // happen at every callsite. Concentrate them here so production code never
 // writes `as unknown as Doc` itself.
-export function asDoc(state: TState[] | TState): Doc {
+//
+// The parameter is `unknown` because callers also bridge SUB-nodes: a path's
+// value can be a single state node (`asDoc(nextState[i])`) or a piece of one
+// (`asDoc(meta)`), and ot-json1's `Doc` is structurally open.
+export function asDoc(state: unknown): Doc {
     // eslint-disable-next-line no-restricted-syntax
     return state as unknown as Doc;
 }

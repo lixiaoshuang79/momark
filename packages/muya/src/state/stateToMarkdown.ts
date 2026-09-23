@@ -30,6 +30,7 @@ import type {
  * The output markdown needs to obey the standards of these Spec.
  */
 import { deepClone } from '../utils';
+import { buildFrameMarker } from '../utils/htmlFrameMarker';
 
 import logger from '../utils/logger';
 import stringWidth from '../utils/stringWidth';
@@ -389,7 +390,15 @@ export default class ExportMarkdown {
 
     private _serializeHtmlBlock(state: IHtmlBlockState, indent: string) {
         const result = [];
-        const { text } = state;
+        const { text, meta } = state;
+        // 用户拖拽/缩放过的块，尺寸以一行 HTML 注释写在块**前面**：注释是元信息，
+        // 不是作者的 HTML，写进正文会污染源码（每改一次尺寸就改一次正文）。没有
+        // meta 时输出与历史版本逐字节一致（老文档零影响）。
+        const marker = buildFrameMarker(meta);
+
+        if (marker)
+            result.push(`${indent}${marker}\n`);
+
         const lines = text.split('\n');
 
         for (const line of lines)

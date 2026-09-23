@@ -2,6 +2,8 @@ import type { TBlockToken } from '../utils/marked/types';
 import type {
     IAtxHeadingState,
     IBulletListState,
+    IHtmlBlockState,
+    IHtmlFrameMeta,
     IListItemState,
     IOrderListState,
     ISetextHeadingState,
@@ -11,6 +13,7 @@ import type {
     TState,
 } from './types';
 import { firstWordOfInfo } from '../utils';
+import { stripFrameMarker } from '../utils/htmlFrameMarker';
 import logger from '../utils/logger';
 import { lexBlock } from '../utils/marked';
 
@@ -44,9 +47,20 @@ const CONTAINER_TOKEN_TYPES = new Set([
 ]);
 
 export class MarkdownToState {
+    /**
+     * 上一行是 `<!--momark-frame …-->` 尺寸标记时，标记解析出的 meta 暂存在这里，
+     * 等紧随其后的 HTML 块 token 到来再挂上去。markdown 的解析器把注释与它后面的
+     * HTML 拆成两个 token（两者都是 HTML 块，但注释以空行语义终结），所以标记要
+     * 跨 token 传递。
+     */
+    private _pendingFrameMeta: IHtmlFrameMeta | null = null;
+
     constructor(private _options: IMarkdownToStateOptions = DEFAULT_OPTIONS) {}
 
     generate(markdown: string): TState[] {
+        // 每次解析都从干净状态开始：同一个实例可能被复用（多次 generate）。
+        this._pendingFrameMeta = null;
+
         return this._convertMarkdownToState(markdown);
     }
 
@@ -213,6 +227,45 @@ export class MarkdownToState {
         }
     }
 
+    /**
+     * `html` token → state。
+     *
+     * 内嵌 HTML 块的外框尺寸写在块**前面**的一行注释里
+     * （`<!--momark-frame w=960 h=436 z=1-->`，见 utils/htmlFrameMarker.ts），而
+     * markdown 解析器会把注释与它后面的 HTML 拆成两个 token —— 「整块只有一行标记」
+     * 的 token 会单独到达。此时把这个 token 的 meta 暂存下来（返回 undefined，不产出
+     * state），交给紧随其后的 HTML 块；标记行本身必须丢掉，绝不能漏进 HTML 预览。
+     */
+    private _htmlTokenToState(rawText: string): TState | undefined {
+        const { text, meta: markerMeta } = stripFrameMarker(rawText);
+
+        if (markerMeta && !text) {
+            this._pendingFrameMeta = markerMeta;
+
+            return undefined;
+        }
+
+        // TODO: Treat html state which only contains one img as paragraph, we maybe add image state in the future.
+        if (/^<img[^<>]+>$/.test(text)) {
+            this._pendingFrameMeta = null;
+
+            return { name: 'paragraph' as const, text };
+        }
+
+        // 紧跟在标记 token 后面的块取走暂存的 meta；块自己开头带标记（手工编辑）
+        // 时以块内标记为准。
+        const own = stripFrameMarker(text);
+        const state: IHtmlBlockState = {
+            name: 'html-block' as const,
+            text: own.text,
+            meta: this._pendingFrameMeta ?? own.meta ?? {},
+        };
+
+        this._pendingFrameMeta = null;
+
+        return state;
+    }
+
     private _handleLeafToken(
         token: TBlockToken,
         parentList: TState[][],
@@ -326,23 +379,12 @@ export class MarkdownToState {
             }
 
             case 'html': {
-                const text = token.text.trim();
-                // TODO: Treat html state which only contains one img as paragraph, we maybe add image state in the future.
-                const isSingleImage = /^<img[^<>]+>$/.test(text);
-                if (isSingleImage) {
-                    state = {
-                        name: 'paragraph' as const,
-                        text,
-                    };
-                    parentList[0].push(state);
-                }
-                else {
-                    state = {
-                        name: 'html-block' as const,
-                        text,
-                    };
-                    parentList[0].push(state);
-                }
+                const htmlState = this._htmlTokenToState(token.text.trim());
+
+                if (!htmlState)
+                    break;
+
+                parentList[0].push(htmlState);
                 break;
             }
 

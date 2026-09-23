@@ -14,6 +14,11 @@ import { MarkdownToHtml } from '@muyajs/core'
 import { sanitize, EXPORT_DOMPURIFY_CONFIG } from './dompurify'
 import { resolveLocalImageSrc } from './resolveImageSrc'
 import { resolveLocalLinkHref } from './resolveLinkHref'
+import {
+  buildFrameControlsScript,
+  buildFrameControlsStyle,
+  injectLiveFrames
+} from './exportLiveFrame'
 
 export interface HeaderFooterPart {
   type?: number
@@ -64,6 +69,11 @@ export interface ExportStyledHtmlOptions {
   headerFooterStyled?: boolean
   /** Editor text direction ('ltr' | 'rtl' | 'auto'); set on the exported <html>. */
   dir?: string
+  /**
+   * 「活的」内嵌 HTML 块（HTML 导出）。按标记序号排列的沙箱 iframe 片段，
+   * 由 `inlineFramedHtmlBlocks` 以 live 形态产出；见下方 injectLiveFrames。
+   */
+  frames?: string[]
 }
 
 // Ported verbatim from legacy muyajs `headerFooterStyle.css` so the page
@@ -206,7 +216,7 @@ export const exportStyledHTML = async (
   markdown: string,
   options: ExportStyledHtmlOptions = {}
 ): Promise<string> => {
-  const { title = '', toc = '', header, footer, headerFooterStyled, dir } = options
+  const { title = '', toc = '', header, footer, headerFooterStyled, dir, frames = [] } = options
   let { extraCss = '' } = options
 
   // The header/footer page table needs its own stylesheet — fold it into
@@ -239,13 +249,19 @@ export const exportStyledHTML = async (
   // the document explicitly contains `[TOC]`). The marker is rendered as a
   // paragraph by marked, so replace the rendered `<p>[TOC]</p>` first, falling
   // back to a raw `[TOC]` if present.
+  // 替换串一律给函数而不是字符串：`String.replace` 会把替换串里的 `$$` 折成 `$`、
+  // `$&` 折成整个匹配，而这里的替换内容是文档正文（含标题文本、内嵌块源码）——实测
+  // 原型里的 `var $$ = …` 被折成 `var $ = …`，帧内脚本当场 TypeError，表格一行都渲染不出来。
   if (toc) {
     if (/<p>\s*\[TOC\]\s*<\/p>/i.test(article)) {
-      article = article.replace(/<p>\s*\[TOC\]\s*<\/p>/i, toc)
+      article = article.replace(/<p>\s*\[TOC\]\s*<\/p>/i, () => toc)
     } else if (TOC_REG.test(article)) {
-      article = article.replace(TOC_REG, toc)
+      article = article.replace(TOC_REG, () => toc)
     }
   }
+
+  // 「活的」内嵌块：标记 div 补上沙箱 iframe（必须在净化之后）。
+  article = injectLiveFrames(article, frames)
 
   let bodyHtml: string
   if (!appendHeaderFooter) {
@@ -263,5 +279,18 @@ export const exportStyledHTML = async (
   }
 
   // Re-emit the engine document shell with the (possibly augmented) body.
-  return fullDoc.replace(/<body>[\s\S]*<\/body>/, `<body>\n  ${bodyHtml}\n</body>`)
+  // 替换串必须是函数：`bodyHtml` 是正文原文，字符串替换会把里面的 `$$` 折成 `$`。
+  let out = fullDoc.replace(/<body>[\s\S]*<\/body>/, () => `<body>\n  ${bodyHtml}\n</body>`)
+
+  // 「活的」内嵌块在导出页里也要能缩放/拖拽：控件样式与脚本跟 iframe 一样，在引擎净化
+  // **之后**注入（脚本是我们自己的代码，不经过 markdown，也就不会被 DOMPurify 剥掉）。
+  // 没有帧就不加任何东西，普通导出物里不留死代码。
+  if (frames.length) {
+    out = out.replace('</head>', () => `<style>${buildFrameControlsStyle()}</style>\n</head>`)
+    // 脚本放 <head>：正文里如果混进未闭合的标记（实测 payload 逃出 srcdoc 的情况），
+    // 解析器会把 body 里它之后的内容整段当文本吞掉，放在 head 才能活下来。
+    out = out.replace('</head>', () => `<script>${buildFrameControlsScript()}</script>\n</head>`)
+  }
+
+  return out
 }

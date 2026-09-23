@@ -38,8 +38,27 @@ export interface ICodeBlockState {
     text: string;
 }
 
+/**
+ * 内嵌 HTML 块的外框尺寸（用户拖拽手柄 / 点缩放按钮后的结果），落盘成块前面的一行
+ * HTML 注释 `<!--momark-frame w=960 h=436 z=1-->`（见 utils/htmlFrameMarker.ts）。
+ * 三个字段都可选：老文档没有这行注释，`meta` 为空对象，行为与没有该字段时一致。
+ */
+export interface IHtmlFrameMeta {
+    /** 外框视口宽度，整数 px */
+    width?: number;
+    /** 外框视口高度，整数 px */
+    height?: number;
+    /** 内容缩放比例，1 = 100%（上限两位小数） */
+    zoom?: number;
+}
+
 export interface IHtmlBlockState {
     name: 'html-block';
+    /**
+     * 用户调过的外框尺寸。**可选**：state 由 markdownToState 构造时，没有标记就没有
+     * 这个键（老文档零影响）；由 HTMLBlock 构造/序列化时恒为对象（可能为空对象）。
+     */
+    meta?: IHtmlFrameMeta;
     text: string;
 }
 

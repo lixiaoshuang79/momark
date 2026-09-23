@@ -1,13 +1,26 @@
 import type { Muya } from '../../../muya';
-import type { IHtmlBlockState, TState } from '../../../state/types';
+import type { IHtmlBlockState, IHtmlFrameMeta, TState } from '../../../state/types';
+import type { Nullable } from '../../../types';
 import { CLASS_NAMES, PREVIEW_DOMPURIFY_CONFIG } from '../../../config';
 import { sanitize } from '../../../utils';
+import { rememberFrameSource } from '../../../utils/htmlFrameSource';
 import { getIframeSrc, getImageSrc } from '../../../utils/image';
 import logger from '../../../utils/logger';
 import Parent from '../../base/parent';
-import { rememberFrameSource } from '../../../utils/htmlFrameSource';
+import HTMLBlock from './index';
 
 const debug = logger('htmlPreview:');
+
+/**
+ * 外框（`.mu-html-frame`）与外界的契约：初始尺寸来自块状态，用户改完尺寸再写回块状态。
+ * 外壳只认这两个数据，不 import 块实现（`htmlFrameSource` 注释里那条引用链约束）。
+ */
+interface IFrameShellContext {
+    /** 块状态里存的外框尺寸（老文档没有 → undefined，外壳行为与历史版本一致） */
+    meta?: IHtmlFrameMeta;
+    /** 用户交互结束时回调一次；不传表示该调用方不需要落盘（例如离屏导出） */
+    onCommit?: (meta: IHtmlFrameMeta) => void;
+}
 
 // Elements whose rendered content comes from attributes (e.g. `src`) rather
 // than child nodes, so an empty tag body must not be treated as an empty block.
@@ -33,7 +46,7 @@ const FRAME_SLOT_PREFIX = '@@MU_FRAME_';
 // `<iframe ...>` with an optional closing tag and fallback content. Fallback
 // content is dropped: the embed either renders or disappears, it never leaks
 // escaped source into the preview.
-// eslint-disable-next-line regexp/no-super-linear-backtracking
+
 const IFRAME_TAG_REG = /<iframe\b[^>]*>[\s\S]*?<\/iframe>|<iframe\b[^>]*>/gi;
 
 // Replace every `<iframe>` in the raw block source with an inert text slot
@@ -136,18 +149,26 @@ export function buildFrameSourceMessage(html: string): IFrameSourceMessage {
 // Wrap the restored iframe in a shell that adds two viewport controls:
 // a hover zoom toolbar (− / +, percentage click resets to 100%) and a
 // bottom-right drag handle that resizes the frame (the embedded page gets a
-// real, different viewport and reflows). State is session-local on purpose:
-// never written back into the source markdown.
-function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
+// real, different viewport and reflows).
+//
+// 尺寸自 2026-09 起**落盘**：块的 `state.meta`（markdown 里 `<!--momark-frame
+// w=960 h=436 z=1-->` 那行注释）既作为初始值读回来（打开文档即恢复用户上次调好的
+// 大小），也在用户交互**结束**时写回去（拖拽抬手 / 点缩放按钮各写一次 —— 拖拽过程
+// 每帧都写会与文档状态逐帧对账，界面会闪）。
+// 一个外壳的生命周期（基线测量 → 缩放/拖拽交互 → 复位 → 尺寸落盘）必须共享同一组
+// 闭包状态（curW/baseW/frameLoaded…）；拆开会把它们全提升成文件级变量，反而更难
+// 保证一致性，因此这里放宽函数长度上限。
+// eslint-disable-next-line max-lines-per-function
+function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext): HTMLDivElement {
     const shell = document.createElement('div');
     shell.classList.add(CLASS_NAMES.MU_HTML_FRAME);
     // The author's inline style (e.g. `width:100%;height:400px`) is
     // preserved verbatim: return to it when the user resets to 100%.
     const authorStyle = frame.getAttribute('style') ?? '';
     // The outer block container (`figure.mu-html-block`) must track the
-    // viewport too: otherwise a shrunk frame leaves a grey gutter of the
-    // container's own width on the right. Resolved lazily — during the
-    // first update() the preview node is not yet attached to its figure.
+    // viewport too: otherwise a shrunk frame leaves a grey container-width
+    // gutter on the right. Resolved lazily — during the first update() the
+    // preview node is not yet attached to its figure.
     const figureOf = () => shell.closest('figure');
 
     const toolbar = document.createElement('div');
@@ -176,74 +197,54 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
     // inline width/height once the user starts zooming/dragging.
     let baseW = 0;
     let baseH = 0;
-    let curW = 0;
-    let curH = 0;
-    let curZoom = 1;
-    let userTouched = false;
+    // 落盘的尺寸就是用户的意图：有存档时直接接管视口（userTouched = true），
+    // 于是自适配高度不会再把用户调好的框覆盖掉。
+    const saved = context.meta ?? {};
+    const hasSavedFrame = typeof saved.width === 'number' && saved.width > 0;
+    let curW = hasSavedFrame ? saved.width! : 0;
+    let curH = typeof saved.height === 'number' && saved.height > 0 ? saved.height : 0;
+    let curZoom = typeof saved.zoom === 'number' && Number.isFinite(saved.zoom)
+        ? Math.min(FRAME_ZOOM_MAX, Math.max(FRAME_ZOOM_MIN, saved.zoom))
+        : 1;
+    let userTouched = hasSavedFrame;
     let frameLoaded = false;
+    // 上一次写回文档的尺寸。只在与当前值不同时才写：pct 是「点回 100%」按钮，
+    // 用户点一下不该产生一次文档变更。
+    let writtenMeta: IHtmlFrameMeta = { ...saved };
 
-    // Synchronous baseline read used by user actions. Frozen once the user
-    // has anchored a viewport (curW), so re-reading after every zoom would
-    // compound (1.1x × 1.2x × … — reproduced as a 96k-px frame). Also gated
-    // on the iframe load event: measuring before load can catch an unsettled
-    // layout (observed 88%-width first-paint reads).
-    const readBaseNow = () => {
-        if (!frameLoaded || curW)
+    // 交互结束时把当前尺寸写回块状态（见文件头注释）。
+    //
+    // 复位（回到跟随布局）时 curW 归 0，写回的是空 meta —— 这正是要落盘的语义：
+    // 「用户撤销了他调过的尺寸」，否则下次打开又冒出旧的存档尺寸。因此这里**不能**
+    // 用 curW 做提前返回。
+    const commitFrameMeta = () => {
+        const next: IHtmlFrameMeta = {};
+
+        // 0 表示视口已交还给作者 CSS（复位），此时不写宽高键 —— 与「从未调过尺寸」
+        // 的块序列化出完全一样的文本。
+        if (curW)
+            next.width = Math.round(curW);
+
+        if (curH)
+            next.height = Math.round(curH);
+
+        // 100% 是「没缩放过」的等价物，不写；于是复位后 meta 为空对象，序列化
+        // 既不写注释行，也与「从未调过尺寸」的块无法区分 —— 正是期望的结果。
+        if (curZoom !== 1)
+            next.zoom = curZoom;
+
+        if (JSON.stringify(next) === JSON.stringify(writtenMeta))
             return;
-        baseW = frame.offsetWidth || baseW;
-        baseH = frame.offsetHeight || FRAME_DEFAULT_HEIGHT;
+
+        writtenMeta = next;
+        context.onCommit?.(next);
     };
-
-    const readBase = () => {
-        // The Muya editor renders blocks incrementally, so a frame measured
-        // in its first animation frame can catch an unsettled layout (the
-        // first HTML block measured ~17% narrower than its siblings).
-        // Re-read over two frames and keep the later value. Baseline only:
-        // while untouched, the author's CSS (`width:100%`) keeps sizing the
-        // frame natively.
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                readBaseNow();
-                // A late-loading frame with a pending zoom/drag anchors the
-                // viewport and applies the user's settings once the
-                // baseline exists.
-                if (userTouched && !curW && baseW) {
-                    curW = baseW;
-                    curH = baseH;
-                }
-                if (userTouched && curW)
-                    apply();
-            });
-        });
-    };
-
-    // 自适配高度改了 frame 尺寸 → 重读基线（用户已接管时 readBaseNow 自己跳过）。
-    frame.addEventListener(FRAME_HEIGHT_EVENT, readBase);
-
-    // Once the frame has loaded (lazy iframes load late), re-anchor the
-    // baseline at its final layout size.
-    frame.addEventListener('load', () => {
-        frameLoaded = true;
-        if (!curW) {
-            baseW = 0;
-            readBase();
-        }
-    });
-
-    // Before the user takes control, follow the editor layout (window
-    // resize, sidebar toggle) exactly like a plain `width:100%` iframe.
-    const observeLayout = new ResizeObserver(() => {
-        if (!userTouched && baseW && baseW !== frame.offsetWidth) {
-            readBase();
-        }
-    });
-    observeLayout.observe(frame);
 
     const apply = () => {
-        // Hard guard: until the user explicitly zooms/drags, the frame keeps
-        // the author's CSS (`width:100%`) untouched so it follows the editor
-        // layout (split view, window resize). Any inline px write would
-        // permanently break that.
+        // Hard guard: until the user explicitly zooms/drags (or a saved frame
+        // size takes over), the frame keeps the author's CSS (`width:100%`)
+        // untouched so it follows the editor layout (split view, window
+        // resize). Any inline px write would permanently break that.
         if (!userTouched || !baseW || !frameLoaded)
             return;
         // Two independent controls, browser semantics:
@@ -277,6 +278,61 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
         frame.setAttribute('style', authorStyle);
     };
 
+    // Synchronous baseline read used by user actions. Gated on the iframe load
+    // event: measuring before load can catch an unsettled layout (observed
+    // 88%-width first-paint reads). Always re-anchors — `apply()` needs a
+    // baseline even when a saved size took the viewport over on open.
+    const readBaseNow = () => {
+        if (!frameLoaded)
+            return;
+        baseW = frame.offsetWidth || baseW;
+        baseH = frame.offsetHeight || FRAME_DEFAULT_HEIGHT;
+    };
+
+    const readBase = () => {
+        // The Muya editor renders blocks incrementally, so a frame measured
+        // in its first animation frame can catch an unsettled layout (the
+        // first HTML block measured ~17% narrower than its siblings).
+        // Re-read over two frames and keep the later value. Baseline only:
+        // while untouched, the author's CSS (`width:100%`) keeps sizing the
+        // frame natively.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                readBaseNow();
+                // A late-loading frame whose saved size (or a pending zoom/drag)
+                // outran the baseline anchors the viewport once it exists.
+                if (userTouched && !curW && baseW) {
+                    curW = baseW;
+                    curH = baseH;
+                }
+                if (userTouched && curW)
+                    apply();
+            });
+        });
+    };
+
+    // 自适配高度改了 frame 尺寸 → 重读基线（用户已接管时 readBaseNow 自己跳过）。
+    frame.addEventListener(FRAME_HEIGHT_EVENT, readBase);
+
+    // Once the frame has loaded (lazy iframes load late), re-anchor the
+    // baseline at its final layout size.
+    frame.addEventListener('load', () => {
+        frameLoaded = true;
+        if (!curW) {
+            baseW = 0;
+            readBase();
+        }
+    });
+
+    // Before the user takes control, follow the editor layout (window
+    // resize, sidebar toggle) exactly like a plain `width:100%` iframe.
+    const observeLayout = new ResizeObserver(() => {
+        if (!userTouched && baseW && baseW !== frame.offsetWidth) {
+            readBase();
+        }
+    });
+    observeLayout.observe(frame);
+
     // Geometric content zoom, bounded by FRAME_ZOOM_MIN/MAX. The viewport
     // (block) size stays untouched — Chrome page-zoom semantics.
     const zoomBy = (factor: number) => {
@@ -293,6 +349,7 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
             Math.max(FRAME_ZOOM_MIN, curZoom * factor),
         );
         apply();
+        commitFrameMeta();
     };
 
     const zoomTo = (scale: number) => {
@@ -309,14 +366,18 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
             curH = 0;
             release();
             pct.textContent = '100%';
-            return;
         }
-        userTouched = true;
-        if (!curW) {
-            curW = baseW;
-            curH = baseH;
+        else {
+            userTouched = true;
+            if (!curW) {
+                curW = baseW;
+                curH = baseH;
+            }
+            apply();
         }
-        apply();
+        // 复位（回到 100% 且与布局同宽）同样要落盘，否则下次打开还是旧的存档尺寸
+        // ——「点复位」在用户看来就是「撤销我调过的尺寸」。
+        commitFrameMeta();
     };
 
     const resizeTo = (width: number, height: number) => {
@@ -374,6 +435,15 @@ function createFrameShell(frame: HTMLIFrameElement): HTMLDivElement {
             dragStartW + (event.clientX - dragStartX),
             dragStartH + (event.clientY - dragStartY),
         );
+    });
+    // 拖拽只在抬手时落盘一次：拖动过程中每帧写回块状态会触发文档逐帧变更与保存，
+    // 既闪烁又产生一堆无意义的撤销/IO。
+    resizer.addEventListener('pointerup', (event) => {
+        if (!resizer.hasPointerCapture(event.pointerId))
+            return;
+
+        resizer.releasePointerCapture(event.pointerId);
+        commitFrameMeta();
     });
     resizer.addEventListener('pointercancel', () => {
         dragStartW = 0;
@@ -436,7 +506,7 @@ function bindHeightListenerOnce() {
 
 // 块内含脚本时的落点：整个块进沙箱 iframe，源码投递给引导页由它 document.write
 // 执行；外壳沿用嵌入 iframe 的「缩放 + 拖拽」体验。
-function createScriptFrame(source: string): HTMLDivElement {
+function createScriptFrame(source: string, context: IFrameShellContext): HTMLDivElement {
     bindHeightListenerOnce();
 
     const frame = document.createElement('iframe');
@@ -460,7 +530,7 @@ function createScriptFrame(source: string): HTMLDivElement {
         frame.contentWindow?.postMessage(buildFrameSourceMessage(source), '*');
     });
 
-    const shell = createFrameShell(frame);
+    const shell = createFrameShell(frame, context);
     // 用户一动手（拖拽尺寸或缩放，鼠标或键盘激活都算），尺寸就归外壳管，自适配让位。
     const stopAutoSize = () => autoSizeStop.add(frame);
     shell.addEventListener('pointerdown', stopAutoSize, true);
@@ -475,6 +545,9 @@ class HTMLPreview extends Parent {
     // 当前沙箱脚本帧对应的源码（用于避免引擎刷新预览块时重载 srcdoc）。
     private _scriptFrameSource = '';
 
+    // 块状态里的外框尺寸 + 写回通道（用户拖拽/缩放结束后调用）。
+    private _frameMeta: IHtmlFrameMeta;
+    private _commitFrameMeta: (meta: IHtmlFrameMeta) => void;
 
     static override blockName = 'html-preview';
 
@@ -489,10 +562,25 @@ class HTMLPreview extends Parent {
         return [];
     }
 
-    constructor(muya: Muya, { text }: IHtmlBlockState) {
+    constructor(muya: Muya, { text, meta }: IHtmlBlockState) {
         super(muya);
         this.tagName = 'div';
         this._html = text;
+        this._frameMeta = { ...meta };
+        this._commitFrameMeta = (next: IHtmlFrameMeta) => {
+            // 尺寸归属 `figure.mu-html-block`（它才是 json state 里的块节点），
+            // 预览只是它的 attachment —— 沿 parent 链找上去，找到才写。
+            let node: Nullable<Parent> = this.parent;
+            while (node) {
+                if (node instanceof HTMLBlock) {
+                    node.setFrameMeta(next);
+                    return;
+                }
+                node = node.parent;
+            }
+
+            debug.warn('html-preview has no html-block ancestor; frame size not persisted.');
+        };
         this.classList = [CLASS_NAMES.MU_HTML_PREVIEW];
         this.attributes = {
             spellcheck: 'false',
@@ -526,7 +614,7 @@ class HTMLPreview extends Parent {
 
             this._scriptFrameSource = html;
             this.domNode!.innerHTML = '';
-            this.domNode!.appendChild(createScriptFrame(html));
+            this.domNode!.appendChild(createScriptFrame(html, this._frameContext()));
 
             return;
         }
@@ -591,9 +679,24 @@ class HTMLPreview extends Parent {
 
                 frame.setAttribute('title', attrs.title || attrs.src);
                 frame.classList.add(CLASS_NAMES.MU_HTML_IFRAME);
-                holder.replaceWith(createFrameShell(frame));
+                holder.replaceWith(createFrameShell(frame, this._frameContext()));
             }
         }
+    }
+
+    /**
+     * 每次挂外壳都新建一份上下文：`meta` 是外壳的初始尺寸（打开文档即恢复用户
+     * 上次调好的大小），`onCommit` 在用户交互结束时把新尺寸写回块状态 —— 写回会
+     * 触发 json-change，于是文档被标记为「已修改」并走正常保存。
+     */
+    private _frameContext(): IFrameShellContext {
+        return {
+            meta: this._frameMeta,
+            onCommit: (meta: IHtmlFrameMeta) => {
+                this._frameMeta = meta;
+                this._commitFrameMeta(meta);
+            },
+        };
     }
 
     override getState(): TState {

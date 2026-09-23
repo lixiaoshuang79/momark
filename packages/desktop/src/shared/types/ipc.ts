@@ -18,6 +18,7 @@
  */
 
 import type { IKeyboardLayoutInfo, IKeyboardMapping } from 'native-keymap'
+import type { IRasterizeHtmlFrameArgs, IRasterizeHtmlFrameResult } from './exportHtmlFrame'
 import type {
   MarkdownDocument,
   TabOptions,
@@ -67,6 +68,12 @@ export interface IpcInvokeChannels {
   'mt::clipboard::read-text': { args: []; ret: string }
   'mt::cmd::exists': { args: [name: string]; ret: boolean }
   'mt::fonts::list': { args: []; ret: string[] }
+  // ── 导出：内嵌 HTML 块的沙箱帧离屏截图（见 main/ipc/exportHtmlFrame.ts）──
+  // 块的显示尺寸是会话内的、不写回 markdown，导出侧只能拿当前尺寸去离屏复现。
+  'mt::export::rasterize-html-frame': {
+    args: [payload: IRasterizeHtmlFrameArgs]
+    ret: IRasterizeHtmlFrameResult | null
+  }
   'mt::fs-trash-item': { args: [pathname: string]; ret: void }
   'mt::fs::copy': { args: [src: string, dest: string]; ret: void }
   'mt::fs::empty-dir': { args: [path: string]; ret: void }

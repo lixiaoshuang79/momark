@@ -112,6 +112,7 @@ import {
   type HeaderFooterPart
 } from '@/util/exportHtml'
 import { applyCursor, isIndexCursor } from '@/util/cursor'
+import { inlineFramedHtmlBlocks } from '@/util/exportHtmlBlocks'
 import EditorSearch from '../search/index.vue'
 import HtmlPasteChooser from './HtmlPasteChooser.vue'
 import { placeBubble } from '@/util/bubblePosition'
@@ -1484,16 +1485,26 @@ const handleExport = async (options: unknown) => {
   const extraCss = await getCssForOptions(opts as unknown as PdfCssOptions)
   const htmlToc = getHtmlToc(editor.value.getTOC(), opts as unknown as HtmlTocOptions)
   const markdown = editor.value.getMarkdown()
+  // 内嵌 HTML 块（块内含脚本的那些）在编辑器里是沙箱帧，导出前要换成导出物里的样子，
+  // 否则那块要么空白，要么只剩一段被转义的源码文本：
+  //   · HTML 导出 → live：保留成自包含的沙箱 iframe，单文件带走也能点、能交互；
+  //   · PDF / 打印 / docx → image：按当前显示尺寸定格成一张图。
+  const { markdown: exportMarkdown, frames: exportFrames } = await inlineFramedHtmlBlocks(
+    editor.value,
+    markdown,
+    { live: type === 'styledHtml' }
+  )
   const header = (opts.header ?? null) as HeaderFooterPart | null
   const footer = (opts.footer ?? null) as HeaderFooterPart | null
 
   switch (type) {
     case 'styledHtml': {
       try {
-        const content = await exportStyledHTML(editor.value, markdown, {
+        const content = await exportStyledHTML(editor.value, exportMarkdown, {
           title: htmlTitle || '',
           printOptimization: false,
           extraCss,
+          frames: exportFrames,
           toc: htmlToc,
           dir: props.textDirection
         })
@@ -1523,7 +1534,7 @@ const handleExport = async (options: unknown) => {
         // 页眉/页脚三格：改走 printToPDF displayHeaderFooter 模板（页码/日期真实生成），
         // 文档内不再嵌入 hf-table 以免重复渲染。
         const usePrintTemplates = !!(header || footer)
-        const html = await exportStyledHTML(editor.value, markdown, {
+        const html = await exportStyledHTML(editor.value, exportMarkdown, {
           title: '',
           printOptimization: true,
           extraCss,
@@ -1560,7 +1571,7 @@ const handleExport = async (options: unknown) => {
       // docx 走 pandoc：直接把 Markdown 源码交给主进程转换，图片等相对路径
       // 资源由 pandoc 以源文档目录为 cwd 解析。
       try {
-        editorStore.EXPORT({ type: 'docx', content: markdown })
+        editorStore.EXPORT({ type: 'docx', content: exportMarkdown })
       } catch (err) {
         log.error('Failed to export document:', err)
         notice.notify({
@@ -1575,7 +1586,7 @@ const handleExport = async (options: unknown) => {
     case 'print': {
       // NOTE: Print doesn't support page size or orientation.
       try {
-        const html = await exportStyledHTML(editor.value, markdown, {
+        const html = await exportStyledHTML(editor.value, exportMarkdown, {
           title: '',
           printOptimization: true,
           extraCss,

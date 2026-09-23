@@ -88,11 +88,35 @@ declare module '@muyajs/core' {
   export function unescapeHTML(str: string): string
   export function sanitize(html: string, config?: any, isInline?: boolean): string
   export function generateGithubSlug(text: string): string
-  export function getImageInfo(src: string): { isUnknownType: boolean; src: string; [key: string]: any }
+  export function getImageInfo(src: string): {
+    isUnknownType: boolean
+    src: string
+    [key: string]: any
+  }
   export function wordCount(markdown: string): {
     word: number
     paragraph: number
     character: number
     all: number
   }
+
+  /** 块级内嵌 HTML 块在 markdown 里的行范围（`end` 不含；空行终结符不算块内）。 */
+  export interface IHtmlBlockSpan {
+    start: number
+    end: number
+    text: string
+    blankTerminated: boolean
+  }
+  export function findHtmlBlockSpans(markdown: string): IHtmlBlockSpan[]
+
+  /** 编辑器里带沙箱帧的内嵌 HTML 块：源码 + 当前显示尺寸 + 缩放倍数。 */
+  export interface IHtmlFrameTarget {
+    html: string
+    width: number
+    height: number
+    zoom: number
+    /** 用户没单独调过宽度（跟随布局）→ 导出时按页面宽度铺满 */
+    auto: boolean
+  }
+  export function collectHtmlFrameTargets(root: ParentNode | null | undefined): IHtmlFrameTarget[]
 }
