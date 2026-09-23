@@ -3,6 +3,7 @@ import type Content from '../block/base/content';
 import type { Config } from './dompurify';
 import { EVENT_KEYS } from '../config';
 import runSanitize from './dompurify';
+import { stripHtmlBlocks } from './htmlBlock';
 
 interface IUnion {
     start: number;
@@ -181,17 +182,19 @@ export function escapeInBlockHtml(html: string) {
 }
 
 export function wordCount(markdown: string) {
-    const paragraph = markdown.split(/\n{2,}/).filter(line => line).length;
+    // 内嵌 HTML 块（html-block 的源码）不是正文，连同它的段落一起排除在统计之外。
+    const text = stripHtmlBlocks(markdown);
+    const paragraph = text.split(/\n{2,}/).filter(line => line).length;
     let word = 0;
     let character = 0;
     let all = 0;
 
-    const removedChinese = markdown.replace(/[\u4E00-\u9FA5]/g, '');
+    const removedChinese = text.replace(/[\u4E00-\u9FA5]/g, '');
     const tokens = removedChinese.split(/\s+/).filter(t => t);
-    const chineseWordLength = markdown.length - removedChinese.length;
+    const chineseWordLength = text.length - removedChinese.length;
     word += chineseWordLength + tokens.length;
     character += tokens.reduce((acc, t) => acc + t.length, 0) + chineseWordLength;
-    all += markdown.length;
+    all += text.length;
 
     return { word, paragraph, character, all };
 }
