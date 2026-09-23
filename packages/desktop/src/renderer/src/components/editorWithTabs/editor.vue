@@ -2196,10 +2196,42 @@ onMounted(() => {
     }
   })
 
+  // The caret's identity (block path + both offsets), tracked across
+  // `selection-change` events. The engine re-applies the very same caret on
+  // several programmatic paths — a click landing on a block's chrome, a
+  // preview-toolbar action, `focus()` after a re-render — and every one of
+  // them emits `selection-change` again with the caret unmoved. Running the
+  // #628/#3329 follow-up scroll for those yanks the viewport back to the
+  // caret: with the caret parked in the document's first heading and the user
+  // scrolled down to resize an HTML block, releasing the resize handle threw
+  // the whole document back to the top. Follow the caret only when it moved.
+  //
+  // Seeded from the engine's live selection, because the editor places its
+  // caret during `init()` — before this listener exists. Left unseeded, the
+  // first event the app ever sees (a programmatic re-apply, since a click that
+  // changes nothing is enough) would count as a move and scroll the view.
+  const caretKeyOf = (
+    path?: Array<string | number>,
+    anchorOffset?: number,
+    focusOffset?: number
+  ): string => `${path?.join('/') ?? ''}@${anchorOffset ?? ''}-${focusOffset ?? ''}`
+  const initialSelection = editor.value?.getSelection?.() as {
+    anchor?: { offset?: number; path?: Array<string | number> }
+    focus?: { offset?: number; path?: Array<string | number> }
+  } | null
+  let lastCaretKey = caretKeyOf(
+    initialSelection?.anchor?.path,
+    initialSelection?.anchor?.offset,
+    initialSelection?.focus?.offset
+  )
+
   editor.value.on('selection-change', (changes: MuyaChange) => {
     // round10：光标回到左编辑器 → 顶栏字数/保存状态切回左文档。
     splitStore.SET_DOC_FOCUSED(false)
     const y = (changes.cursorCoords?.y ?? null) as number | null
+    const caretKey = caretKeyOf(changes.anchorPath, changes.anchor?.offset, changes.focus?.offset)
+    const caretMoved = caretKey !== lastCaretKey
+    lastCaretKey = caretKey
     if (y != null) {
       if (typewriter.value) {
         const startPosition = container.scrollTop
@@ -2211,15 +2243,18 @@ onMounted(() => {
         }
       }
 
-      // Used to fix #628: auto scroll cursor to visible if the cursor is too low.
-      if (container.clientHeight - y < 100) {
-        // editableHeight is the lowest cursor position(till to top) that editor allowed.
-        const editableHeight = container.clientHeight - 100
-        animatedScrollTo(container, container.scrollTop + (y - editableHeight), 0)
-      } else if (y < 100) {
-        // Symmetric to #628: scroll up when the cursor rises above the top edge
-        // (e.g. Arrow-Up), otherwise the caret leaves the viewport (#3329).
-        animatedScrollTo(container, container.scrollTop + (y - 100), 0)
+      // A caret that did not move must not scroll the view (see `lastCaretKey`).
+      if (caretMoved) {
+        // Used to fix #628: auto scroll cursor to visible if the cursor is too low.
+        if (container.clientHeight - y < 100) {
+          // editableHeight is the lowest cursor position(till to top) that editor allowed.
+          const editableHeight = container.clientHeight - 100
+          animatedScrollTo(container, container.scrollTop + (y - editableHeight), 0)
+        } else if (y < 100) {
+          // Symmetric to #628: scroll up when the cursor rises above the top edge
+          // (e.g. Arrow-Up), otherwise the caret leaves the viewport (#3329).
+          animatedScrollTo(container, container.scrollTop + (y - 100), 0)
+        }
       }
     }
 
