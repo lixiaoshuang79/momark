@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.0-3D5A80" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.4.2-3D5A80" alt="version" />
   <img src="https://img.shields.io/badge/platform-macOS%20arm64%20%7C%20x64-lightgrey" alt="platform" />
   <img src="https://img.shields.io/badge/license-MIT-7BA3C9" alt="license" />
   <img src="https://img.shields.io/github/stars/lixiaoshuang79/momark?style=social" alt="stars" />
@@ -33,6 +33,8 @@
 ### HTML 块内嵌渲染（带脚本，单文件可带走）
 
 HTML 块不再是源码，而是真实渲染的画面——数据图表、交互式原型直接显示在文档里。块内带脚本也能跑：脚本在沙箱中执行，碰不到编辑器、文档和本地文件；HTML 与脚本本身就写在 .md 里，所以一个文件发给别人、离线打开也照样画得出来。右下角控制条支持 50%–200% 缩放，拖拽即可调整视口大小，预览高度跟随内容自动收紧。
+
+导出时，内嵌块按它在文档里的显示尺寸原样带走：**导出 HTML** 得到的是活的沙箱帧——双击打开就能点、能切页签，右下角工具条还能继续缩放、拖拽改大小；**导出 PDF / Word** 时它变成一张截图，所见即所得。块的尺寸与缩放比例也能跟着文档存下来，下次打开还是你调好的样子。
 
 手上已经有一个 html 文件时，直接把它粘进文档即可：墨记会弹出一个气泡让你二选一——**内嵌到文档**（同目录的样式、脚本、图片一并内联，转完 .md 单文件就能带走），或者**上传图床并插入链接**（走你配置好的上传服务，文档里只留一条链接）。
 
@@ -92,7 +94,7 @@ pnpm build:mac          # 默认 arm64；另有 build:mac:x64
 产物：
 
 - 应用：`dist/mac-arm64/墨记.app`
-- 安装包：`dist/momark-mac-arm64-1.3.0.dmg` / `dist/momark-mac-arm64-1.3.0.zip`
+- 安装包：`dist/momark-mac-arm64-1.4.2.dmg` / `dist/momark-mac-arm64-1.4.2.zip`
 
 ## 开发
 
