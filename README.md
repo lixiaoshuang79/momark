@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.2-3D5A80" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.4.3-3D5A80" alt="version" />
   <img src="https://img.shields.io/badge/platform-macOS%20arm64%20%7C%20x64-lightgrey" alt="platform" />
   <img src="https://img.shields.io/badge/license-MIT-7BA3C9" alt="license" />
   <img src="https://img.shields.io/github/stars/lixiaoshuang79/momark?style=social" alt="stars" />
@@ -94,7 +94,7 @@ pnpm build:mac          # 默认 arm64；另有 build:mac:x64
 产物：
 
 - 应用：`dist/mac-arm64/墨记.app`
-- 安装包：`dist/momark-mac-arm64-1.4.2.dmg` / `dist/momark-mac-arm64-1.4.2.zip`
+- 安装包：`dist/momark-mac-arm64-1.4.3.dmg` / `dist/momark-mac-arm64-1.4.3.zip`
 
 ## 开发
 
