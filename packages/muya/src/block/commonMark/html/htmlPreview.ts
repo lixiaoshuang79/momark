@@ -176,7 +176,7 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
     const pct = document.createElement('span');
     pct.classList.add('mu-html-frame-zoom');
     pct.textContent = '100%';
-    pct.title = 'Reset zoom';
+    pct.title = 'Reset zoom and size';
     const btnOut = document.createElement('button');
     btnOut.type = 'button';
     btnOut.textContent = '−';
@@ -211,6 +211,36 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
     // 上一次写回文档的尺寸。只在与当前值不同时才写：pct 是「点回 100%」按钮，
     // 用户点一下不该产生一次文档变更。
     let writtenMeta: IHtmlFrameMeta = { ...saved };
+
+    // 正文栏当前可用宽度（宿主的内容宽，扣掉宿主与 figure 自己的左右内/外边距）。
+    // 这是「块跟随布局时该占多宽」的唯一权威来源：用户调过尺寸的块也被夹在它以内，
+    // 所以编辑器里永远不会出现比正文栏宽的内嵌块（否则整篇文档被撑出横向滚动）。
+    // 不能用 frame.offsetWidth 代替：用户接管后它带内联宽度（还可能被缩放补偿），
+    // 量它会得到用户尺寸或 用户尺寸÷缩放，窗口变宽后就算不回来了。
+    const availableWidth = () => {
+        const fig = figureOf();
+        const host = fig?.parentElement;
+
+        if (!fig || !host)
+            return 0;
+
+        const hostStyle = getComputedStyle(host);
+        const figStyle = getComputedStyle(fig);
+        const inner = host.clientWidth
+            - (Number.parseFloat(hostStyle.paddingLeft) || 0)
+            - (Number.parseFloat(hostStyle.paddingRight) || 0)
+            - (Number.parseFloat(figStyle.marginLeft) || 0)
+            - (Number.parseFloat(figStyle.marginRight) || 0);
+
+        return inner > 0 ? inner : 0;
+    };
+
+    /** 实际显示宽度 = min(用户设定的尺寸, 当前可用宽度)；量不到可用宽度时按用户尺寸。 */
+    const displayWidth = () => {
+        const avail = availableWidth();
+
+        return avail > 0 ? Math.min(curW, avail) : curW;
+    };
 
     // 交互结束时把当前尺寸写回块状态（见文件头注释）。
     //
@@ -255,15 +285,20 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
         //   layout viewport and is rendered bigger.
         // - drag: changes the real viewport size (curW/curH); the shell
         //   and the outer figure track it, so the whole block grows/shrinks.
-        shell.style.width = `${curW}px`;
+        //
+        // 显示宽度夹到正文栏可用宽度以内（见 displayWidth）：窗口/侧栏变窄时块自动
+        // 收窄，变宽时回到用户设定的尺寸。夹取只影响显示与导出（导出读显示 rect），
+        // 写回文档的始终是用户尺寸 curW。
+        const effW = displayWidth();
+        shell.style.width = `${effW}px`;
         const fig = figureOf();
         // max-width (not width): the Muya engine writes its own measured
         // inline width to the figure, which must not override the user's
         // shrunken viewport (otherwise a grey gutter stays behind).
         if (fig)
-            fig.style.maxWidth = `${curW}px`;
+            fig.style.maxWidth = `${effW}px`;
         frame.style.zoom = `${curZoom}`;
-        frame.style.width = `${curW / curZoom}px`;
+        frame.style.width = `${effW / curZoom}px`;
         frame.style.height = `${curH / curZoom}px`;
         pct.textContent = `${Math.round(curZoom * 100)}%`;
     };
@@ -278,6 +313,11 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
         frame.setAttribute('style', authorStyle);
     };
 
+    // 正文栏（frame 的宿主）观察器在下方登记（它要引用 apply/readBase）；这里先声明
+    // 占位，readBase 的 rAF 回调调用它把宿主挂上观察器 —— 宿主只有在预览节点挂进
+    // figure 之后才拿得到，所以不能在建壳时直接登记。
+    let observeHost = () => {};
+
     // Synchronous baseline read used by user actions. Gated on the iframe load
     // event: measuring before load can catch an unsettled layout (observed
     // 88%-width first-paint reads). Always re-anchors — `apply()` needs a
@@ -285,7 +325,9 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
     const readBaseNow = () => {
         if (!frameLoaded)
             return;
-        baseW = frame.offsetWidth || baseW;
+        // 基线取正文栏可用宽度（而不是 frame.offsetWidth：用户接管后的帧带内联
+        // 宽度，量到的是用户尺寸或缩放补偿值，会把基线污染成错的锚点）。
+        baseW = availableWidth() || frame.offsetWidth || baseW;
         baseH = frame.offsetHeight || FRAME_DEFAULT_HEIGHT;
     };
 
@@ -298,6 +340,7 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
         // frame natively.
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
+                observeHost();
                 readBaseNow();
                 // A late-loading frame whose saved size (or a pending zoom/drag)
                 // outran the baseline anchors the viewport once it exists.
@@ -326,12 +369,35 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
 
     // Before the user takes control, follow the editor layout (window
     // resize, sidebar toggle) exactly like a plain `width:100%` iframe.
+    // 用户接管尺寸后同样要跟随布局：显示宽度要按新的可用宽度重新夹取
+    // （变窄自动收、变宽回到用户尺寸），否则窗口/侧栏一变，块就把文档撑出横向滚动。
     const observeLayout = new ResizeObserver(() => {
-        if (!userTouched && baseW && baseW !== frame.offsetWidth) {
+        if (userTouched) {
+            if (baseW && frameLoaded)
+                apply();
+        }
+        else if (baseW && baseW !== frame.offsetWidth) {
             readBase();
         }
     });
     observeLayout.observe(frame);
+
+    // 正文栏（frame 的宿主）也要观察：用户接管后的 frame 带内联宽度，宿主变窄时
+    // 只看 frame 自己的盒子观察不到布局变化。宿主要等预览节点挂进 figure 之后才拿得到，
+    // 所以延迟到第一次 readBase 时登记。
+    let hostObserved = false;
+    observeHost = () => {
+        if (hostObserved)
+            return;
+
+        const host = figureOf()?.parentElement;
+
+        if (!host)
+            return;
+
+        observeLayout.observe(host);
+        hostObserved = true;
+    };
 
     // Geometric content zoom, bounded by FRAME_ZOOM_MIN/MAX. The viewport
     // (block) size stays untouched — Chrome page-zoom semantics.
@@ -359,8 +425,10 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
             FRAME_ZOOM_MAX,
             Math.max(FRAME_ZOOM_MIN, scale),
         );
-        if (curZoom === 1 && curW === baseW) {
+        if (curZoom === 1) {
             // Back to the pristine state: follow the editor layout again.
+            // 不要求 curW === baseW —— 用户尺寸和当前栏宽不等时（窗口/侧栏变过、
+            // 或存档尺寸来自更宽的布局）也必须能一键复位，否则没有出口。
             userTouched = false;
             curW = 0;
             curH = 0;
@@ -384,7 +452,11 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
         userTouched = true;
         if (!baseW || !frameLoaded)
             return;
-        curW = Math.max(FRAME_MIN_WIDTH, width);
+        // 拖拽上限就是正文栏的可用宽度：编辑器里把块拖出正文栏只会让整篇文档出现
+        // 横向滚动（且拖不出可视区），没有任何收益。可用宽度量不到时不设上限。
+        const avail = availableWidth();
+        const maxW = avail > 0 ? avail : Number.POSITIVE_INFINITY;
+        curW = Math.max(FRAME_MIN_WIDTH, Math.min(width, maxW));
         curH = Math.max(FRAME_MIN_HEIGHT, height);
         apply();
     };
@@ -424,7 +496,11 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
         readBaseNow();
         dragStartX = event.clientX;
         dragStartY = event.clientY;
-        dragStartW = curW || baseW;
+        // 从用户看到的宽度起拖：块的显示宽度可能被正文栏夹住了（存档尺寸比当前
+        // 栏宽大时），此时按被夹住的值起算，手柄才会跟着指针走。
+        const avail = availableWidth();
+        const shownW = curW || baseW;
+        dragStartW = avail > 0 ? Math.min(shownW, avail) : shownW;
         dragStartH = curH || baseH;
         resizer.setPointerCapture(event.pointerId);
     });

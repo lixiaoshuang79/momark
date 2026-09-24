@@ -34,7 +34,7 @@ function flushFrames(times = 4): Promise<void> {
     });
 }
 
-async function boot(markdown: string, size: [number, number]) {
+async function boot(markdown: string, size: [number, number], hostWidth?: number) {
     window.MUYA_VERSION = 'test';
     const host = document.createElement('div');
     document.body.appendChild(host);
@@ -49,6 +49,19 @@ async function boot(markdown: string, size: [number, number]) {
 
     const shell = muya.domNode.querySelector('.mu-html-frame') as HTMLElement;
     const frame = shell.querySelector('iframe') as HTMLElement;
+    // 正文栏（frame 的宿主 .mu-container）的 clientWidth：happy-dom 不做布局，
+    // 恒为 0，需要夹取行为的用例自己打桩。注意可用宽度还要扣掉宿主左右 padding
+    // （引擎默认样式 50px×2，真实应用里是 32px×2），见 availableWidth()。
+    if (hostWidth !== undefined) {
+        const fig = shell.closest('figure');
+        const layoutHost = fig?.parentElement;
+
+        if (!layoutHost)
+            throw new Error('figure/host not mounted for hostWidth stub');
+
+        Object.defineProperty(layoutHost, 'clientWidth', { configurable: true, value: hostWidth });
+    }
+
     // happy-dom 不做布局，offsetWidth 恒为 0；外壳以「load 之后量一次」作为基线，
     // 所以这里打桩尺寸再补发 load（真实环境由浏览器发）。
     Object.defineProperty(frame, 'offsetWidth', { configurable: true, value: size[0] });
@@ -90,6 +103,101 @@ describe('内嵌 HTML 块外框尺寸 — 打开时恢复', () => {
 
         expect(shell.style.width).toBe('');
         expect(frame.style.width).toBe('100%');
+    });
+});
+
+// ── 显示宽度夹到正文栏（内嵌块不再把文档撑出横向滚动）─────────────────────
+// happy-dom 的 ResizeObserver 不触发回调，这里换成可手动触发的记录桩，
+// 用来验证「正文栏变宽 → 块回到用户尺寸」这条布局跟随链路。
+class RecordingResizeObserver {
+    static instances: RecordingResizeObserver[] = [];
+    readonly cb: ResizeObserverCallback;
+
+    constructor(cb: ResizeObserverCallback) {
+        this.cb = cb;
+        RecordingResizeObserver.instances.push(this);
+    }
+
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+}
+
+function installRecordingResizeObserver(): () => void {
+    const original = globalThis.ResizeObserver;
+    RecordingResizeObserver.instances = [];
+    globalThis.ResizeObserver = RecordingResizeObserver as unknown as typeof ResizeObserver;
+
+    return () => {
+        globalThis.ResizeObserver = original;
+    };
+}
+
+function triggerLayoutChange(): void {
+    for (const observer of RecordingResizeObserver.instances)
+        observer.cb([], observer as unknown as ResizeObserver);
+}
+
+describe('内嵌 HTML 块外框尺寸 — 显示宽度夹到正文栏', () => {
+    it('存档尺寸比正文栏宽时，打开即夹到栏宽（meta 保持用户尺寸）', async () => {
+        const { muya, shell, frame } = await boot(`<!--momark-frame w=1200 h=360-->\n${SCRIPT_BLOCK}\n`, [1200, 360], 800);
+
+        // 宿主 clientWidth 800 − 左右 padding 50×2 = 可用宽 700。
+        expect(shell.style.width).toBe('700px');
+        expect(Number.parseFloat(frame.style.width)).toBeCloseTo(700, 5);
+        expect((shell.closest('figure') as HTMLElement).style.maxWidth).toBe('700px');
+        // 夹取只影响显示：文档里存的仍是用户尺寸，窗口变宽后要能回到它。
+        expect(frameMeta(muya)).toEqual({ width: 1200, height: 360 });
+    });
+
+    it('正文栏变宽后自动回到用户尺寸', async () => {
+        const restore = installRecordingResizeObserver();
+
+        try {
+            const { shell } = await boot(`<!--momark-frame w=1200 h=360-->\n${SCRIPT_BLOCK}\n`, [1200, 360], 800);
+            expect(shell.style.width).toBe('700px');
+
+            const layoutHost = shell.closest('figure')!.parentElement as HTMLElement;
+            Object.defineProperty(layoutHost, 'clientWidth', { configurable: true, value: 1400 });
+            triggerLayoutChange();
+            await flushFrames();
+
+            expect(shell.style.width).toBe('1200px');
+        }
+        finally {
+            restore();
+        }
+    });
+
+    it('拖拽上限就是正文栏宽度', async () => {
+        const { muya, shell } = await boot(`${SCRIPT_BLOCK}\n`, [700, 420], 800);
+        const resizer = shell.querySelector('.mu-html-frame-resizer') as HTMLElement;
+        const pointerId = 1;
+
+        resizer.hasPointerCapture = () => true;
+        resizer.setPointerCapture = () => {};
+        resizer.releasePointerCapture = () => {};
+
+        resizer.dispatchEvent(Object.assign(new Event('pointerdown'), { clientX: 100, clientY: 100, pointerId }));
+        // 往右拖出正文栏 1500px：显示与写回都应停在可用宽 700。
+        resizer.dispatchEvent(Object.assign(new Event('pointermove'), { clientX: 1600, clientY: 200, pointerId }));
+        resizer.dispatchEvent(Object.assign(new Event('pointerup'), { clientX: 1600, clientY: 200, pointerId }));
+        await flushFrames();
+
+        expect(shell.style.width).toBe('700px');
+        expect(frameMeta(muya)).toEqual({ width: 700, height: 520 });
+    });
+
+    it('点 100%：存档尺寸与当前栏宽不等时也能一键复位', async () => {
+        const { muya, shell, frame } = await boot(`<!--momark-frame w=1200 h=360-->\n${SCRIPT_BLOCK}\n`, [1200, 360], 800);
+        expect(shell.style.width).toBe('700px');
+
+        (shell.querySelector('.mu-html-frame-zoom') as HTMLElement).click();
+        await flushFrames();
+
+        expect(shell.style.width).toBe('');
+        expect(frame.style.width).toBe('100%');
+        expect(frameMeta(muya)).toEqual({});
     });
 });
 
