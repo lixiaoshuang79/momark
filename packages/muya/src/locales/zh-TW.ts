@@ -55,6 +55,12 @@ export const zhTW = {
         'Link': '超連結',
         'Image': '圖片',
         'Eliminate': '清除樣式',
+        // annotationTool（内容标注：工具条按钮 + 备注卡片）
+        'Annotate': '標註',
+        'Edit': '編輯',
+        'Cancel': '取消',
+        'Save': '儲存',
+        'Write a note, e.g. this logic is wrong': '寫一句修改說明，例如：這段邏輯不通',
         // Code block
         'Copy content': '複製內容',
         'Input Language Identifier...': '輸入程式語言識別碼...',

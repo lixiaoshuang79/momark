@@ -15,9 +15,11 @@ import {
   MARKDOWN_EXTENSIONS,
   ensureMarkdownExtension,
   isDangerousExecutableFile,
+  isExecutableFile,
   isMarkdownFile,
   stripMarkdownExtension
 } from 'common/filesystem/paths'
+import { isAllowedExternalUrl } from '../../ipc/shell'
 import { userSetting } from './marktext'
 import { showTabBar } from './view'
 import { COMMANDS } from '../../commands'
@@ -260,6 +262,19 @@ const handleResponseForPrint = async (e: IpcMainEvent): Promise<void> => {
   })
 }
 
+/**
+ * F1(P0-2)：一次保存请求的语义化结果。
+ *
+ * 原来 `handleResponseForSave` 在「写盘失败」（被内部 catch 吞掉、只发通知）和
+ * 「用户取消另存对话框」两种情况下都返回 resolved undefined，于是调用方
+ * `Promise.all(...).then(() => 关窗)` 必然关窗——用户点了「保存」但磁盘满 /
+ * 权限不足 / 取消另存，窗口照关，内容丢失。现在把成功/失败/取消显式区分出来，
+ * 由调用方决定是否关窗。
+ */
+type SaveOutcome =
+  | { ok: true; id: string }
+  | { ok: false; id: string; filename: string; reason: 'canceled' | 'error'; message?: string }
+
 const handleResponseForSave = async (
   e: IpcMainEvent,
   id: string,
@@ -267,11 +282,14 @@ const handleResponseForSave = async (
   pathname: string | undefined,
   markdown: string,
   options: UnsavedFile['options'],
-  defaultPath?: string
-): Promise<string | void> => {
+  defaultPath?: string,
+  // F1(P0-4)：渲染层发起保存时登记的内容版本，原样回传（`mt::tab-saved` /
+  // `mt::set-pathname`），由渲染层判断「写下去的」是否还是「此刻屏幕上的」。
+  version?: number
+): Promise<SaveOutcome> => {
   const win = BrowserWindow.fromWebContents(e.sender)
   if (!win) {
-    return Promise.resolve()
+    return { ok: false, id, filename, reason: 'error', message: 'window is gone' }
   }
   let recommendFilename = getRecommendTitleFromMarkdownString(markdown)
   if (!recommendFilename) {
@@ -298,9 +316,10 @@ const handleResponseForSave = async (
     }
   }
 
-  // Save dialog canceled by user - no error.
+  // Save dialog canceled by user - no error, but the caller must NOT close the
+  // window (the document is still unsaved).
   if (!filePath) {
-    return Promise.resolve()
+    return { ok: false, id, filename, reason: 'canceled' }
   }
 
   filePath = path.resolve(filePath)
@@ -313,23 +332,29 @@ const handleResponseForSave = async (
   // populates every field for the unsaved-file dialog payload, so the cast
   // is safe at this seam.
   return writeMarkdownFile(filePath, markdown, options as Parameters<typeof writeMarkdownFile>[2])
-    .then(() => {
+    .then((): SaveOutcome => {
       if (!alreadyExistOnDisk) {
         ipcMain.emit('window-add-file-path', win.id, filePath)
         ipcMain.emit('menu-add-recently-used', filePath)
 
         const newFilename = path.basename(filePath!)
-        win.webContents.send('mt::set-pathname', { id, pathname: filePath, filename: newFilename })
+        win.webContents.send('mt::set-pathname', {
+          id,
+          pathname: filePath,
+          filename: newFilename,
+          version
+        })
       } else {
         ipcMain.emit('window-file-saved', win.id, filePath)
-        win.webContents.send('mt::tab-saved', id)
+        win.webContents.send('mt::tab-saved', id, version)
       }
-      return id
+      return { ok: true, id }
     })
-    .catch((err: unknown) => {
+    .catch((err: unknown): SaveOutcome => {
       log.error('Error while saving:', err)
       const msg = err instanceof Error ? err.message : String(err)
       win.webContents.send('mt::tab-save-failure', id, msg)
+      return { ok: false, id, filename, reason: 'error', message: msg }
     })
 }
 
@@ -413,10 +438,24 @@ ipcMain.on('mt::save-tabs', (e, unsavedFiles: UnsavedFile[]) => {
         file.pathname,
         file.markdown,
         file.options,
-        file.defaultPath
+        file.defaultPath,
+        file.version
       )
     )
-  ).catch(log.error)
+  )
+    .then((outcomes) => {
+      // F1(P0-2)：结果不再靠抛异常表达，失败/取消在这里显式记一笔（用户可见的
+      // 提示由上面发送的 `mt::tab-save-failure` 承担）。
+      const failed = outcomes.filter((outcome) => !outcome.ok)
+      if (failed.length) {
+        log.warn(
+          `Save all: ${failed.length}/${outcomes.length} file(s) not saved (${failed
+            .map((outcome) => `${outcome.filename}: ${outcome.reason}`)
+            .join(', ')})`
+        )
+      }
+    })
+    .catch(log.error)
 })
 
 ipcMain.on('mt::save-and-close-tabs', async (e, unsavedFiles: UnsavedFile[]) => {
@@ -440,12 +479,25 @@ ipcMain.on('mt::save-and-close-tabs', async (e, unsavedFiles: UnsavedFile[]) => 
           file.pathname,
           file.markdown,
           file.options,
-          file.defaultPath
+          file.defaultPath,
+          file.version
         )
       )
     )
-      .then((arr) => {
-        const tabIds = arr.filter((id): id is string => id != null)
+      .then((outcomes) => {
+        // F1(P0-2)：只关掉真的保存成功的标签（原来靠 `id != null` 过滤，写盘失败
+        // 被内部 catch 吞掉后返回 undefined，恰好也能过滤掉——但「用户取消另存」
+        // 与「失败」已无法区分，且没有任何提示）。失败/取消的标签保持打开，
+        // 用户可再处理；提示由 `mt::tab-save-failure` 逐标签给出。
+        const tabIds = outcomes.filter((outcome) => outcome.ok).map((outcome) => outcome.id)
+        const failed = outcomes.filter((outcome) => !outcome.ok)
+        if (failed.length) {
+          log.warn(
+            `Save and close: ${failed.length}/${outcomes.length} tab(s) not closed (${failed
+              .map((outcome) => `${outcome.filename}: ${outcome.reason}`)
+              .join(', ')})`
+          )
+        }
         win.webContents.send('mt::force-close-tabs-by-id', tabIds)
       })
       .catch((err: unknown) => {
@@ -466,7 +518,9 @@ ipcMain.on(
     pathname: string | undefined,
     markdown: string,
     options: UnsavedFile['options'],
-    defaultPath?: string
+    defaultPath?: string,
+    // F1(P0-4)：内容版本原样回传（同 handleResponseForSave）。
+    version?: number
   ) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) {
@@ -500,7 +554,8 @@ ipcMain.on(
             win.webContents.send('mt::set-pathname', {
               id,
               pathname: filePath,
-              filename: newFilename
+              filename: newFilename,
+              version
             })
           } else if (pathname !== filePath) {
             // Update window file list and watcher.
@@ -510,11 +565,12 @@ ipcMain.on(
             win.webContents.send('mt::set-pathname', {
               id,
               pathname: filePath,
-              filename: newFilename
+              filename: newFilename,
+              version
             })
           } else {
             ipcMain.emit('window-file-saved', win.id, filePath)
-            win.webContents.send('mt::tab-saved', id)
+            win.webContents.send('mt::tab-saved', id, version)
           }
         })
         .catch((err: unknown) => {
@@ -537,8 +593,17 @@ ipcMain.on('mt::close-window-confirm', async (e, unsavedFiles: UnsavedFile[]) =>
   }
 
   const { needSave } = userResult
-  if (needSave) {
-    Promise.all(
+  if (!needSave) {
+    ipcMain.emit('window-close-by-id', win.id)
+    return
+  }
+
+  // F1(P0-2)：逐个保存并检查结果——只有**全部成功**才关窗。写盘失败或用户取消
+  // 另存对话框时保持窗口打开，并把具体文件名点出来（原来 `.then(() => close)`
+  // 对 resolved undefined 也照关，保存失败＝内容丢失）。
+  let outcomes: SaveOutcome[]
+  try {
+    outcomes = await Promise.all(
       unsavedFiles.map((file) =>
         handleResponseForSave(
           e,
@@ -547,32 +612,51 @@ ipcMain.on('mt::close-window-confirm', async (e, unsavedFiles: UnsavedFile[]) =>
           file.pathname,
           file.markdown,
           file.options,
-          file.defaultPath
+          file.defaultPath,
+          file.version
         )
       )
     )
-      .then(() => {
-        ipcMain.emit('window-close-by-id', win.id)
-      })
-      .catch((err: unknown) => {
-        log.error('Error while saving before quit:', err)
+  } catch (err: unknown) {
+    log.error('Error while saving before quit:', err)
+    const msg = err instanceof Error ? err.message : String(err)
+    outcomes = unsavedFiles.map((file) => ({
+      ok: false,
+      id: file.id,
+      filename: file.filename,
+      reason: 'error',
+      message: msg
+    }))
+  }
 
-        const msg = err instanceof Error ? err.message : String(err)
-        // Notify user about the problem.
-        dialog
-          .showMessageBox(win, {
-            type: 'error',
-            buttons: [t('dialog.close'), t('dialog.keepOpen')],
-            message: t('dialog.saveFailure'),
-            detail: msg
-          })
-          .then(({ response }) => {
-            if (win.id && response === 0) {
-              ipcMain.emit('window-close-by-id', win.id)
-            }
-          })
-      })
-  } else {
+  const failed = outcomes.filter((outcome) => !outcome.ok)
+  if (failed.length === 0) {
+    ipcMain.emit('window-close-by-id', win.id)
+    return
+  }
+
+  const detail = failed
+    .map(
+      (outcome) =>
+        `${outcome.filename} — ${
+          outcome.reason === 'canceled'
+            ? t('dialog.cancel')
+            : outcome.message || t('dialog.saveFailure')
+        }`
+    )
+    .join('\n')
+
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'error',
+    buttons: [t('dialog.close'), t('dialog.keepOpen')],
+    // 默认「保持打开」：未保存内容还在编辑器里，误按回车不该把它丢掉。
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+    message: t('dialog.saveFailure'),
+    detail
+  })
+  if (response === 0) {
     ipcMain.emit('window-close-by-id', win.id)
   }
 })
@@ -741,7 +825,11 @@ ipcMain.on('mt::format-link-click', async (e, { data, dirname }: FormatLinkPaylo
   }
 
   if (URL_REG.test(urlCandidate)) {
-    shell.openExternal(urlCandidate)
+    // F1(A-11)：URL_REG 只放行 http(s)（见 main/config.ts），这里再过一遍主进程
+    // 的 scheme 白名单，避免以后有人放宽 URL_REG 时把这条路也一起放开。
+    if (isAllowedExternalUrl(urlCandidate)) {
+      shell.openExternal(urlCandidate)
+    }
     return
   } else if (/^[a-z0-9]+:\/\//i.test(urlCandidate)) {
     // Prevent other URLs.
@@ -764,7 +852,9 @@ ipcMain.on('mt::format-link-click', async (e, { data, dirname }: FormatLinkPaylo
     } else {
       // A link in an untrusted document could point at a co-located script or
       // executable; opening it via the OS shell would run code silently (#3575).
-      if (isDangerousExecutableFile(pathname)) {
+      // F1(A-11)：除扩展名黑名单外再看可执行位——`./deploy` 这类没有扩展名的
+      // 可执行文件扩展名拦不住。
+      if (isDangerousExecutableFile(pathname) || isExecutableFile(pathname)) {
         const { response } = await dialog.showMessageBox(win, {
           type: 'warning',
           buttons: [t('dialog.cancel'), t('dialog.openAnyway')],

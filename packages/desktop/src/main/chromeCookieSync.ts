@@ -4,18 +4,39 @@
  * 浏览器面板的 persist:panel 分区——已在 Chrome 登录过的站点在墨记面板
  * 里直接是登录态，无需再次输入密码。
  *
+ * ⚠️ 当前状态：**已下线，启动时不再调用**（2026-09-28 代码审查 A-9）。
+ *
+ *   下线原因：原实现按 Windows 的 GCM 布局解密 macOS 的 v10 密文（直接把
+ *   钥匙串口令当 AES key、IV 用「4 空格 + 12 字节 nonce」），对 macOS 的
+ *   「PBKDF2-SHA1(1003 轮) + 16 空格 IV + 32 字节 SHA256(host_key) 前缀」
+ *   必然解不出正确明文；而 CBC 解密的 PKCS7 填充约有 1/256 的概率碰巧合法，
+ *   于是每次启动都会把 1/256 的垃圾值写进 persist:panel——直接覆盖墨记面板
+ *   自己的登录态，并且每次启动都弹一次钥匙串授权。
+ *
+ *   现在的状态：算法已按 macOS 真实格式修正，并且**不覆盖**面板里已存在的
+ *   cookie；但**没有**重新挂到启动路径（`browserPanel.ts` 的启动调用已移除），
+ *   也没有任何 UI 入口。重新启用需要先定验收方式（见下面「重新启用前」），
+ *   否则宁可不跑：一个会写坏登录态的后台任务，比没有这个功能更糟。
+ *
+ *   重新启用前需要：① 真机验证（装 Chrome、有登录 cookie、比对解密结果与
+ *   Chrome 自身行为）；② 给用户一个显式触发入口（手动/一次性，不要每次启动）；
+ *   ③ 确认仍未覆盖面板已有 cookie（`skipExisting` 逻辑）。
+ *
  * macOS 链路与硬门槛（实测确认）：
  *   1. Chrome 数据目录（~/Library/Application Support/Google/Chrome/*）
  *      受 TCC 保护——读取需要本 app 被授予「完全磁盘访问权限」。
  *      未授权时本模块返回 readable:false，由 browserPanel.ts 弹一次性
  *      引导（打开系统设置的隐私面板），授权后重启 app 即生效。
- *   2. 解密 key = 钥匙串「Chrome Safe Storage」项（security 命令读取，
- *      首次会弹系统钥匙串授权）；cookie 密文格式 v10：
- *      encrypted_value = "v10" + nonce(12B) + AES-128-CBC(明文, PKCS7)，
- *      iv = 32 个空格 + nonce。Chrome 127+ 的部分数据改用 App-Bound
- *      Encryption，此类 cookie 解密失败会被静默跳过（不崩溃）。
+ *   2. 解密 key = 钥匙串「Chrome Safe Storage」项的口令（security 命令读取，
+ *      首次会弹系统钥匙串授权）经 PBKDF2-SHA1(salt='saltysalt', 1003 轮,
+ *      16 字节) 派生；cookie 密文格式 v10/v11：
+ *      encrypted_value = "v10" + AES-128-CBC(明文, PKCS7)，
+ *      iv = 16 个空格；v10 的明文头部还有 32 字节 SHA256(host_key)（v11 无）。
+ *      Chrome 127+ 的部分数据改用 App-Bound Encryption，此类 cookie 解密失败
+ *      会被静默跳过（不崩溃）。
  *   3. 读取用 node:sqlite（Electron 42 内置 Node ≥ 22.15），先复制
- *      Cookies 文件到临时目录避开 Chrome 自身的 SQLite 锁。
+ *      Cookies（含 -wal / -shm 边车文件，否则读不到最近的写入）到临时目录，
+ *      避开 Chrome 自身的 SQLite 锁。
  */
 
 import { app, session } from 'electron'
@@ -30,6 +51,13 @@ import log from 'electron-log'
 import { BP_PARTITION } from './browserPanel'
 
 const execFileAsync = promisify(execFile)
+
+// macOS Chromium 密钥派生常量（见文件头）。
+const CHROME_PBKDF2_SALT = 'saltysalt'
+const CHROME_PBKDF2_ITERATIONS = 1003
+const CHROME_KEY_BYTES = 16
+// v10 明文的头部：SHA256(host_key)，用于确认密钥/主机名都正确。
+const V10_HOST_HASH_BYTES = 32
 
 // node:sqlite 动态加载：构建环境 Node ≥ 22.5 内置；不可用则整体静默降级。
 interface ChromeCookieRow {
@@ -116,8 +144,8 @@ export const probeChromeCookies = async (): Promise<{ readable: boolean; exists:
   return { readable: false, exists: false }
 }
 
-/** 钥匙串「Chrome Safe Storage」→ 16 字节 AES key；失败返回 null。 */
-const getChromeSafeStorageKey = async (): Promise<Buffer | null> => {
+/** 钥匙串「Chrome Safe Storage」口令；失败返回 null。 */
+const getChromeSafeStoragePassword = async (): Promise<string | null> => {
   try {
     const { stdout } = await execFileAsync(
       'security',
@@ -126,33 +154,51 @@ const getChromeSafeStorageKey = async (): Promise<Buffer | null> => {
     )
     const raw = Buffer.from(stdout)
     if (raw.length === 0) return null
-    // 新 Chrome 存 base64(16B)；旧版可能存原始 16B。分别适配。
-    const text = raw.toString('utf8').trim()
-    if (/^[A-Za-z0-9+/]{22}={0,2}$/.test(text)) {
-      const decoded = Buffer.from(text, 'base64')
-      if (decoded.length === 16) return decoded
-    }
-    return raw.length >= 16 ? raw.subarray(0, 16) : null
+    // `security -w` 输出口令 + 换行；口令本身就是密钥材料（不是 base64(key)），
+    // 直接当 PBKDF2 口令用。
+    const password = raw.toString('utf8').replace(/\r?\n$/, '')
+    return password.length > 0 ? password : null
   } catch (error) {
     log.warn('[chromeCookieSync] keychain read failed:', error)
     return null
   }
 }
 
-/** v10 密文解密（Chromium aes_128_cbc：IV = 4 空格 + 12 字节 nonce）；失败返回 null。 */
-const decryptV10 = (key: Buffer, encrypted: Uint8Array): string | null => {
+/** 钥匙串口令 → AES-128 key：PBKDF2-SHA1(salt='saltysalt', 1003 轮, 16 字节)。 */
+export const deriveChromeCookieKey = (password: string): Buffer =>
+  crypto.pbkdf2Sync(
+    password,
+    CHROME_PBKDF2_SALT,
+    CHROME_PBKDF2_ITERATIONS,
+    CHROME_KEY_BYTES,
+    'sha1'
+  )
+
+/**
+ * v10/v11 密文解密（Chromium macOS：AES-128-CBC，IV = 16 个空格；v10 明文带
+ * 32 字节 SHA256(host_key) 前缀，v11 无）；解密失败或前缀不匹配返回 null。
+ */
+export const decryptChromeCookieValue = (
+  key: Buffer,
+  hostKey: string,
+  encrypted: Uint8Array
+): string | null => {
   try {
-    if (
-      encrypted.length < 18 ||
-      Buffer.from(encrypted.subarray(0, 3)).toString('latin1') !== 'v10'
-    ) {
-      return null
-    }
-    const nonce = Buffer.from(encrypted.subarray(3, 15))
-    const ciphertext = Buffer.from(encrypted.subarray(15))
-    const iv = Buffer.concat([Buffer.alloc(4, 0x20), nonce])
+    // 3 字节版本标签 + 至少一个 AES 分组。
+    if (encrypted.length < 3 + 16) return null
+    const version = Buffer.from(encrypted.subarray(0, 3)).toString('latin1')
+    if (version !== 'v10' && version !== 'v11') return null
+    const ciphertext = Buffer.from(encrypted.subarray(3))
+    const iv = Buffer.alloc(16, 0x20)
     const decipher = crypto.createDecipheriv('aes-128-cbc', key, iv)
-    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8')
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()])
+    if (version === 'v11') return plaintext.toString('utf8')
+    // 前缀是 SHA256(host_key)：用它校验而不是盲目切 32 字节——否则错误的
+    // 密钥只要碰巧过 PKCS7（1/256）就会被当成有效值写进面板。
+    const prefix = plaintext.subarray(0, V10_HOST_HASH_BYTES)
+    const expected = crypto.createHash('sha256').update(hostKey, 'utf8').digest()
+    if (!prefix.equals(expected)) return null
+    return plaintext.subarray(V10_HOST_HASH_BYTES).toString('utf8')
   } catch {
     return null
   }
@@ -161,6 +207,10 @@ const decryptV10 = (key: Buffer, encrypted: Uint8Array): string | null => {
 /**
  * 导入 Chrome cookie 到 persist:panel。任何一步失败都只记录日志、
  * 不抛错（尽力而为的增强功能）。
+ *
+ * ⚠️ 已下线：**没有调用方**（启动调用见 browserPanel.ts 的说明，已移除）。
+ * 算法已修正且不会覆盖面板已有 cookie，但重新启用前请先按文件头的
+ * 「重新启用前」清单做真机验证。
  */
 export const tryImportChromeCookies = async (): Promise<ChromeCookieImportResult> => {
   const result: ChromeCookieImportResult = { readable: false, imported: 0, skipped: 0 }
@@ -173,14 +223,22 @@ export const tryImportChromeCookies = async (): Promise<ChromeCookieImportResult
   if (!source) return result
   result.readable = true
 
-  const key = await getChromeSafeStorageKey()
-  if (!key) return result
+  const password = await getChromeSafeStoragePassword()
+  if (!password) return result
+  const key = deriveChromeCookieKey(password)
 
-  // 复制到临时目录读取，避开 Chrome 运行中的 SQLite 锁。
-  const copyPath = path.join(os.tmpdir(), `momark-chrome-cookies-${Date.now()}.sqlite`)
+  // 复制到临时目录读取，避开 Chrome 运行中的 SQLite 锁。WAL 边车文件必须一起
+  // 复制（同名 + `-wal`/`-shm`），否则读不到最近写入的 cookie。
+  const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'momark-chrome-cookies-'))
+  const copyPath = path.join(tmpDir, 'Cookies')
   let db: ChromeCookieDb | null = null
   try {
     await fsp.copyFile(source, copyPath)
+    for (const sidecar of ['-wal', '-shm']) {
+      await fsp.copyFile(`${source}${sidecar}`, `${copyPath}${sidecar}`).catch(() => {
+        // 不存在（Chrome 已 checkpoint 或未开 WAL）时忽略。
+      })
+    }
     db = new DatabaseSync(copyPath)
     const rows = db
       .prepare(
@@ -190,6 +248,17 @@ export const tryImportChromeCookies = async (): Promise<ChromeCookieImportResult
     const nowSec = Date.now() / 1000
 
     const panelSession = session.fromPartition(BP_PARTITION)
+    // 面板自己的登录态优先：只补缺失的 cookie，绝不覆盖已有值。
+    const existing = new Set<string>()
+    try {
+      for (const cookie of await panelSession.cookies.get({})) {
+        existing.add(`${cookie.domain}|${cookie.path}|${cookie.name}`)
+      }
+    } catch (error) {
+      log.warn('[chromeCookieSync] cannot list existing panel cookies:', error)
+      return result
+    }
+
     for (const row of rows) {
       const hostKey = typeof row.host_key === 'string' ? row.host_key : ''
       const name = typeof row.name === 'string' ? row.name : ''
@@ -202,9 +271,13 @@ export const tryImportChromeCookies = async (): Promise<ChromeCookieImportResult
         result.skipped++
         continue
       }
+      if (existing.has(`${hostKey}|${row.path || '/'}|${name}`)) {
+        result.skipped++
+        continue
+      }
       let cookieValue: string | null = null
       if (row.encrypted_value) {
-        cookieValue = decryptV10(key, row.encrypted_value)
+        cookieValue = decryptChromeCookieValue(key, hostKey, row.encrypted_value)
       } else if (typeof row.value === 'string' && row.value) {
         cookieValue = row.value
       }
@@ -238,7 +311,7 @@ export const tryImportChromeCookies = async (): Promise<ChromeCookieImportResult
     } catch {
       // 忽略关闭错误
     }
-    fsp.unlink(copyPath).catch(() => {})
+    fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
   }
   return result
 }

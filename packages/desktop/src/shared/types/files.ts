@@ -137,6 +137,12 @@ export interface UnsavedFile {
   markdown: string
   options: SaveOptions
   defaultPath?: string
+  /**
+   * F1(P0-4)：发起保存时登记的内容版本（渲染层 `getSaveVersion`）。主进程原样
+   * 回传（`mt::tab-saved` / `mt::set-pathname`），渲染层据此判断写下去的
+   * 是否还是此刻屏幕上的内容，写盘期间的输入不会被误判成已保存。
+   */
+  version?: number
 }
 
 export interface BootstrapEditorConfig {

@@ -12,6 +12,38 @@ import schema from './schema.json'
 
 const PREFERENCES_FILE_NAME = 'preferences'
 
+/**
+ * F1(P0-1)：`startUpAction: 'restoreAll'` 已从 schema enum 与默认值里移除
+ * （恢复上次会话的链路早就没了——见 `src/main/app/index.ts` 的注释）。
+ * electron-store 用 ajv 校验**整个**偏好文件，老用户磁盘上留着的 `'restoreAll'`
+ * 会让 `new Store()` 直接抛 `Config schema violation`，启动即炸。
+ * 所以必须在打开 Store **之前**把旧值改写成 `'blank'`（欢迎页，与「冷启动进
+ * 欢迎页」的现状一致），只动这一个键、其余内容与格式（tab 缩进，同 conf 的
+ * 序列化）保持原样。
+ */
+const migrateLegacyStartUpAction = (preferencesPath: string): void => {
+  const file = path.join(preferencesPath, `./${PREFERENCES_FILE_NAME}.json`)
+  try {
+    if (!fs.existsSync(file)) {
+      return
+    }
+    const raw = fs.readFileSync(file, { encoding: 'utf8' })
+    if (!raw.trim()) {
+      return
+    }
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null
+    if (!parsed || parsed.startUpAction !== 'restoreAll') {
+      return
+    }
+    parsed.startUpAction = 'blank'
+    fs.writeFileSync(file, JSON.stringify(parsed, undefined, '\t'), { encoding: 'utf8' })
+    log.info("Preferences migration: startUpAction 'restoreAll' -> 'blank'")
+  } catch (err) {
+    // 文件损坏/不可写时不做任何处理，让 electron-store 按原有方式报错。
+    log.error('Preferences migration (startUpAction) failed:', err)
+  }
+}
+
 // The Preference class extends EventEmitter but does not currently emit any
 // events itself — keep the event map empty until concrete events are added.
 type PreferenceEvents = Record<string, unknown[]>
@@ -41,6 +73,8 @@ class Preference extends TypedEmitter<PreferenceEvents> {
     this.hasPreferencesFile = fs.existsSync(
       path.join(this.preferencesPath, `./${PREFERENCES_FILE_NAME}.json`)
     )
+    // F1(P0-1)：先迁移再打开 Store —— schema 校验在构造期就会跑。
+    migrateLegacyStartUpAction(this.preferencesPath)
     this.store = new Store<IUserPreferences>({
       schema: schema as unknown as Schema<IUserPreferences>,
       name: PREFERENCES_FILE_NAME,

@@ -28,6 +28,22 @@
     <compound>
       <template #head>
         <h6 class="title">
+          {{ t('preferences.general.annotation.title') }}
+        </h6>
+      </template>
+      <template #children>
+        <bool
+          :description="t('preferences.general.annotation.enabled')"
+          :notes="t('preferences.general.annotation.enabledNotes')"
+          :bool="annotationEnabled"
+          :on-change="(value) => onSelectChange('annotationEnabled', value)"
+        />
+      </template>
+    </compound>
+
+    <compound>
+      <template #head>
+        <h6 class="title">
           {{ t('preferences.general.window.title') }}
         </h6>
       </template>
@@ -130,9 +146,13 @@
               Hide "lastState" for now (#2064).
             <el-radio class="ag-underdevelop" label="lastState">Restore last editor session</el-radio>
             -->
-            <el-radio label="restoreAll">
-              {{ t('preferences.general.startup.restoreAll') }}
-            </el-radio>
+            <!--
+              F1(P0-1)：移除「恢复所有打开的文档和文件夹」选项。它对应的恢复
+              链路早已移除（墨记冷启动固定进欢迎页），而这个值又是渲染层
+              「关窗不提示保存」的豁免条件（restoreAll 时直接关窗、未保存内容
+              只留在永不被读取的 buffer 里）——留着它等于留一个静默丢数据开关。
+              `restoreAll` 已从 schema enum 移除，老用户的值在启动时迁移为 blank。
+            -->
             <el-radio label="openLastFolder">
               {{ t('preferences.general.startup.openLastFolder') }}
             </el-radio>
@@ -201,6 +221,7 @@ const autoSaveDelayOptions = getAutoSaveDelayOptions()
 const {
   autoSave,
   autoSaveDelay,
+  annotationEnabled,
   titleBarStyle,
   defaultDirectoryToOpen,
   openFilesInNewWindow,

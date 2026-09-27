@@ -2,11 +2,12 @@ import fsPromises from 'fs/promises'
 import path from 'path'
 import log from 'electron-log'
 import iconv from 'iconv-lite'
+import { getEncodingName } from 'common/encoding'
 import { LINE_ENDING_REG, LF_LINE_ENDING_REG, CRLF_LINE_ENDING_REG } from '../config'
 import { isDirectory2 } from 'common/filesystem'
 import { isMarkdownFile } from 'common/filesystem/paths'
 import { normalizeAndResolvePath, writeFile } from '../filesystem'
-import { guessEncoding } from './encoding'
+import { guessEncoding, encodeLosslessly } from './encoding'
 import type { Encoding } from 'common/encoding'
 import type { LineEnding } from '@shared/types/files'
 
@@ -72,14 +73,28 @@ export const writeMarkdownFile = (
   options: MarkdownDocumentOptions
 ): Promise<void> => {
   const { adjustLineEndingOnSave, lineEnding } = options
-  const { encoding, isBom } = options.encoding
   const extension = path.extname(pathname) || '.md'
 
   if (adjustLineEndingOnSave) {
     content = convertLineEndings(content, lineEnding)
   }
 
-  const buffer = iconv.encode(content, encoding, { addBOM: isBom })
+  // Refuse to write content the encoding cannot represent (iconv would replace
+  // those characters with "?"): the caller surfaces this as a save failure, so
+  // the user can re-save the document as UTF-8 instead of losing the text.
+  // Rejected (not thrown) — the function is typed as returning a promise.
+  const buffer = encodeLosslessly(content, options.encoding)
+  if (!buffer) {
+    const name = getEncodingName(options.encoding)
+    return Promise.reject(
+      new Error(
+        `Cannot save: the document contains characters that "${name}" cannot represent, ` +
+          'writing it would replace them with "?" and corrupt the file. ' +
+          `无法以 ${name} 编码无损保存：该编码无法表示文档中的部分字符，继续保存会把它们写成 "?" 并损坏文件。` +
+          '请先用「更改编码」命令改为 UTF-8，再保存。'
+      )
+    )
+  }
 
   return writeFile(pathname, buffer, extension, undefined)
 }
@@ -87,7 +102,7 @@ export const writeMarkdownFile = (
 /**
  * Reads the contents of a markdown file.
  */
-export const loadMarkdownFile = async(
+export const loadMarkdownFile = async (
   pathname: string,
   preferredEol: LineEnding,
   autoGuessEncoding: boolean = true,

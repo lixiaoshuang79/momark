@@ -1,0 +1,150 @@
+/* 备注卡片浮层（方案 §3.3：--surface-2 底、--radius-md 圆角、--shadow-win 阴影、
+   宽 300px、头部 12px --muted、正文 13px/1.6 --ink、主按钮走 --buttonPrimary*）。
+   色值一律走变量：宿主主题里 --float-* / --button-* 就是那几个设计令牌的别名，
+   所以这里以引擎变量为主、宿主令牌作兜底 —— 引擎单独跑时也不会掉成裸样式。 */
+.mu-float-wrapper.mu-annotation-tool-container {
+    overflow: hidden;
+
+    border-radius: var(--radius-md, 12px);
+}
+
+.mu-annotation-tool {
+    box-sizing: border-box;
+    width: 300px;
+}
+
+.mu-annotation-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    box-sizing: border-box;
+    padding: 10px;
+
+    font-family: var(--font-body, inherit);
+}
+
+.mu-annotation-head {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+}
+
+.mu-annotation-tag {
+    flex: 0 0 auto;
+
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--theme-color, var(--accent, #3d5a80));
+}
+
+.mu-annotation-quote {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+
+    font-family: var(--font-mono, monospace);
+    font-size: 12px;
+    color: var(--muted, var(--editor-color-50));
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 备注输入框：高度由脚本按内容调（2 行起、10 行封顶），所以这里只给上下限与
+   基线样式，滚动条交给脚本切。 */
+.mu-annotation-note {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 42px;
+    max-height: 208px;
+    padding: 9px 11px;
+    overflow-y: hidden;
+    resize: none;
+    outline: none;
+
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink, var(--editor-color));
+
+    background: var(--input-bg-color, rgb(0 0 0 / 4%));
+    border: 1px solid var(--float-border-color, var(--editor-color-10));
+    border-radius: 8px;
+
+    transition:
+        border-color 0.14s,
+        background 0.14s,
+        box-shadow 0.14s;
+}
+
+.mu-annotation-note:hover {
+    border-color: var(--line-strong, var(--editor-color-30));
+}
+
+.mu-annotation-note:focus {
+    border-color: var(--theme-color, var(--accent, #3d5a80));
+
+    background: var(--float-bg-color, #fff);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-color, #3d5a80) 12%, transparent);
+}
+
+.mu-annotation-note::placeholder {
+    color: var(--faint, var(--editor-color-40));
+}
+
+.mu-annotation-foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.mu-annotation-hint {
+    flex: 1 1 auto;
+
+    font-size: 10.5px;
+    color: var(--faint, var(--editor-color-40));
+}
+
+.mu-annotation-btn {
+    height: 27px;
+    padding: 0 12px;
+
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--button-font-color, var(--editor-color));
+
+    background: var(--button-bg-color, #fff);
+    border: var(--button-border, 1px solid var(--editor-color-10));
+    border-radius: 6px;
+
+    cursor: pointer;
+
+    transition:
+        background 0.12s,
+        color 0.12s;
+}
+
+.mu-annotation-btn:hover {
+    background: var(--button-bg-color-hover, var(--float-hover-color));
+}
+
+/* 主按钮（墨蓝实心）；空备注时禁用，禁用态走中性灰而不是墨蓝降透明度。 */
+.mu-annotation-btn.primary {
+    font-weight: 500;
+    color: var(--buttonPrimaryFontColor, #fff);
+
+    background: var(--buttonPrimaryBgColor, var(--theme-color, #3d5a80));
+    border: none;
+}
+
+.mu-annotation-btn.primary:hover {
+    background: var(--buttonPrimaryBgColorHover, var(--theme-color, #3d5a80));
+}
+
+.mu-annotation-btn.primary:disabled {
+    color: var(--faint, var(--editor-color-40));
+
+    background: var(--float-hover-color, rgb(0 0 0 / 4%));
+    cursor: default;
+}

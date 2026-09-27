@@ -63,7 +63,12 @@ export class Search {
         }
     }
 
-    private _innerReplace(matches: IMatch[], value: string) {
+    // `values[i]` is the replacement text for `matches[i]`: one entry per match
+    // because a regex replacement expands `$N` against ITS OWN capture groups —
+    // expanding once from the active match and pasting that text into every
+    // occurrence replaced the wrong groups everywhere else (C-6). Literal
+    // (non-regexp) callers pass the same string N times.
+    private _innerReplace(matches: IMatch[], values: string[]) {
         if (!matches.length)
             return;
 
@@ -71,8 +76,8 @@ export class Search {
         let lastBlock = matches[0].block;
         let lastEnd = 0;
 
-        for (const match of matches) {
-            const { start, end, block } = match;
+        for (let i = 0; i < matches.length; i++) {
+            const { start, end, block } = matches[i];
             if (lastBlock !== block) {
                 if (lastBlock)
                     lastBlock.text = tempText + lastBlock.text.substring(lastEnd);
@@ -83,7 +88,7 @@ export class Search {
             }
 
             tempText += block.text.substring(lastEnd, start);
-            tempText += value;
+            tempText += values[i];
             lastEnd = end;
         }
 
@@ -97,16 +102,18 @@ export class Search {
         const value = this._value;
 
         if (matches.length) {
-            if (isRegexp)
-                replaceValue = buildRegexValue(matches[index], replaceValue);
+            // Expand `$N` per match, against that match's own groups. A regex
+            // replacement is inserted verbatim: `$&` / `$$` in the expansion are
+            // the user's text, never a second round of replacement syntax (C-5).
+            const expand = (match: IMatch) => isRegexp ? buildRegexValue(match, replaceValue) : replaceValue;
 
             if (isSingle) {
                 // replace one
-                this._innerReplace([matches[index]], replaceValue);
+                this._innerReplace([matches[index]], [expand(matches[index])]);
             }
             else {
                 // replace all
-                this._innerReplace(matches, replaceValue);
+                this._innerReplace(matches, matches.map(expand));
             }
             const highlightIndex = index < matches.length - 1 ? index : index - 1;
 

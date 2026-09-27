@@ -1,5 +1,7 @@
 import type { Diff } from 'fast-diff';
+import type { THighlightType } from '../annotation/types';
 import type Content from '../block/base/content';
+import type { IHighlightData } from '../inlineRenderer/types';
 import type { Config } from './dompurify';
 import { EVENT_KEYS } from '../config';
 import runSanitize from './dompurify';
@@ -9,7 +11,16 @@ interface IUnion {
     start: number;
     end: number;
     active?: boolean;
+    type?: THighlightType;
+    data?: IHighlightData;
 }
+
+/** 重叠高亮的优先级：数值大者胜出（`annotation-active > annotation > search`）。 */
+const HIGHLIGHT_TYPE_PRIORITY: Record<THighlightType, number> = {
+    'search': 0,
+    'annotation': 1,
+    'annotation-active': 2,
+};
 
 // `never[]` in the contravariant arg-tuple position lets the @methodMixins
 // decorator accept any concrete class constructor (`new (muya: Muya, …)`),
@@ -66,13 +77,70 @@ export function conflict(arr1: [number, number], arr2: [number, number]) {
     return !(arr1[1] < arr2[0] || arr2[1] < arr1[0]);
 }
 
-export function union({ start: tStart, end: tEnd }: IUnion, { start: lStart, end: lEnd, active }: IUnion) {
+/**
+ * 同类型高亮重叠时的数据合并：取序号更小的一条（方案 §3.6「重叠区用序号更小的
+ * 样式」）；序号缺失（非首段）视为最大，让带序号的胜出。
+ */
+function mergeSameTypeData(
+    type: THighlightType,
+    a?: IHighlightData,
+    b?: IHighlightData,
+): IHighlightData | undefined {
+    if (!a)
+        return b;
+    if (!b)
+        return a;
+    if (type === 'search')
+        return a;
+
+    const indexA = a.index ?? Number.MAX_SAFE_INTEGER;
+    const indexB = b.index ?? Number.MAX_SAFE_INTEGER;
+
+    return indexA <= indexB ? a : b;
+}
+
+/** 重叠区间的类型与数据：按优先级取高者，同级取序号更小者。 */
+function mergeHighlightMeta(
+    a: IUnion,
+    b: IUnion,
+): { type: THighlightType; data?: IHighlightData } {
+    const typeA = a.type ?? 'search';
+    const typeB = b.type ?? 'search';
+    const priorityA = HIGHLIGHT_TYPE_PRIORITY[typeA];
+    const priorityB = HIGHLIGHT_TYPE_PRIORITY[typeB];
+
+    if (priorityA > priorityB)
+        return { type: typeA, data: a.data };
+    if (priorityB > priorityA)
+        return { type: typeB, data: b.data };
+
+    return { type: typeA, data: mergeSameTypeData(typeA, a.data, b.data) };
+}
+
+/**
+ * 求两个区间的交集，并把高亮的 `type` / `data` 透传下去。
+ *
+ * `type` 缺省为 `'search'`——搜索高亮的 `IHighlight` 不带这个字段，因此旧行为
+ * （只按 `active` 出 `mu-highlight` / `mu-selection`）一字不变；标注高亮带
+ * `type` 时按 `annotation-active > annotation > search` 合并重叠区。
+ */
+export function union(
+    { start: tStart, end: tEnd, type: tType, data: tData }: IUnion,
+    { start: lStart, end: lEnd, active, type: lType, data: lData }: IUnion,
+) {
     if (!(tEnd <= lStart || lEnd <= tStart)) {
+        const { type, data } = mergeHighlightMeta(
+            { start: tStart, end: tEnd, type: tType, data: tData },
+            { start: lStart, end: lEnd, type: lType, data: lData },
+        );
+
         if (lStart < tStart) {
             return {
                 start: tStart,
                 end: tEnd < lEnd ? tEnd : lEnd,
                 active,
+                type,
+                data,
             };
         }
         else {
@@ -80,6 +148,8 @@ export function union({ start: tStart, end: tEnd }: IUnion, { start: lStart, end
                 start: lStart,
                 end: tEnd < lEnd ? tEnd : lEnd,
                 active,
+                type,
+                data,
             };
         }
     }
@@ -225,8 +295,16 @@ export function getParagraphReference(ele: HTMLElement, id: string) {
     };
 }
 
-function visibleLength(str: string) {
-    return [...new Intl.Segmenter().segment(str)].length;
+// `ot-text-unicode` positions text by UNICODE CODE POINT — its README spells it
+// out ("text-unicode counts positions based on the number of unicode codepoints
+// instead of javascript string length"). Grapheme clusters are the wrong unit:
+// `👨‍👩‍👧` is ONE cluster but FIVE code points, so a grapheme-derived retain
+// places the next edit INSIDE the emoji (👨|👩‍👧) and the saved markdown silently
+// corrupts — the DOM looks right because it was assigned directly (P0-7).
+// `[...str].length` counts code points: an astral char is 1, a ZWJ sequence is
+// as many as it has joined glyphs.
+function codePointLength(str: string) {
+    return [...str].length;
 }
 
 export type TDiff = (string | number | { d: string });
@@ -245,7 +323,7 @@ export function diffToTextOp(diffs: Diff[]) {
                 break;
 
             case 0:
-                op.push(visibleLength(diff[1]));
+                op.push(codePointLength(diff[1]));
                 break;
 
             case 1:

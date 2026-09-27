@@ -52,6 +52,12 @@ export const nl = {
         'Link': 'Link',
         'Image': 'Afbeelding',
         'Eliminate': 'Opmaak wissen',
+        // annotationTool（内容标注：工具条按钮 + 备注卡片）
+        'Annotate': 'Annoteren',
+        'Edit': 'Bewerken',
+        'Cancel': 'Annuleren',
+        'Save': 'Opslaan',
+        'Write a note, e.g. this logic is wrong': 'Schrijf een opmerking, bijv.: deze logica klopt niet',
         // Code block
         'Copy content': 'Inhoud kopiëren',
         'Input Language Identifier...': 'Voer taalidentificatie in...',

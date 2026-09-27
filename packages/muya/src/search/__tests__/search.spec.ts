@@ -182,3 +182,61 @@ describe('search.replace() — replace all across multiple blocks', () => {
         expect(search.matches.length).toBe(0);
     });
 });
+
+// C-6: a regex replacement expands `$N` against the capture groups of the match
+// being replaced. Expanding once from the ACTIVE match and pasting that text
+// into every occurrence replaced the wrong groups everywhere else — `(\w)(\d)`
+// -> `$2$1` turned 'a1 b2 c3' into '1a 1a 1a'.
+describe('search.replace() — replace-all expands each match’s own groups (C-6)', () => {
+    it('swaps the captured groups of every match, not just the active one', async () => {
+        const muya = bootMuya('a1 b2 c3\n');
+        placeCursorOnFirstBlock(muya);
+
+        const search = muya.editor.searchModule;
+        search.search('(\\w)(\\d)', { isRegexp: true });
+        expect(search.matches.length).toBe(3);
+
+        search.replace('$2$1', { isSingle: false, isRegexp: true });
+
+        await vi.waitFor(() => {
+            expect(muya.getMarkdown()).not.toContain('a1');
+        });
+        expect(muya.getMarkdown().trim()).toBe('1a 2b 3c');
+    });
+
+    it('replaces a single occurrence with its own groups (replace one)', async () => {
+        const muya = bootMuya('a1 b2 c3\n');
+        placeCursorOnFirstBlock(muya);
+
+        const search = muya.editor.searchModule;
+        search.search('(\\w)(\\d)', { isRegexp: true });
+        // Move the active match to the middle one ('b2') and replace just it.
+        search.find('next');
+
+        search.replace('$2$1', { isSingle: true, isRegexp: true });
+
+        await vi.waitFor(() => {
+            expect(muya.getMarkdown()).toContain('2b');
+        });
+        expect(muya.getMarkdown().trim()).toBe('a1 2b c3');
+    });
+
+    it('inserts a `$&` taken from the document verbatim (C-5)', async () => {
+        const muya = bootMuya('x $& y\n');
+        placeCursorOnFirstBlock(muya);
+
+        const search = muya.editor.searchModule;
+        // Match the literal `$&` in the document.
+        search.search('\\$&', { isRegexp: true });
+        expect(search.matches.length).toBe(1);
+
+        // `$0` expands to the (document) match — which is `$&` itself, and must
+        // not be re-read as replacement syntax.
+        search.replace('$0-$0', { isSingle: false, isRegexp: true });
+
+        await vi.waitFor(() => {
+            expect(muya.getMarkdown()).toContain('$&-$&');
+        });
+        expect(muya.getMarkdown().trim()).toBe('x $&-$& y');
+    });
+});

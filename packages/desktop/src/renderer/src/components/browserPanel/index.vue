@@ -16,16 +16,18 @@
         <!-- 顶部 2px 墨蓝进度线（任何激活页加载中即显示，滑动动画） -->
         <div class="bp-track" :class="{ show: activePageLoading }" />
 
-        <!-- 两种模式内容常驻挂载（v-show）：切换网页/文档、收起再展开面板
+        <!-- 三种内容常驻挂载（v-show）：切换网页/文档/标注、收起再展开面板
              都不影响里面的内容与状态（网页滚动/登录态、预览文档保持）。 -->
-        <url-mode v-show="mode === 'url'" />
-        <doc-mode v-show="mode === 'doc'" ref="docModeRef" />
+        <url-mode v-show="activeTab === 'url'" />
+        <doc-mode v-show="activeTab === 'doc'" ref="docModeRef" />
+        <annotation-mode v-show="activeTab === 'annotation'" />
       </div>
 
-      <!-- 底部：网址模式 = 40px 导航条；文档模式 = 「打开文件… / 新建文件」
-           （36px 顶部 hairline，两按钮左右等分） -->
-      <nav-bar v-show="mode === 'url'" />
-      <div v-show="mode === 'doc'" class="bp-doc-actions">
+      <!-- 底部条按 tab 各归其位：网址 = 40px 导航条；文档 = 「打开文件… /
+           新建文件」（36px 顶部 hairline，两按钮左右等分）；标注 = 面板自带
+           底条（annotationMode.vue 内），所以这里两套都收起。 -->
+      <nav-bar v-show="activeTab === 'url'" />
+      <div v-show="activeTab === 'doc'" class="bp-doc-actions">
         <button class="bp-openfile" @click="openDocFile">
           <mo-icon name="i-folder" />
           打开文件…
@@ -40,14 +42,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import { useBrowserPanelStore } from '@/store/browserPanel'
+import { usePreferencesStore } from '@/store/preferences'
 import { useSplitStore } from '@/store/split'
 import { useWorkspaceStore } from '@/store/workspace'
 import UrlMode from './urlMode.vue'
 import DocMode from './docMode.vue'
+import AnnotationMode from './annotationMode.vue'
 import NavBar from './navBar.vue'
 
 /**
@@ -60,9 +64,19 @@ import NavBar from './navBar.vue'
 const bpStore = useBrowserPanelStore()
 const splitStore = useSplitStore()
 const workspaceStore = useWorkspaceStore()
+const preferencesStore = usePreferencesStore()
 
-const { open: bpanelOpen, mode, urlPages, activePageId, dragState } = storeToRefs(bpStore)
+const { open: bpanelOpen, activeTab, urlPages, activePageId, dragState } = storeToRefs(bpStore)
 const { panelWidthPx } = storeToRefs(workspaceStore)
+
+// 偏好关掉标注 → 若正停在标注 tab，退回它压住的那个模式（数据保留，重新
+// 打开偏好即原样恢复；见方案 §5.1 偏好三件套）。
+watch(
+  () => preferencesStore.annotationEnabled,
+  (enabled) => {
+    if (enabled === false && bpStore.annotationsTab) bpStore.SET_TAB(bpStore.mode)
+  }
+)
 
 const docModeRef = ref<InstanceType<typeof DocMode> | null>(null)
 

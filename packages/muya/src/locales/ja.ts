@@ -55,6 +55,12 @@ export const ja = {
         'Link': 'ハイパーリンク',
         'Image': '画像',
         'Eliminate': '書式をクリアする',
+        // annotationTool（内容标注：工具条按钮 + 备注卡片）
+        'Annotate': '注釈',
+        'Edit': '編集',
+        'Cancel': 'キャンセル',
+        'Save': '保存',
+        'Write a note, e.g. this logic is wrong': '修正内容を一言で（例：このロジックは誤り）',
         // Code block
         'Copy content': '内容をコピーする',
         'Input Language Identifier...': 'プログラム言語IDを入力する...',

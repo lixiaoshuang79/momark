@@ -1,10 +1,12 @@
 /* eslint-disable ts/no-unsafe-declaration-merging */
 import type { VNode } from 'snabbdom';
+import type { THighlightType } from '../../annotation/types';
 import type Format from '../../block/base/format';
 import type { Muya } from '../../index';
 import type { IRenderCursor } from '../../selection/types';
 import type InlineRenderer from '../index';
 import type { ISyntaxRenderOptions, Token } from '../types';
+import { ANNOTATION_CLASS_NAMES } from '../../annotation/types';
 import { CLASS_NAMES } from '../../config';
 import { conflict, methodMixins, snakeToCamel } from '../../utils';
 import { h, toHTML } from '../../utils/snabbdom';
@@ -136,7 +138,16 @@ class Renderer {
         );
     }
 
-    getHighlightClassName(active: boolean) {
+    /**
+     * 高亮 class：按 `type` 映射（标注两态），缺省 `'search'` 时按 `active`
+     * 出搜索高亮——既有调用点只传 `active`，行为不变。
+     */
+    getHighlightClassName(active: boolean, type: THighlightType = 'search') {
+        if (type === 'annotation')
+            return ANNOTATION_CLASS_NAMES.MU_ANNOTATION;
+        if (type === 'annotation-active')
+            return ANNOTATION_CLASS_NAMES.MU_ANNOTATION_ACTIVE;
+
         return active ? CLASS_NAMES.MU_HIGHLIGHT : CLASS_NAMES.MU_SELECTION;
     }
 

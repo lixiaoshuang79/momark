@@ -55,6 +55,12 @@ export const tr = {
         'Link': 'Bağlantı',
         'Image': 'Görsel',
         'Eliminate': 'Temizle',
+        // annotationTool（内容标注：工具条按钮 + 备注卡片）
+        'Annotate': 'Not ekle',
+        'Edit': 'Düzenle',
+        'Cancel': 'İptal',
+        'Save': 'Kaydet',
+        'Write a note, e.g. this logic is wrong': 'Bir not yazın, örn.: bu mantık yanlış',
         // Code block
         'Copy content': 'İçeriği kopyala',
         'Input Language Identifier...': 'Dil Tanımlayıcısını girin...',

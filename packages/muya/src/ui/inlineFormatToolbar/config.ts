@@ -1,3 +1,4 @@
+import annotationIcon from '../../assets/icons/annotation/2.png';
 import codeIcon from '../../assets/icons/code/2.png';
 import clearIcon from '../../assets/icons/format_clear/2.png';
 import emphasisIcon from '../../assets/icons/format_emphasis/2.png';
@@ -74,6 +75,14 @@ const icons = [
         tooltip: 'Eliminate',
         shortcut: `⇧+${COMMAND_KEY}+R`,
         icon: clearIcon,
+    },
+    // Not a format but an action (see ui/inlineFormatToolbar/index.ts): it is
+    // rendered after a `li.divider` and never participates in the `.active`
+    // format-state sync, so it carries no shortcut label.
+    {
+        type: 'annotation',
+        tooltip: 'Annotate',
+        icon: annotationIcon,
     },
 ];
 

@@ -55,6 +55,12 @@ export const ko = {
         'Link': '링크',
         'Image': '이미지',
         'Eliminate': '서식 지우기',
+        // annotationTool（内容标注：工具条按钮 + 备注卡片）
+        'Annotate': '주석',
+        'Edit': '편집',
+        'Cancel': '취소',
+        'Save': '저장',
+        'Write a note, e.g. this logic is wrong': '수정 내용을 한 줄로 적어 주세요(예: 이 로직은 잘못됨)',
         // Code block
         'Copy content': '내용 복사',
         'Input Language Identifier...': '언어 식별자 입력...',

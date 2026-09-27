@@ -1,4 +1,5 @@
 import type { h } from 'snabbdom';
+import type { THighlightType } from '../annotation/types';
 import type Format from '../block/base/format';
 import type { IRenderCursor } from '../selection/types';
 
@@ -12,10 +13,25 @@ export interface ISyntaxRenderOptions {
     outerClass?: string;
 }
 
+/**
+ * 高亮区间上的附加数据（`IHighlight.data`）：
+ * - `index`：标注序号（渲染成 `data-index`，角标走 CSS `::after` + `attr(data-index)`）
+ * - `copied`：已复制态（灰底样式；用属性表达而不是多一个 class）
+ * - `note`：备注全文（hover 的原生 tooltip）
+ */
+export interface IHighlightData {
+    index?: number;
+    copied?: boolean;
+    note?: string;
+}
+
 export interface IHighlight {
     start: number;
     end: number;
     active: boolean | undefined;
+    /** 高亮类型；缺省按 `'search'` 处理（搜索高亮不加这个字段，行为不变）。 */
+    type?: THighlightType;
+    data?: IHighlightData;
 }
 
 export type Labels = Map<

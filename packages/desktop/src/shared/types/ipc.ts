@@ -39,6 +39,16 @@ import type { MenuTemplate, MenuPopupPosition } from './menu'
 // =================================================================
 
 export interface IpcInvokeChannels {
+  // ── 内容标注（feat/annotations，落盘见 main/annotationStore/index.ts）──
+  // 标注按文件路径绑定，一份文档一个 JSON 文件；渲染层是数据的唯一写方，
+  // 主进程只做原子落盘、条目级合并与历史容量修剪。
+  'mt::annotation::load': { args: [pathname: string]; ret: AnnotationDocument }
+  'mt::annotation::save': { args: [payload: AnnotationSavePayload]; ret: { ok: true } }
+  // 文件改名 / 另存为：把 <sha1(旧路径)> 的标注文件搬到新路径的 key 下。
+  'mt::annotation::migrate-path': {
+    args: [payload: AnnotationMigratePayload]
+    ret: { ok: boolean }
+  }
   'mt::ask-for-image-path': { args: []; ret: string[] }
   'mt::boot-info-async': { args: []; ret: BootInfo }
   // ── 右侧浏览器面板（PHASE2-SPEC §5，webview 主方案，见 main/browserPanel.ts）──
@@ -193,7 +203,9 @@ export interface IpcSendChannels {
     pathname: string,
     markdown: string,
     options: SaveOptions,
-    defaultPath: string
+    defaultPath: string,
+    /** F1(P0-4)：发起保存时登记的内容版本，主进程原样回传。 */
+    version?: number
   ]
   'mt::response-file-save-as': [
     id: string,
@@ -201,7 +213,9 @@ export interface IpcSendChannels {
     pathname: string,
     markdown: string,
     options: SaveOptions,
-    defaultPath: string
+    defaultPath: string,
+    /** F1(P0-4)：发起保存时登记的内容版本，主进程原样回传。 */
+    version?: number
   ]
   'mt::response-print': []
   'mt::export-cancel': []
@@ -320,7 +334,9 @@ export interface IpcMainEventChannels {
   'mt::rg::progress': [payload: unknown]
   'mt::screenshot-captured': [filePath: string]
   'mt::set-line-ending': [lineEnding: LineEnding]
-  'mt::set-pathname': [payload: { id: string; pathname: string; filename: string }]
+  'mt::set-pathname': [
+    payload: { id: string; pathname: string; filename: string; version?: number }
+  ]
   'mt::set-view-layout': [layout: unknown]
   'mt::show-command-palette': []
   'mt::show-export-dialog': [type: ExportType]
@@ -330,7 +346,7 @@ export interface IpcMainEventChannels {
   'mt::switch-tab-by-file_path': [filePath: string]
   'mt::switch-tab-by-index': [index: number]
   'mt::tab-save-failure': [tabId: string, message: string]
-  'mt::tab-saved': [tabId: string]
+  'mt::tab-saved': [tabId: string, version?: number]
   'mt::tabs-cycle-left': []
   'mt::tabs-cycle-right': []
   'mt::toggle-view-layout-entry': [entry: string]
@@ -393,6 +409,111 @@ export interface BootInfo {
     ripgrepBinary: string
   }
   MARKDOWN_INCLUSIONS: string[]
+}
+
+// =================================================================
+// 内容标注（feat/annotations）
+// =================================================================
+//
+// 形状与引擎权威定义（`packages/muya/src/annotation/types.ts`，方案 §5.2）
+// 逐字段一致；此处是桌面侧（IPC / store / 面板）的副本，因为 `@muyajs/core`
+// 的 `Muya` 边界在 desktop 侧是 `any`（src/types/muya-core.d.ts），且引擎尚未
+// 从包根导出这些类型。TODO(feat/annotations 集成)：待 `@muyajs/core` 导出
+// `IAnnotation` 系列后，这里改为 `export type { ... } from '@muyajs/core'`。
+
+/** 一段（块内）定位；跨块标注有多段，按文档顺序。 */
+export interface IAnnotationRange {
+  /** 引擎块路径（桌面侧不解释其内部结构，原样透传回引擎）。 */
+  blockPath: unknown
+  /** 'paragraph.content' / 'codeblock.content' / … */
+  blockName: string
+  /** 块内 raw markdown 偏移（与 selection 的 offset 同语义）。 */
+  start: number
+  end: number
+}
+
+/** 多层锚点：quote 为主锚，其余为消歧与兜底。 */
+export interface IAnnotationAnchor {
+  ranges: IAnnotationRange[]
+  quote: string
+  prefix: string
+  suffix: string
+  blockText: string
+  blockTextTail?: string
+  beforeBlockText: string
+  afterBlockText: string
+  blockPath: unknown
+  headingPath: string[]
+}
+
+/** 锚点健康度：内部技术维度，只以一行辅助提示露出。 */
+export type TAnchorState = 'anchored' | 'relocated' | 'orphaned'
+
+export interface IAnnotation {
+  id: string
+  anchor: IAnnotationAnchor
+  note: string
+
+  // ── 用户可见状态：只有「未复制 / 已复制」 ──
+  copied: boolean
+  /** 最近一次被复制的轮次。 */
+  round?: number
+  /** 复制时的引文快照（核对基线）。 */
+  sentQuote?: string
+
+  // ── 归档：移出当前列表、进入历史 ──
+  archived: boolean
+  archivedAt?: number
+
+  // ── 内部维度 / 辅助提示 ──
+  anchorState: TAnchorState
+  /** 最近一次重定位命中的当前文本。 */
+  currentText?: string
+  /** 核对提示：true=内容已变化 false=内容未变化（仅已复制条目有意义）。 */
+  contentChanged?: boolean
+
+  createdAt: number
+  updatedAt: number
+}
+
+/** 引擎导出给宿主生成复制文本的结构化数据（引擎出数据，桌面出文案）。 */
+export interface IAnnotationExportItem {
+  index: number
+  headingPath: string[]
+  lineStart?: number
+  lineEnd?: number
+  quote: string
+  blockText: string
+  note: string
+  /** 原文已删除（失效）→ 走复制文本的附录。 */
+  orphaned: boolean
+  /** 引文是否切断了行内标记（加粗/链接/行内代码）。 */
+  fragment: boolean
+}
+
+/** `userData/annotations/<sha1(abspath)>.json` 的落盘结构。 */
+export interface AnnotationDocument {
+  version: 2
+  pathname: string
+  docHash?: string
+  round: number
+  updatedAt?: number
+  annotations: IAnnotation[]
+}
+
+/** `mt::annotation::save` 的载荷（渲染层全量提交当前文档的标注表）。 */
+export interface AnnotationSavePayload {
+  pathname: string
+  round: number
+  docHash?: string
+  /** 含已归档条目（历史）；主进程据此做条目级合并与历史容量修剪。 */
+  annotations: IAnnotation[]
+}
+
+/** `mt::annotation::migrate-path` 的载荷（改名 / 另存为）。 */
+export interface AnnotationMigratePayload {
+  from: string
+  to: string
 }
 
 // =================================================================

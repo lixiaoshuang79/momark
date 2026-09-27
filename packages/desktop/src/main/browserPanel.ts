@@ -19,12 +19,12 @@ import { app, dialog, ipcMain, session, shell, BrowserWindow } from 'electron'
 import type { Event, Input, WebContents, WebPreferences } from 'electron'
 import log from 'electron-log'
 import crypto from 'crypto'
-import fs from 'fs/promises'
-import {
-  tryImportChromeCookies,
-  getChromeCookieGuideState,
-  markChromeCookieGuideShown
-} from './chromeCookieSync'
+import path from 'path'
+import { readFileSync } from 'fs'
+import { loadMarkdownFile } from './filesystem/markdown'
+// A-9：Chrome cookie 导入已下线，这里只保留「引导已展示」标志的落盘
+// （渲染层仍会发这个通道，保留以免报错）。
+import { markChromeCookieGuideShown } from './chromeCookieSync'
 import type { BpZoomAction } from '@shared/types/ipc'
 import {
   panelOwnsZoomKey,
@@ -343,22 +343,108 @@ export const installBrowserPanelSecurity = (): void => {
     })
 
     // round11 新功能（用户拍板）：启动时把 Chrome 登录 cookie 导入面板分区
-    // （已登录站点免重新输密码）。TCC 挡住时静默等待——引导改由渲染层
-    // 就绪后经 bp:chrome-cookie-guide-state 拉取（首启是欢迎页，推式会丢）。
-    tryImportChromeCookies()
-      .then((result) => {
-        log.info('[browserPanel] chrome cookie import result:', result)
-      })
-      .catch(() => {})
+    // （已登录站点免重新输密码）。
+    //
+    // ⚠️ 2026-09-28 代码审查 A-9：**启动导入已下线**（原 `tryImportChromeCookies()`
+    // 调用已移除）。原实现按 Windows 的 GCM 布局解 macOS 的 v10 密文，几乎全部
+    // 解不出正确明文，而 CBC 的 PKCS7 填充约 1/256 会碰巧合法——那些垃圾值会写进
+    // persist:panel，覆盖面板自己的登录态，并且每次启动都弹一次钥匙串授权。
+    // 算法已在 chromeCookieSync.ts 按 macOS 真实格式修正（且不再覆盖已有
+    // cookie），但在真机验收前不再挂到启动路径，也不提供 UI 入口；重新启用的
+    // 前置条件见该文件头注释。
   })
 
   // 渲染层就绪后拉取：Chrome 数据被 TCC 挡住且未引导过 → 弹一次性授权引导。
-  ipcMain.handle('bp:chrome-cookie-guide-state', () => getChromeCookieGuideState())
+  // 下线期间恒返回 false：引导只为上面那个导入功能索要「完全磁盘访问权限」，
+  // 功能未启用时继续弹就是误导（渲染层仍按旧契约调用，这里直接收口）。
+  ipcMain.handle('bp:chrome-cookie-guide-state', () => ({ shouldShow: false }))
 
   // 引导已展示（用户点掉引导 toast 后落标志，重启后不再打扰）。
   ipcMain.on('mt::chrome-cookie-guide-mark-shown', () => {
     markChromeCookieGuideShown()
   })
+}
+
+// ── 右栏文档读盘（P0-6）──────────────────────────────────────────────
+//
+// 与左侧标签同一套读取参数，保证「同一个文件，左右两侧的编码/换行判断一致」。
+// 参数来源：`preferences.json`（`src/main/preferences/index.ts` 里那个
+// electron-store）；读取失败时使用 schema 的默认值。
+
+const PREFERENCES_FILE = 'preferences.json'
+
+interface EditorReadPreferences {
+  preferredEol: 'lf' | 'crlf'
+  autoGuessEncoding: boolean
+  trimTrailingNewline: number
+  autoNormalizeLineEndings: boolean
+}
+
+const readEditorReadPreferences = (): EditorReadPreferences => {
+  // 与 `Preference.getPreferredEol()` 同一规则（非 lf 的取值在 Windows 上按 crlf）。
+  const defaults: EditorReadPreferences = {
+    preferredEol: process.platform === 'win32' ? 'crlf' : 'lf',
+    autoGuessEncoding: true,
+    trimTrailingNewline: 2,
+    autoNormalizeLineEndings: false
+  }
+  try {
+    const raw = readFileSync(path.join(app.getPath('userData'), PREFERENCES_FILE), 'utf8')
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const eol = parsed.endOfLine
+    return {
+      preferredEol:
+        eol === 'crlf' || (eol !== 'lf' && process.platform === 'win32') ? 'crlf' : 'lf',
+      autoGuessEncoding: parsed.autoGuessEncoding !== false,
+      trimTrailingNewline:
+        typeof parsed.trimTrailingNewline === 'number'
+          ? parsed.trimTrailingNewline
+          : defaults.trimTrailingNewline,
+      autoNormalizeLineEndings: parsed.autoNormalizeLineEndings === true
+    }
+  } catch (error) {
+    log.warn('[browserPanel] cannot read editor preferences, using defaults:', error)
+    return defaults
+  }
+}
+
+/**
+ * 读一个 markdown 文档给右侧面板（最近列表 / 打开文件…）。
+ *
+ * 返回 `loadMarkdownFile` 的完整结果 + 旧的 `path` 字段（preload 与渲染层的
+ * 类型仍在用它）。文件监听不需要在这里登记：渲染层的
+ * `NEW_TAB_WITH_CONTENT` 已经发了 `mt::window-add-file-path`，主进程会挂上
+ * 单文件 watcher。
+ */
+const readMarkdownDocumentForPanel = async (
+  win: BrowserWindow | null,
+  filePath: string
+): Promise<(Awaited<ReturnType<typeof loadMarkdownFile>> & { path: string }) | null> => {
+  const resolved = path.resolve(filePath)
+  const { preferredEol, autoGuessEncoding, trimTrailingNewline, autoNormalizeLineEndings } =
+    readEditorReadPreferences()
+  try {
+    const doc = await loadMarkdownFile(
+      resolved,
+      preferredEol,
+      autoGuessEncoding,
+      trimTrailingNewline,
+      autoNormalizeLineEndings
+    )
+    return { ...doc, path: resolved }
+  } catch (error) {
+    // 读不出来（编码不受支持 / 权限 / 不存在）就明确告知，而不是让右栏空着。
+    log.error('[browserPanel] read markdown document failed:', error)
+    const message = error instanceof Error ? error.message : String(error)
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('mt::show-notification', {
+        title: 'Cannot open document',
+        type: 'error',
+        message
+      })
+    }
+    return null
+  }
 }
 
 // ── IPC 注册 ────────────────────────────────────────────────────────
@@ -490,6 +576,13 @@ export const registerBrowserPanelIpc = (): void => {
     }
   })
 
+  // 右栏文档读盘：走主进程标准打开流程（编码探测 / BOM / 换行归一化 /
+  // 末尾换行探测），而不是 `fs.readFile(path, 'utf-8')` 直读。
+  // 直读的后果（P0-6）：GBK 文档在右栏显示成乱码，一触发保存就把原文件
+  // 覆盖成乱码——右栏标签不能成为「乱码覆盖原文件」的入口。
+  //
+  // ipc 模块拿不到 Accessor 里的 Preference 实例，且另建 electron-store 会
+  // 缓存旧值，因此按需读偏好文件；读不到时退回 schema 默认值。
   ipcMain.handle('bp:pickDoc', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return null
@@ -499,25 +592,13 @@ export const registerBrowserPanelIpc = (): void => {
       filters: MARKDOWN_FILTERS
     })
     if (canceled || filePaths.length === 0) return null
-    const filePath = filePaths[0]
-    try {
-      const markdown = await fs.readFile(filePath, 'utf-8')
-      return { path: filePath, markdown }
-    } catch (error) {
-      log.error('[browserPanel] read doc failed:', error)
-      return null
-    }
+    return readMarkdownDocumentForPanel(win, filePaths[0])
   })
 
-  // 最近打开列表点击：按路径直读并在右侧面板文档模式预览（不建标签）。
-  ipcMain.handle('bp:readDoc', async (_event, filePath: string) => {
+  // 最近打开列表点击：按路径读取并在右侧面板文档模式预览（不建标签）。
+  ipcMain.handle('bp:readDoc', async (event, filePath: string) => {
     if (typeof filePath !== 'string' || !filePath) return null
-    try {
-      const markdown = await fs.readFile(filePath, 'utf-8')
-      return { path: filePath, markdown }
-    } catch (error) {
-      log.error('[browserPanel] readDoc failed:', error)
-      return null
-    }
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return readMarkdownDocumentForPanel(win, filePath)
   })
 }

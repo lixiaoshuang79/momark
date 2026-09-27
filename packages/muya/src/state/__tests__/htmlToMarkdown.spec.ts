@@ -136,3 +136,43 @@ describe('htmlToMarkdown — Google Docs style inline formatting', () => {
         ).toBe('Plain **boldword** and *italicword* end.');
     });
 });
+
+// C-8: `node.nodeValue ?? ''.replace(...)` let the `??` bind to the empty-string
+// literal, so the two `replace` calls ran on `''` and the RAW node value was
+// used — `startLen`/`endLen` could never be set and the leading/trailing
+// newlines were never stripped. Inside an inline context those newlines become
+// soft-break spans, and the pasted markdown comes out with stray line breaks
+// (and broken emphasis) in the middle of the inline run.
+describe('htmlToMarkdown — leading/trailing newlines in a text node (C-8)', () => {
+    it('drops edge newlines inside inline bold', () => {
+        expect(convert('<p><b>\nfoo\n</b></p>')).toBe('**foo**');
+        expect(
+            convert('<p><span style="font-weight:700">\nfoo\n</span></p>'),
+        ).toBe('**foo**');
+    });
+
+    it('drops edge newlines inside inline italic and links', () => {
+        expect(convert('<p><em>\nfoo\n</em></p>')).toBe('*foo*');
+        expect(convert('<p><a href="https://e.com">\nfoo\n</a></p>')).toBe(
+            '[foo](https://e.com)',
+        );
+    });
+
+    it('keeps a genuine soft line break inside the run', () => {
+        expect(convert('<p><b>\nfoo\nbar\n</b></p>')).toBe('**foo\nbar**');
+    });
+
+    it('does not push a heading into setext form', () => {
+        // The stray breaks made turndown emit 'foo\n\n===', i.e. a setext
+        // heading, instead of the ATX heading that was pasted.
+        expect(convert('<h1>\nfoo\n</h1>')).toBe('# foo');
+    });
+
+    it('keeps the surrounding text of an inline run intact', () => {
+        expect(convert('<p>a<b>\nfoo\n</b>b</p>')).toBe('a **foo** b');
+    });
+
+    it('leaves a paragraph whose only breaks are interior alone', () => {
+        expect(convert('<p>foo\nbar\n</p>')).toBe('foo\nbar');
+    });
+});

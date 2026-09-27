@@ -16,6 +16,7 @@ import {
   TrailingNewlineCommand
 } from '../commands'
 import { defineStore } from 'pinia'
+import { useAnnotationStore } from './annotation'
 import { usePreferencesStore } from './preferences'
 import { useProjectStore } from './project'
 import { useLayoutStore } from './layout'
@@ -408,6 +409,14 @@ export const useEditorStore = defineStore('editor', {
           // history (setContent), so the first undo restores the pre-reload doc.
           isReload: true
         })
+        // 外部重载后正文全变了：把标注表重新推给引擎做一次全量重定位 + 核对
+        // （方案 §5.5 / 契约 C：`mt::update-file` 重载完成后触发）。
+        // 延一帧——引擎的 replaceContent 是异步的，紧接着推会按旧 state 定位。
+        window.setTimeout(() => {
+          const annotationStore = useAnnotationStore()
+          annotationStore.syncFromEngine()
+          annotationStore.pushToEngine()
+        }, 0)
       }
       debouncedSendBufferedState()
     },
@@ -518,6 +527,46 @@ export const useEditorStore = defineStore('editor', {
       bus.emit('flush-active-editor')
     },
 
+    /**
+     * F1(P0-4)：保存回执对账。
+     *
+     * 主进程把「发起保存时登记的内容版本」原样带回（`mt::tab-saved` /
+     * `mt::set-pathname` 的 `version`）。只有回执版本 === 当前内容版本，才说明
+     * 写下去的就是此刻屏幕上的内容，此时才置 clean；写盘期间用户又改了内容
+     * （版本已推进）时必须**保持脏**——否则那段输入既不会被自动保存带上
+     * （`HANDLE_AUTO_SAVE` 只在 `!isSaved` 时发请求），也不会在关窗时被提示
+     * （P0-1），等于永不落盘。
+     *
+     * `version` 缺省（重命名/移动目录走的老通道）时退化为旧行为。
+     */
+    APPLY_SAVE_RECEIPT(tab: IFileState, version?: number): void {
+      const currentVersion = getSaveVersion(tab)
+      if (typeof version !== 'number' || version === currentVersion) {
+        if (currentVersion >= 0) {
+          tab.lastSavedHistoryId = currentVersion
+        }
+        tab.isSaved = true
+        return
+      }
+
+      // 磁盘上的是旧版本，标签仍然是脏的。
+      tab.isSaved = false
+
+      // 开了自动保存时补一次：这一次写盘期间的输入否则要等到用户下一次敲键
+      // 才会被重新排上（LISTEN_FOR_CONTENT_CHANGE 是唯一布防点）。收敛性由
+      // 版本对账保证——保存不改内容，下一轮回执必然一致。
+      const preferencesStore = usePreferencesStore()
+      if (preferencesStore.autoSave && tab.pathname) {
+        this.HANDLE_AUTO_SAVE({
+          id: tab.id,
+          filename: tab.filename,
+          pathname: tab.pathname,
+          markdown: tab.markdown,
+          options: getOptionsFromState(tab)
+        })
+      }
+    },
+
     FILE_SAVE(): void {
       this.flushActiveEditor()
       const projectStore = useProjectStore()
@@ -534,7 +583,9 @@ export const useEditorStore = defineStore('editor', {
           pathname,
           markdown,
           deepClone(options),
-          defaultPath
+          defaultPath,
+          // F1(P0-4)：登记本次写盘对应的内容版本，主进程原样回传。
+          getSaveVersion(target)
         )
       }
     },
@@ -578,7 +629,9 @@ export const useEditorStore = defineStore('editor', {
           pathname,
           markdown,
           deepClone(options),
-          defaultPath
+          defaultPath,
+          // F1(P0-4)：登记本次写盘对应的内容版本，主进程原样回传。
+          getSaveVersion(target)
         )
       }
     },
@@ -618,26 +671,39 @@ export const useEditorStore = defineStore('editor', {
           window.DIRNAME = window.path.dirname(pathname)
         }
         if (tab) {
-          Object.assign(tab, { filename, pathname, isSaved: true })
+          // 另存为 / 首次保存：标注跟着路径走（旧路径的标注文件搬到新 key 下，
+          // 未保存文档的内存标注落到新路径）。必须拿改路径之前的 pathname。
+          const previousPathname = tab.pathname
+          Object.assign(tab, { filename, pathname })
+          // F1(P0-4)：`mt::set-pathname` 也是「保存已落盘」的回执（主进程写完
+          // 才发），同样要按版本对账——写盘期间的输入不能被它顺手置成 clean。
+          // 重命名/移动到新目录走的也是这条通道，不带版本，按旧行为处理。
+          this.APPLY_SAVE_RECEIPT(tab, fileInfo.version)
+          if (previousPathname !== pathname) {
+            const annotationStore = useAnnotationStore()
+            if (previousPathname) {
+              annotationStore.MIGRATE_PATH({ from: previousPathname, to: pathname })
+            } else {
+              annotationStore.ADOPT_PATH({ tabId: id, pathname })
+            }
+          }
           debouncedSendBufferedState()
         }
       })
 
-      window.electron.ipcRenderer.on('mt::tab-saved', (_, tabId) => {
+      window.electron.ipcRenderer.on('mt::tab-saved', (_, tabId, version) => {
         const tab = this.tabs.find((f) => f.id === tabId)
         if (tab) {
-          const lastEditIndex = tab.history.lastEditIndex
-          if (
-            typeof lastEditIndex === 'number' &&
-            lastEditIndex >= 0 &&
-            lastEditIndex < tab.history.stack.length
-          ) {
-            const entry = tab.history.stack[lastEditIndex]
-            if (entry && typeof entry.id === 'number') {
-              tab.lastSavedHistoryId = entry.id
-            }
+          // F1(P0-4)：按登记的内容版本对账（见 APPLY_SAVE_RECEIPT），
+          // 版本一致才置 clean——原来无条件拿「回执到达那一刻」的
+          // lastEditIndex 当已保存版本，写盘 IO 期间的输入会被一起标记成
+          // 已保存：自动保存跳过它（HANDLE_AUTO_SAVE 查 isSaved），关窗也
+          // 不提示（P0-1），这段输入永不落盘。
+          this.APPLY_SAVE_RECEIPT(tab, version)
+          // 保存成功：未保存文档的标注从内存 key 迁到文件路径 key 并落盘。
+          if (tab.pathname) {
+            useAnnotationStore().ADOPT_PATH({ tabId, pathname: tab.pathname })
           }
-          tab.isSaved = true
           debouncedSendBufferedState()
         }
       })
@@ -667,8 +733,13 @@ export const useEditorStore = defineStore('editor', {
 
     LISTEN_FOR_CLOSE(): void {
       const projectStore = useProjectStore()
-      const preferencesStore = usePreferencesStore()
       window.electron.ipcRenderer.on('mt::ask-for-close', () => {
+        // F1(B-26)：关窗前先把引擎 rAF 批里最后一次编辑落进 tab（#3803 同源问题：
+        // 读 `isSaved`/`markdown` 前不 flush，这一帧的输入既不会被算作未保存、
+        // 也不会被写盘，静默丢）。同步拿到的才是最新内容，所以放在读之前、
+        // 也放在 buffer 快照之前。
+        this.flushActiveEditor()
+
         sendBufferedState()
           .catch((err) => {
             console.error('Failed to update buffered state before closing', err)
@@ -685,12 +756,18 @@ export const useEditorStore = defineStore('editor', {
                   pathname,
                   markdown,
                   options,
-                  defaultPath: getRootFolderFromState(projectStore)
+                  defaultPath: getRootFolderFromState(projectStore),
+                  // F1(P0-4)：内容版本随请求走，主进程回执原样带回。
+                  version: getSaveVersion(file)
                 }
               })
 
-            if (unsavedFiles.length && preferencesStore.startUpAction !== 'restoreAll') {
-              // Ignore unsaved files when user has chosen to restore all on startup, as they will be restored anyway.
+            // F1(P0-1)：只要有未保存的标签就弹保存确认，不再有 `restoreAll` 豁免。
+            // 「反正会被恢复」的前提已不成立：主进程的恢复分支早已移除
+            // （见 src/main/app/index.ts），被豁免的内容只留在永不被读取的
+            // buffer JSON 里＝静默丢弃；`restoreAll` 也已从 schema/默认值清理
+            // （老用户已存的值在 preferences 侧迁移为 blank）。
+            if (unsavedFiles.length) {
               window.electron.ipcRenderer.send('mt::close-window-confirm', deepClone(unsavedFiles))
             } else {
               window.electron.ipcRenderer.send('mt::close-window')
@@ -710,6 +787,8 @@ export const useEditorStore = defineStore('editor', {
     ASK_FOR_SAVE_ALL(closeTabs: boolean): void {
       const { tabs } = this
       const projectStore = useProjectStore()
+      // F1(B-26)：保存/关闭前先落进引擎批里的最后一次编辑（同 LISTEN_FOR_CLOSE）。
+      this.flushActiveEditor()
       const unsavedFiles = tabs
         .filter((file) => !(file.isSaved && /[^\n]/.test(file.markdown)))
         .map((file) => {
@@ -721,7 +800,9 @@ export const useEditorStore = defineStore('editor', {
             pathname,
             markdown,
             options,
-            defaultPath: getRootFolderFromState(projectStore)
+            defaultPath: getRootFolderFromState(projectStore),
+            // F1(P0-4)：内容版本随请求走，主进程回执原样带回。
+            version: getSaveVersion(file)
           }
         })
 
@@ -754,7 +835,9 @@ export const useEditorStore = defineStore('editor', {
           pathname,
           markdown,
           deepClone(options),
-          defaultPath
+          defaultPath,
+          // F1(P0-4)：登记本次写盘对应的内容版本，主进程原样回传。
+          getSaveVersion(this.currentFile)
         )
       } else {
         // if not, move to a new(maybe) folder
@@ -797,7 +880,9 @@ export const useEditorStore = defineStore('editor', {
           pathname,
           markdown,
           deepClone(options),
-          defaultPath
+          defaultPath,
+          // F1(P0-4)：登记本次写盘对应的内容版本，主进程原样回传。
+          getSaveVersion(this.currentFile)
         )
       } else {
         bus.emit('rename')
@@ -869,6 +954,10 @@ export const useEditorStore = defineStore('editor', {
           scrollTop,
           blocks
         })
+
+        // 标注只认主编辑区的主文档（方案 §3.6）：换了标签就切标注上下文——
+        // 先把旧文件的标注 flush 落盘，再装载新文件的表并推给引擎。
+        useAnnotationStore().SWITCH_DOC({ pathname, tabId: id })
       }
 
       this.UPDATE_LINE_ENDING_MENU()
@@ -976,6 +1065,11 @@ export const useEditorStore = defineStore('editor', {
       const target = file ?? this.currentFile
       if (target === null) return
 
+      // F1(B-26)：`isSaved`/`markdown` 都取自 tab 快照，而引擎的 rAF 批里可能还有
+      // 这一帧的最后一次编辑（尚未提交进 tab）——不 flush 就判定「已保存」，
+      // 那一次输入会随着标签关闭消失。flush 是同步的，判定发生在它之后。
+      this.flushActiveEditor()
+
       if (target.isSaved) {
         this.FORCE_CLOSE_TAB(target)
       } else {
@@ -1019,6 +1113,10 @@ export const useEditorStore = defineStore('editor', {
     FORCE_CLOSE_TAB(file: IFileState): void {
       const { tabs, currentFile } = this
       const index = tabs.findIndex((t) => t.id === file.id)
+
+      // 关标签 = 离开这份文档：标注立即落盘（不等 800ms debounce，见方案 §5.5）。
+      if (file.pathname) useAnnotationStore().flush(file.pathname)
+
       if (index > -1) {
         tabs.splice(index, 1)
         this.updateTabIdToIndex()
@@ -1050,6 +1148,8 @@ export const useEditorStore = defineStore('editor', {
             scrollTop,
             blocks
           })
+          // 关掉的是当前标签 → 主文档换人，标注上下文跟着切。
+          useAnnotationStore().SWITCH_DOC({ pathname, tabId: id })
         } else {
           window.DIRNAME = ''
         }
@@ -1068,10 +1168,22 @@ export const useEditorStore = defineStore('editor', {
     },
 
     CLOSE_UNSAVED_TAB(file: IFileState): void {
+      // F1(B-26)：这个入口被 tabs.vue 的关闭按钮直接调用（不经过 CLOSE_TAB），
+      // flush 放在这里才覆盖全部关标签路径——请求里带的是 tab 快照的 markdown，
+      // 不 flush 就会把「这一帧还没提交的最后一次编辑」留在标签外。
+      this.flushActiveEditor()
       const { id, pathname, filename, markdown } = file
       const options = getOptionsFromState(file)
       window.electron.ipcRenderer.send('mt::save-and-close-tabs', [
-        { id, pathname, filename, markdown, options: deepClone(options) }
+        {
+          id,
+          pathname,
+          filename,
+          markdown,
+          options: deepClone(options),
+          // F1(P0-4)：内容版本随请求走，主进程回执原样带回。
+          version: getSaveVersion(file)
+        }
       ])
     },
 
@@ -1508,6 +1620,10 @@ export const useEditorStore = defineStore('editor', {
         autoSaveTimers.delete(id)
       }
 
+      // F1(P0-4)：版本在布防时取——定时器到点发出去的是这一刻的 markdown 快照，
+      // 版本必须与之同源，否则回执对账会拿错基准。
+      const version = getSaveVersion(this.tabs.find((t) => t.id === id))
+
       const timer = setTimeout(() => {
         autoSaveTimers.delete(id)
 
@@ -1521,7 +1637,8 @@ export const useEditorStore = defineStore('editor', {
             pathname,
             markdown,
             deepClone(options),
-            defaultPath
+            defaultPath,
+            version
           )
         }
       }, autoSaveDelay)
@@ -1811,12 +1928,39 @@ const getRootFolderFromState = (projectStore: ProjectStoreLike): string => {
 }
 
 /**
+ * F1(P0-4)：内容版本——保存回执对账用的标尺。
+ *
+ * 取当前编辑帧在 history 栈里的 id，与既有脏标记判定（`lastSavedHistoryId`）
+ * 同一套标尺：`markdown` 与 `history` 由同一次 json-change 一起写进 tab，所以
+ * 「发送保存请求时登记的版本」＝「那一刻写进文件的内容」。没有编辑帧（初始态、
+ * 撤销回初始、引擎重建历史）时返回 -1。
+ */
+const getSaveVersion = (tab: IFileState | null | undefined): number => {
+  const index = tab?.history?.lastEditIndex
+  const stack = tab?.history?.stack
+  if (typeof index !== 'number' || index < 0 || !Array.isArray(stack) || index >= stack.length) {
+    return -1
+  }
+  const entry = stack[index]
+  return entry && typeof entry.id === 'number' ? entry.id : -1
+}
+
+/**
  * Trim the final newlines according `trimTrailingNewlineOption`.
+ *
+ * F1(P0-5)：导出给 editor.vue 的左右同步 watch 用——`tab.markdown` 是**规整过**的
+ * 内容（内容落 tab 时就按这个函数处理过），而引擎 `getMarkdown()` 是原始输出
+ * （Muya 总会补一个末尾换行）。两者直接比较在 trimTrailingNewline=0/1 的文件上
+ * 永不相等，左右同步会退化成「每次按键整篇 setContent」：光标复位、撤销历史
+ * 清空、内嵌 HTML 帧重载。比较前必须用同一把尺子规整。
  *
  * @param markdown The text to trim.
  * @param trimTrailingNewlineOption The option how we should trim the final newlines.
  */
-const adjustTrailingNewlines = (markdown: string, trimTrailingNewlineOption: number): string => {
+export const adjustTrailingNewlines = (
+  markdown: string,
+  trimTrailingNewlineOption: number
+): string => {
   if (!markdown) {
     return ''
   }
@@ -1860,7 +2004,11 @@ const adjustTrailingNewlines = (markdown: string, trimTrailingNewlineOption: num
  * @param {string} text The text to trim.
  */
 const trimTrailingNewlines = (text: string): string => {
-  return text.replace(/[\r?\n]+$/, '')
+  // F1(P0-3)：必须是 `(?:\r?\n)+`（CR 可选 + LF 一组，重复若干次）——写成字符类
+  // `[\r?\n]+` 时 `?` 是**字面量**，末尾连续的 `?` 会被当换行删掉：正文以
+  // 「Why?」结尾的文件保存一次就变「Why」（trimTrailingNewline=0 的文件每次
+  // 内容规整都会走这里，见 adjustTrailingNewlines）。
+  return text.replace(/(?:\r?\n)+$/, '')
 }
 
 interface ApplicationMenuState {

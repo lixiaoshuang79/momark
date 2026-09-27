@@ -272,23 +272,24 @@ class JSONState {
         if (!this._operationCache.length)
             return;
 
-        // Wrap compose in a lambda — `Array.prototype.reduce` passes
-        // (acc, current, index, array) to the callback, but
-        // `json1.type.compose` only accepts (op1, op2). Without the
-        // wrapper TS rejects the signature mismatch.
-        // `compose` returns JSONOp (= null | JSONOpList). Multiple queued
-        // operations may cancel each other out (for example during IME
-        // composition), producing the identity operation (`null`).
-        const op = this._operationCache.reduce(
-            (acc, curr) => json1.type.compose(acc, curr) as JSONOpList,
-        );
-        const prevDoc = this.getState();
-        this._apply(op);
+        // Detach the batch BEFORE anything else runs. Two reasons:
+        //  * a `json-change` listener that edits synchronously must start a fresh
+        //    batch instead of mutating the one being flushed;
+        //  * a throw below must not leave the batch behind — it would be
+        //    re-composed and re-thrown by every later flush, freezing the json
+        //    state for the rest of the session while the DOM keeps accepting
+        //    edits and the document keeps saving stale content (P0-9).
+        const operations = this._operationCache;
+        this._operationCache = [];
+
+        const applied = this._applyBatch(operations);
+
+        if (applied === null)
+            return;
+
+        const { op, prevDoc } = applied;
         // TODO: remove doc in future
         const doc = this.getState();
-        // Clear before emitting: a listener that edits synchronously then starts
-        // a fresh batch instead of mutating the one being flushed.
-        this._operationCache = [];
 
         if (op === null)
             return;
@@ -299,6 +300,82 @@ class JSONState {
             prevDoc,
             doc,
         });
+    }
+
+    // Compose the queued ops into a single op and apply it to the document.
+    // Returns the applied op together with the document it was applied to, or
+    // `null` when the batch could not be composed/applied — in which case the
+    // state has already been rebuilt from the block tree and the failure
+    // reported (P0-9). Deliberately never throws: this runs on the keystroke
+    // path, and a broken op must not take the caller down with it for the rest
+    // of the session.
+    private _applyBatch(operations: JSONOpList[]): { op: JSONOpList; prevDoc: TState[] } | null {
+        try {
+            // Wrap compose in a lambda — `Array.prototype.reduce` passes
+            // (acc, current, index, array) to the callback, but
+            // `json1.type.compose` only accepts (op1, op2). Without the
+            // wrapper TS rejects the signature mismatch.
+            // `compose` returns JSONOp (= null | JSONOpList). Multiple queued
+            // operations may cancel each other out (for example during IME
+            // composition), producing the identity operation (`null`).
+            const op = operations.reduce(
+                (acc, curr) => json1.type.compose(acc, curr) as JSONOpList,
+            );
+            const prevDoc = this.getState();
+
+            this._apply(op);
+
+            return { op, prevDoc };
+        }
+        catch (error) {
+            // The batch could not be composed/applied (out-of-range text retain,
+            // stale path, malformed op). The queue is already dropped, so the
+            // session recovers instead of re-throwing forever; `_state` is now
+            // missing edits, though, while the block tree / DOM still holds what
+            // the user actually sees. Re-derive the state from the tree so the
+            // editor stays editable and the next save writes what is on screen.
+            debug.error(`failed to flush ${operations.length} queued op(s); rebuilding json state from the block tree: ${String(error)}`);
+            this._rebuildStateFromBlocks();
+            this._muya.eventCenter.emit('json-state-error', { error });
+
+            return null;
+        }
+    }
+
+    // Rebuild `_state` from the live block tree — the user-visible truth, and
+    // the only source left when the operation log is what failed. Top-level
+    // blocks own their own serialization (`Parent.getState`). A block that
+    // throws aborts the rebuild entirely: a partial state would silently drop
+    // the blocks that failed to serialize, which is worse than staying on the
+    // previous state.
+    private _rebuildStateFromBlocks() {
+        const scrollPage = this._muya.editor.scrollPage;
+        if (!scrollPage)
+            return;
+
+        const state: TState[] = [];
+        let failed = false;
+
+        scrollPage.children.forEach((node) => {
+            if (!node.isParent())
+                return;
+
+            try {
+                state.push(node.getState());
+            }
+            catch (error) {
+                failed = true;
+                debug.error(`failed to serialize a block while rebuilding the json state: ${String(error)}`);
+            }
+        });
+
+        if (failed) {
+            debug.error('json state rebuild aborted; keeping the previous state.');
+
+            return;
+        }
+
+        this._state = state;
     }
 }
 

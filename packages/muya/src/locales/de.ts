@@ -55,6 +55,12 @@ export const de = {
         'Link': 'Link',
         'Image': 'Bild',
         'Eliminate': 'Formatierung entfernen',
+        // annotationTool（内容标注：工具条按钮 + 备注卡片）
+        'Annotate': 'Annotieren',
+        'Edit': 'Bearbeiten',
+        'Cancel': 'Abbrechen',
+        'Save': 'Speichern',
+        'Write a note, e.g. this logic is wrong': 'Eine Notiz schreiben, z. B.: diese Logik ist falsch',
         // Code block
         'Copy content': 'Inhalt kopieren',
         'Input Language Identifier...': 'Sprachkennung eingeben...',

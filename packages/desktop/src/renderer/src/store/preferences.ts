@@ -7,7 +7,11 @@ import { setLanguage } from '../i18n'
 // narrow casts on consumers that read raw values from disk.
 export type EndOfLine = 'default' | 'lf' | 'crlf'
 export type TitleBarStyle = 'custom' | 'native'
-export type StartUpAction = 'restoreAll' | 'lastSession' | 'blank'
+// F1(P0-1)：`restoreAll`（恢复上次会话）与 `lastSession` 已不再是合法取值——
+// 前者对应的恢复链路早已移除，保留它只会让「关窗不提示保存」的豁免条件复活；
+// 老用户磁盘上的 `restoreAll` 由主进程在打开偏好文件前迁移为 `blank`
+// （见 src/main/preferences/index.ts）。与 main/preferences/schema.json 的 enum 保持一致。
+export type StartUpAction = 'folder' | 'openLastFolder' | 'blank'
 export type TextDirection = 'ltr' | 'rtl'
 export type BulletListMarker = '*' | '+' | '-'
 export type OrderListDelimiter = '.' | ')'
@@ -25,6 +29,9 @@ export interface PreferencesState {
   // ----- General -----
   autoSave: boolean
   autoSaveDelay: number
+  // 内容标注总开关（feat/annotations）：关 = 隐藏右栏第三 tab、工具条不出标注
+  // 按钮、正文不画高亮；已落盘的标注数据保留，重新打开即原样恢复。
+  annotationEnabled: boolean
   titleBarStyle: TitleBarStyle | string
   openFilesInNewWindow: boolean
   openFolderInNewWindow: boolean
@@ -146,6 +153,7 @@ export const usePreferencesStore = defineStore('preferences', {
   state: (): PreferencesState => ({
     autoSave: true,
     autoSaveDelay: 5000,
+    annotationEnabled: true,
     titleBarStyle: 'custom',
     openFilesInNewWindow: false,
     openFolderInNewWindow: false,
@@ -154,7 +162,7 @@ export const usePreferencesStore = defineStore('preferences', {
     wordWrapInToc: false,
     fileSortBy: 'created',
     fileSortOrder: 'asc',
-    startUpAction: 'restoreAll',
+    startUpAction: 'blank',
     restoreLayoutState: true,
     defaultDirectoryToOpen: '',
     lastOpenedFolder: '',

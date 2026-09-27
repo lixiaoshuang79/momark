@@ -37,11 +37,14 @@
     background: var(--float-hover-color);
 }
 
-.mu-format-picker li.item:last-of-type {
+/* 末项的竖线是「清除格式」的分组线。它原先靠 `:last-of-type` 定位，而末尾追加的
+   「标注」按钮会把「最后一项」这个位置抢走，所以改成按类名钉住（清除格式在
+   config.ts 里始终排在格式按钮末尾）。 */
+.mu-format-picker li.item.clear {
     margin-left: 6px;
 }
 
-.mu-format-picker li.item:last-of-type::before {
+.mu-format-picker li.item.clear::before {
     position: absolute;
     top: 6px;
     left: -3px;
@@ -52,6 +55,25 @@
     background: var(--editor-color-10);
 
     content: '';
+}
+
+/* 「标注」是动作入口而不是格式：与格式按钮同一规格，但没有 active 态，
+   也不允许被压缩 —— 它同时是跨块选区下唯一保留的一项。 */
+.mu-format-picker li.item.annotation {
+    flex: 0 0 auto;
+}
+
+/* 「标注」前的分组竖线（方案 §3.3：1px × 16px、--line-strong、左右各 4px 间距）。 */
+.mu-format-picker li.divider {
+    align-self: center;
+    flex: 0 0 auto;
+    width: 1px;
+    height: 16px;
+    margin: 0 4px;
+
+    list-style: none;
+
+    background: var(--line-strong, var(--editor-color-10));
 }
 
 .mu-format-picker li.item .icon-wrapper {

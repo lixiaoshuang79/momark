@@ -81,11 +81,32 @@ export const DANGEROUS_EXECUTABLE_EXTENSIONS: readonly string[] = Object.freeze(
   // macOS — Terminal scripts and app bundles
   'command',
   'app',
+  // macOS — Terminal saved scripts, Automator workflows and installer packages
+  // (F1/A-11: `open x.terminal` / `x.workflow` / `x.pkg` 都会真的跑起来)
+  'terminal',
+  'workflow',
+  'pkg',
   // Linux — desktop entries and self-contained executables
   'desktop',
   'appimage',
   'run'
 ])
+
+/**
+ * F1(A-11)：带可执行位、但扩展名不在黑名单里的文件（`./deploy`、`run` 这种没有
+ * 扩展名的脚本/二进制）。`shell.openPath` 对它们是「运行」而不是「打开」，只靠
+ * 扩展名拦不住，得看权限位（mode & 0o111）。目录不算（对目录 openPath 是打开
+ * 访达），不存在/无法 stat 的路径也不算——那种情况 openPath 自己会报错。
+ */
+export const isExecutableFile = (filepath: string): boolean => {
+  if (!filepath || typeof filepath !== 'string') return false
+  try {
+    const stat = fs.statSync(filepath)
+    return stat.isFile() && (stat.mode & 0o111) !== 0
+  } catch {
+    return false
+  }
+}
 
 /**
  * Returns true if the path's extension is one the OS will execute as code
@@ -96,7 +117,10 @@ export const isDangerousExecutableFile = (filepath: string): boolean => {
   // Windows strips trailing dots/spaces during ShellExecute canonicalization,
   // so `update.js.` / `<./update.js >` still run `update.js` — strip them
   // before reading the extension or the guard is trivially bypassed.
-  const ext = path.extname(filepath.replace(/[ .]+$/, '')).slice(1).toLowerCase()
+  const ext = path
+    .extname(filepath.replace(/[ .]+$/, ''))
+    .slice(1)
+    .toLowerCase()
   return !!ext && DANGEROUS_EXECUTABLE_EXTENSIONS.includes(ext)
 }
 

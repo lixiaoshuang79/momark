@@ -154,6 +154,16 @@ class History {
     }
 
     private _change(source: HistoryAction, dest: HistoryAction) {
+        // A keystroke made in the SAME frame is still sitting in the json
+        // state's deferred op batch (it only lands on the next animation frame).
+        // Undo/redo must apply it first: the entry about to be inverted is
+        // computed against the live state, so undoing without flushing would
+        // step over the pending edit and restore a document that never contained
+        // it — while the DOM still shows the typed text (C-4). Flushing here is
+        // also what turns that pending edit into its own undo entry, so
+        // "undo, then flush" and "flush, then undo" agree.
+        this._muya.editor.jsonState.flush();
+
         if (this._stack[source].length === 0)
             return;
 

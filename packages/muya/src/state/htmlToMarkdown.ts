@@ -15,19 +15,22 @@ function turnSoftBreakToSpan(html: string) {
             if (node.nodeType === Node.TEXT_NODE && node.parentElement?.tagName !== 'CODE') {
                 let startLen = 0;
                 let endLen = 0;
-                const text
-                    = node.nodeValue
-                        ?? ''
-                            .replace(/^(\n+)/, (_, p) => {
-                                startLen = p.length;
+                // The `??` must bind to the node value, not to the empty-string
+                // literal: `a ?? ''.replace(...)` applies `replace` to `''` and
+                // returns the RAW node value, so the leading/trailing `\n` were
+                // never stripped and `startLen`/`endLen` stayed 0 — every pasted
+                // `<p>\ntext\n</p>` grew a soft line break at each edge (C-8).
+                const text = (node.nodeValue ?? '')
+                    .replace(/^(\n+)/, (_, p) => {
+                        startLen = p.length;
 
-                                return '';
-                            })
-                            .replace(/(\n+)$/, (_, p) => {
-                                endLen = p.length;
+                        return '';
+                    })
+                    .replace(/(\n+)$/, (_, p) => {
+                        endLen = p.length;
 
-                                return '';
-                            });
+                        return '';
+                    });
                 if (/\n/.test(text)) {
                     const tokens = text.split('\n');
                     const params = [];

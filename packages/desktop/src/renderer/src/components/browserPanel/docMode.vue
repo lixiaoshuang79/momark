@@ -62,6 +62,7 @@ import { useEditorStore } from '@/store/editor'
 import { useSplitStore } from '@/store/split'
 import { t } from '../../i18n'
 import DocEditorPane from './docEditorPane.vue'
+import type { FileEncoding, LineEnding } from '@shared/types/files'
 
 /**
  * 文档模式（PHASE2-SPEC §5，round8 起可编辑）：分屏第二文档 = split.tabId
@@ -168,16 +169,36 @@ onMounted(loadRecents)
 // 建真实文档标签并进入分屏（左栏保持当前文档，右栏编辑新文档）。
 // round10（用户拍板）：文件已打开也允许进分屏——同一文档左右同开、
 // 任一侧编辑另一侧实时同步（allowSame）。
-const openFileByPath = async (path: string, markdown: string) => {
+//
+// P0-6：主进程 `bp:readDoc` / `bp:pickDoc` 现在返回标准打开流程的完整文档
+// （`loadMarkdownFile`：编码探测 + BOM + 换行归一化 + 末尾换行探测），不再
+// 是硬编码的 `encoding:'utf8'/lineEnding:'lf'` —— 那是「GBK 文档在右栏显示
+// 乱码、一保存就把原文件覆盖成乱码」的根因。
+type PanelDocResult = {
+  path: string
+  pathname: string
+  filename: string
+  markdown: string
+  encoding: FileEncoding
+  lineEnding: LineEnding
+  adjustLineEndingOnSave: boolean
+  trimTrailingNewline: number
+  isMixedLineEndings: boolean
+}
+
+const openFileByPath = async (doc: PanelDocResult) => {
   const editorStore = useEditorStore()
   const splitStore = useSplitStore()
+  const filePath = doc.pathname || doc.path
 
   // 打开/新建文档时清掉 HTML 渲染页（两种内容互斥）。
   bpStore.CLOSE_HTML_DOC()
 
   // 文件已在标签集合：直接进分屏。若该文档已在右屏（分屏中），
   // 左栏也切到它，实现左右同文档双开。
-  const existing = editorStore.tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, path))
+  const existing = editorStore.tabs.find((t) =>
+    window.fileUtils.isSamePathSync(t.pathname, filePath)
+  )
   if (existing) {
     bpStore.SET_OPEN(true)
     bpStore.SET_MODE('doc')
@@ -193,19 +214,22 @@ const openFileByPath = async (path: string, markdown: string) => {
   const prev = editorStore.currentFile
   editorStore.NEW_TAB_WITH_CONTENT({
     markdownDocument: {
-      markdown,
-      filename: window.path.basename(path),
-      pathname: path,
-      encoding: 'utf8',
-      lineEnding: 'lf',
-      adjustLineEndingOnSave: true,
-      trimTrailingNewline: false,
-      isMixedLineEndings: false
-    } as never,
+      markdown: doc.markdown,
+      filename: doc.filename || window.path.basename(filePath),
+      pathname: filePath,
+      // 运行时契约是 `{encoding, isBom}` 对象（见 @shared/types/files.ts
+      // 里 `FileEncoding | string` 的说明），`MarkdownDocument.encoding`
+      // 声明成 string 是过时描述，故此处断言。
+      encoding: doc.encoding as unknown as string,
+      lineEnding: doc.lineEnding,
+      adjustLineEndingOnSave: doc.adjustLineEndingOnSave,
+      trimTrailingNewline: doc.trimTrailingNewline,
+      isMixedLineEndings: doc.isMixedLineEndings
+    },
     selected: prev == null
   })
 
-  const tab = editorStore.tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, path))
+  const tab = editorStore.tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, filePath))
   if (!tab) return
 
   bpStore.SET_OPEN(true)
@@ -216,23 +240,20 @@ const openFileByPath = async (path: string, markdown: string) => {
 // 最近文件点击：直接打开进入分屏编辑（round8 起不再只读预览）。
 const openRecent = async (filePath: string) => {
   try {
-    const result = (await window.bp.readDoc(filePath)) as {
-      path: string
-      markdown: string
-    } | null
+    const result = (await window.bp.readDoc(filePath)) as PanelDocResult | null
     if (result) {
-      await openFileByPath(result.path, result.markdown ?? '')
+      await openFileByPath(result)
     }
   } catch {
-    // 读取失败保持空态。
+    // 读取失败保持空态（主进程已就失败原因发过通知）。
   }
 }
 
 // 「打开文件…」由 index.vue 底部条调用：主进程系统对话框 → 读文件 → 建标签进分屏。
 const openFile = async () => {
-  const result = await window.bp.pickDoc()
+  const result = (await window.bp.pickDoc()) as PanelDocResult | null
   if (!result) return
-  await openFileByPath(result.path, result.markdown ?? '')
+  await openFileByPath(result)
 }
 
 // 「新建文件」由 index.vue 底部条调用：新建未落盘 untitled 标签并直接

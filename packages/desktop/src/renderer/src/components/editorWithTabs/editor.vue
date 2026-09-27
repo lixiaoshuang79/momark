@@ -76,6 +76,7 @@ import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, markRaw } f
 import log from 'electron-log'
 import {
   Muya,
+  AnnotationTool,
   CodeBlockLanguageSelector,
   EmojiSelector,
   FootnoteTool,
@@ -131,9 +132,10 @@ import { getCssForOptions, getHtmlToc, type PdfCssOptions, type HtmlTocOptions }
 import { resolveTocHeadingElement } from '@/util/tocNavigation'
 import { addCommonStyle, setEditorWidth } from '@/util/theme'
 import { usePreferencesStore } from '@/store/preferences'
-import { useEditorStore } from '@/store/editor'
+import { useEditorStore, adjustTrailingNewlines } from '@/store/editor'
 import { useProjectStore } from '@/store/project'
 import { useBrowserPanelStore } from '@/store/browserPanel'
+import { useAnnotationStore } from '@/store/annotation'
 import { useSplitStore } from '@/store/split'
 import { storeToRefs } from 'pinia'
 import { t } from '../../i18n'
@@ -215,6 +217,7 @@ const splitStore = useSplitStore()
 const enterMotion = useEditorEnterMotion(() => wrapperRef.value)
 const projectStore = useProjectStore()
 const bpStore = useBrowserPanelStore()
+const annotationStore = useAnnotationStore()
 
 // Use storeToRefs to extract reactive properties from the stores
 const {
@@ -694,6 +697,11 @@ watch(typewriter, (value) => {
 // round10：同一文档左右双开实时同步——右栏编辑器写入 tab.markdown 后，
 // 左引擎若显示同一文档且内容不一致则 setContent 刷新（自身编辑时
 // tab.markdown === 引擎内容，guard 跳过，光标/历史不受影响）。
+// round28 / F1(P0-5)：比较基准必须统一规整。`tab.markdown` 是规整过的
+// （`adjustTrailingNewlines`，trimTrailingNewline=0 的文件末尾无换行），而引擎
+// `getMarkdown()` 是原始输出（总带末尾换行）——直接比字符串在 opt=0/1 的文件上
+// 永不相等，于是每次按键（含左编辑器自己打字）都会 setContent 整篇：光标复位、
+// 撤销历史清空、内嵌 HTML 帧重载。两边都过一遍同一个规整函数，判等才可信。
 watch(
   () => {
     const id = editorStore.currentFile?.id
@@ -702,7 +710,13 @@ watch(
   },
   (md) => {
     if (typeof md !== 'string' || !editor.value) return
-    if (md === editor.value.getMarkdown()) return
+    const tab = editorStore.tabs.find((t) => t.id === editorStore.currentFile?.id)
+    const opt = tab?.trimTrailingNewline ?? 2
+    if (
+      adjustTrailingNewlines(md, opt) === adjustTrailingNewlines(editor.value.getMarkdown(), opt)
+    ) {
+      return
+    }
     editor.value.setContent(md)
     editorStore.UPDATE_TOC(editor.value.getTOC())
   }
@@ -736,6 +750,9 @@ watch(sourceCode, (isSource) => {
   const windowId = window.marktext?.env?.windowId ?? -1
   if (isSource) {
     window.electron.ipcRenderer.send('mt::set-editor-format-menus-enabled', windowId, false)
+    // 标注依赖所见即所得模式的选区与高亮：进源码模式即离开标注 tab（数据保留）。
+    // 直接清布尔而非 SET_TAB——后者的非 annotation 分支会顺带切换 url/doc 模式。
+    bpStore.annotationsTab = false
     return
   }
   nextTick(() => {
@@ -1478,13 +1495,20 @@ const handleExport = async (options: unknown) => {
   const opts = options as ExportOptions
   const { type, headerFooterStyled, htmlTitle } = opts
 
-  if (!/^pdf|print|styledHtml|docx$/.test(type)) {
+  // F1(B-20)：锚点必须包住整组候选——`/^pdf|print|styledHtml|docx$/` 里 `^`/`$`
+  // 只作用于首尾两项，`pdfxyz` 之类会漏过白名单。
+  if (!/^(?:pdf|print|styledHtml|docx)$/.test(type)) {
     throw new Error(`Invalid type to export: "${type}".`)
   }
 
   const extraCss = await getCssForOptions(opts as unknown as PdfCssOptions)
   const htmlToc = getHtmlToc(editor.value.getTOC(), opts as unknown as HtmlTocOptions)
-  const markdown = editor.value.getMarkdown()
+  // F1(B-5)：源码模式下 Muya 实例停在进入源码模式那一刻，`getMarkdown()` 是旧内容
+  // （进入源码模式后正文由 CodeMirror 持有，见 sourceCode.vue 的 saveContent）。
+  // tab.markdown 才是「当前文档内容」，也是保存/落盘的那一份，导出以它为准；
+  // 先 flush 把引擎 rAF 批里最后一次编辑（#3803）落进 tab 再读。
+  editorStore.flushActiveEditor()
+  const markdown = editorStore.currentFile?.markdown ?? editor.value.getMarkdown()
   // 内嵌 HTML 块（块内含脚本的那些）在编辑器里是沙箱帧，导出前要换成导出物里的样子，
   // 否则那块要么空白，要么只剩一段被转义的源码文本：
   //   · HTML 导出 → live：保留成自包含的沙箱 iframe，单文件带走也能点、能交互；
@@ -1971,6 +1995,7 @@ onMounted(() => {
     Muya.use(ImageResizeBar)
     Muya.use(ImageToolBar)
     Muya.use(InlineFormatToolbar)
+    Muya.use(AnnotationTool)
     Muya.use(ParagraphFrontButton)
     Muya.use(ParagraphFrontMenu)
     Muya.use(PreviewToolBar)
@@ -2051,6 +2076,17 @@ onMounted(() => {
   // The first document's content is set via constructor options, so no
   // `file-loaded` / `setMarkdownToEditor` runs for it — seed its TOC here.
   editorStore.UPDATE_TOC(muya.getTOC())
+
+  // 内容标注：把引擎挂进标注 store（面板与持久化从这里取数），并接引擎事件。
+  // 工具条「标注」按钮（含跨块通道）→ 展开右栏并切到标注 tab；
+  // 引擎侧清单变化（增/删/改/重定位完成）→ 回读同步面板。
+  annotationStore.attachEngine(muya)
+  muya.on('muya-annotation-request', () => {
+    annotationStore.REVEAL()
+  })
+  muya.on('annotation-change', () => {
+    annotationStore.syncFromEngine()
+  })
 
   // HTML embed toolbar's "open in side panel" action: render the embedded
   // page in the right panel's document mode (sandboxed iframe, same opaque

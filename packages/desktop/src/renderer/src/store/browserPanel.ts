@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import notice from '@/services/notification'
 import type { BpZoomAction } from '@shared/types/ipc'
@@ -26,6 +26,12 @@ export interface WebPage {
 }
 
 export type BpMode = 'url' | 'doc'
+/**
+ * 面板实际显示的 tab（feat/annotations）：网址 / 文档是「模式」，标注是叠在
+ * 它们之上的第三个 tab——`annotationsTab` 优先，切走即回到原模式，所以
+ * 网页面板（webview 登录态/滚动）和分屏文档都只是被 v-show 隐藏、不销毁。
+ */
+export type BpActiveTab = 'url' | 'doc' | 'annotation'
 export type BpDragState = 'none' | 'over' | 'blocked'
 
 // 缩放钳位与步进：几何递进 ×1.1。下限取 0.2 而非编辑器 HTML 块的 0.5——
@@ -62,6 +68,11 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   // 网页模式面板宽度（分隔线可拖动，240px ≤ w ≤ 60% 窗宽；会话内保持，
   // 不落盘，重启回 288px 默认）。文档分屏的宽度归 split.width 管。
   const urlWidth = ref(288)
+
+  // ── 内容标注 tab（feat/annotations）──────────────────────────────
+  // 第三 tab 是叠加态：打开时压住 url/doc 两个模式（内容都保活），关闭后
+  // 回到进入前的模式。因此这里只存一个布尔，模式本身仍归 `mode`。
+  const annotationsTab = ref(false)
 
   // round16（用户拍板）：网页 PC / 移动端样式。面板级状态——切换作用于
   // 当前激活页（主进程换 UA + reload），新建页沿用当前模式。
@@ -102,6 +113,22 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
       // （split-url1 / split-urlN 场景推导，STATE-MACHINE §1）。
       splitStore.SET_KIND(next === 'url' ? 'url' : 'doc')
     }
+  }
+
+  // 面板当前显示的 tab。标注 tab 优先——它压住 url/doc 两个模式但不改变它们，
+  // 关掉之后回到进入前的模式（与「切模式不影响面板内状态」的既有规则一致）。
+  const activeTab = computed<BpActiveTab>(() => (annotationsTab.value ? 'annotation' : mode.value))
+
+  // 标题条上的三档 tab 选择器与「工具条标注按钮」共用的入口。
+  // 切到 url/doc = 离开标注 tab 并切模式；切到 annotation = 只压一个布尔。
+  function SET_TAB(tab: BpActiveTab): void {
+    if (tab === 'annotation') {
+      SET_OPEN(true)
+      annotationsTab.value = true
+      return
+    }
+    annotationsTab.value = false
+    SET_MODE(tab)
   }
 
   // 新建网页实例：主进程校验 URL 并分配 id，渲染层随后创建 <webview>。
@@ -249,6 +276,9 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
 
   function OPEN_HTML_DOC(src: string, title: string, html = ''): void {
     SET_OPEN(true)
+    // 用户显式要看页面 → 优先满足：自动离开标注 tab（标注数据不受影响，
+    // 切回标注 tab 即原样恢复）。
+    annotationsTab.value = false
     SET_MODE('doc')
     htmlDoc.value = { src, title, html }
   }
@@ -281,7 +311,9 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     }
     const push = (): void => {
       window.bp.setInputContext({
-        open: open.value,
+        // 标注 tab 压住网页模式时，面板并没有在展示网页——缩放快捷键不该
+        // 落到看不见的 webview 上（标注面板里没有可缩放的网页内容）。
+        open: open.value && !annotationsTab.value,
         mode: mode.value,
         activePageId: activePageId.value,
         editorFocused: isEditorFocused()
@@ -291,7 +323,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     const pushAfterFocusMove = (): void => {
       window.setTimeout(push, 0)
     }
-    const stopWatch = watch([open, mode, activePageId], push)
+    const stopWatch = watch([open, mode, activePageId, annotationsTab], push)
     document.addEventListener('focusin', push)
     document.addEventListener('focusout', pushAfterFocusMove)
     push()
@@ -327,6 +359,8 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   return {
     open,
     mode,
+    annotationsTab,
+    activeTab,
     urlPages,
     activePageId,
     dockAddrOpen,
@@ -337,6 +371,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     SET_OPEN,
     TOGGLE_PANEL,
     SET_MODE,
+    SET_TAB,
     ADD_WEB_PAGE,
     ACTIVATE_PAGE,
     CLOSE_PAGE,

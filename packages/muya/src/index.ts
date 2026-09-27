@@ -9,6 +9,7 @@ export type { IRenderToStaticHTMLOptions } from './state/renderToStaticHTML';
 export type { TState } from './state/types';
 export type { IMuyaOptions } from './types';
 
+export { AnnotationTool } from './ui/annotationTool';
 export { CodeBlockLanguageSelector } from './ui/codeBlockLanguageSelector';
 // Export ui tools.
 export { EmojiSelector } from './ui/emojiSelector';

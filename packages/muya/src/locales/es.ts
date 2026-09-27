@@ -55,6 +55,12 @@ export const es = {
         'Link': 'Enlace',
         'Image': 'Imagen',
         'Eliminate': 'Quitar formato',
+        // annotationTool（内容标注：工具条按钮 + 备注卡片）
+        'Annotate': 'Anotar',
+        'Edit': 'Editar',
+        'Cancel': 'Cancelar',
+        'Save': 'Guardar',
+        'Write a note, e.g. this logic is wrong': 'Escribe una nota, p. ej.: esta lógica es incorrecta',
         // Code block
         'Copy content': 'Copiar contenido',
         'Input Language Identifier...': 'Introducir identificador de lenguaje...',

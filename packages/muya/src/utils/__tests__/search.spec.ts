@@ -126,3 +126,75 @@ describe('matchString — search option matrix', () => {
         });
     });
 });
+
+// P0-8: the scan is driven by a hand-rolled `exec` loop now. Its two rules —
+// a zero-width match is not a result, and a zero-width match still advances
+// `lastIndex` — are what keep typing `^`, `$`, `\b`, `a*` (or an empty value)
+// into the search box from spinning the renderer forever. NOTE: if the
+// `lastIndex` bump is ever lost, these tests HANG the worker instead of failing
+// (a synchronous loop cannot be interrupted by a test timeout) — which is
+// precisely the bug they guard.
+describe('matchString — zero-width patterns terminate and yield no results (P0-8)', () => {
+    it('returns [] for `^` instead of looping forever', () => {
+        expect(matchString('abc', '^', { isRegexp: true })).toEqual([]);
+    });
+
+    it('returns [] for `$`', () => {
+        expect(matchString('abc', '$', { isRegexp: true })).toEqual([]);
+    });
+
+    it('returns [] for `\\b`', () => {
+        expect(matchString('abc def', '\\b', { isRegexp: true })).toEqual([]);
+    });
+
+    it('returns [] for a pattern that can only match empty (`(?=a)`)', () => {
+        expect(matchString('aab', '(?=a)', { isRegexp: true })).toEqual([]);
+    });
+
+    it('returns [] for an empty value (every position is a zero-width match)', () => {
+        expect(matchString('abc', '', { isCaseSensitive: false })).toEqual([]);
+    });
+
+    it('keeps the real matches of `a*` and drops the trailing empty one', () => {
+        const matches = matchString('aaa', 'a*', { isRegexp: true });
+        expect(matches.map(m => m.match)).toEqual(['aaa']);
+        expect(matches[0].index).toBe(0);
+    });
+
+    it('resumes scanning after a zero-width match and still finds later matches', () => {
+        // `b*` on 'abba': empty at 0 (dropped), 'bb' at 1, empty at 3 and 4 (dropped).
+        const matches = matchString('abba', 'b*', { isRegexp: true });
+        expect(matches.map(m => m.match)).toEqual(['bb']);
+        expect(matches[0].index).toBe(1);
+    });
+
+    it('ignores the zero-width result of an alternation with a real match', () => {
+        const matches = matchString('xab', 'a|', { isRegexp: true });
+        expect(matches.map(m => m.match)).toEqual(['a']);
+        expect(matches[0].index).toBe(1);
+    });
+});
+
+// C-5: the replacement text is inserted VERBATIM. A regex replacement mentions
+// `$0` / `$N`, and the expanded text is whatever the document happens to
+// contain — including sequences like `$&` or `$$` that a string-mode
+// `String.replace` would interpret a second time.
+describe('buildRegexValue — user text is never re-interpreted (C-5)', () => {
+    it('keeps a `$&` taken from the document literal', () => {
+        expect(buildRegexValue(makeMatch('$&', []), '$0')).toBe('$&');
+    });
+
+    it('keeps `$$` intact instead of collapsing it to `$`', () => {
+        expect(buildRegexValue(makeMatch('$$', []), '<$0>')).toBe('<$$>');
+    });
+
+    it('does not re-expand a `$N` that arrived through an earlier `$0`', () => {
+        // `$0` expands to the literal `$2`, which must not then be swapped for
+        // capture group 2 — one pass over the original template only.
+        expect(buildRegexValue(makeMatch('$2', ['a', 'b']), '$0-$2')).toBe('$2-b');
+    });
+
+    it('keeps capture-group text containing `$&` literal', () => {
+        expect(buildRegexValue(makeMatch('x$&y', ['x$&y']), '$1')).toBe('x$&y');
+    });
+});

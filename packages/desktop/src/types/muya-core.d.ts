@@ -52,6 +52,7 @@ declare module '@muyajs/core' {
   }
 
   // UI plugins (constructors registered via `Muya.use`).
+  export const AnnotationTool: any
   export const CodeBlockLanguageSelector: any
   export const EmojiSelector: any
   export const FootnoteTool: any

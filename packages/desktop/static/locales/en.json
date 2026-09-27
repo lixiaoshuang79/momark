@@ -489,6 +489,11 @@
         "delay10s": "10 seconds",
         "namedFilesNote": "Named files are saved automatically; unnamed files are never prompted."
       },
+      "annotation": {
+        "title": "Annotations",
+        "enabled": "Enable content annotations",
+        "enabledNotes": "Select text to add a note; the third tab of the right panel lists them"
+      },
       "window": {
         "title": "Window",
         "titleBarStyle": {
@@ -1079,6 +1084,79 @@
       "renderPdf": "Rendering PDF…"
     },
     "canceled": "Export canceled."
+  },
+  "annotation": {
+    "tab": "Notes",
+    "tabPanel": "Annotations panel",
+    "current": "Current",
+    "history": "History",
+    "count": {
+      "uncopied": "Unsent",
+      "copied": "Sent",
+      "orphan": "Lost"
+    },
+    "status": {
+      "uncopied": "Not sent yet",
+      "copied": "Sent in round {round}",
+      "orphan": "Lost · the source text is gone"
+    },
+    "hint": {
+      "changed": "Content changed",
+      "unchanged": "Content unchanged",
+      "orphan": "Source deleted"
+    },
+    "action": {
+      "edit": "Edit note",
+      "locate": "Locate in text",
+      "unmark": "Mark as not sent",
+      "archive": "Archive",
+      "delete": "Delete",
+      "restore": "Restore",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "empty": {
+      "current": "Select text in the document,",
+      "currentSub": "then you can annotate it",
+      "history": "Nothing archived yet.",
+      "historySub": "Archived annotations are grouped by round here"
+    },
+    "orphanGroup": "Lost ({n})",
+    "orphanGroupNote": "no highlight in text",
+    "copyAll": "Copy all annotations ({n})",
+    "copyAllHint": "Only the {n} not-yet-sent annotation(s) will be copied",
+    "copiedDone": "Copied ✓",
+    "copiedText": "Copied text",
+    "copiedTextTitle": "Text copied to the clipboard",
+    "copiedTextLines": "{n} lines",
+    "archiveMenu": "Archive",
+    "archiveCopied": "Archive sent ({n})",
+    "archiveOrphan": "Archive lost ({n})",
+    "archiveAll": "Archive all",
+    "archiveHint": "{n} annotation(s) from the previous round can be archived",
+    "archiveHintAction": "Archive",
+    "historyRound": "Round {round}",
+    "historyUntitledRound": "Not sent",
+    "historyCount": "{n} items",
+    "deleteRound": "Delete round",
+    "retention": "History keeps the latest 20 rounds / 500 items; older ones are cleaned up automatically.",
+    "clearHistory": "Clear history",
+    "untitledNote": "This document is not saved yet: annotations live in memory until you save the file",
+    "confirm": {
+      "deleteRound": "Delete all {n} archived annotations of round {round}? This cannot be undone.",
+      "deleteRoundTitle": "Delete this round",
+      "clearHistory": "Clear all {n} archived annotations? This cannot be undone.",
+      "clearHistoryTitle": "Clear history"
+    },
+    "toast": {
+      "copied": "Copied to the clipboard",
+      "archived": "This annotation is archived; located it in the history",
+      "orphan": "The source text of this annotation is gone",
+      "engineMissing": "The editor is not ready yet, try again in a moment",
+      "archiveCount": "Archived {n} annotation(s); find them in History",
+      "clearHistory": "History cleared, {n} annotation(s) removed",
+      "deleteRound": "Deleted {n} annotation(s) of round {round}"
+    }
   },
   "welcome": {
     "windowTitle": "Welcome to MoMark",

@@ -234,7 +234,10 @@ const compactPathLabel = (pathname: string): string => {
 
 // 「文件A | 文件B」的右文档指示：分屏第二文档（round8 起右侧文档为真编辑器，
 // 无独立预览文档路径）。round9：与左侧共用 collapsed——完整态显示缩略路径。
+// feat/annotations：标注 tab 激活时整段隐藏——此时右栏显示的不是文档，
+// 顶栏挂一个「文档名 + ×」会让 × 被误解成「关闭标注」（方案 §3.6）。
 const rightDocName = computed(() => {
+  if (bpStore.activeTab === 'annotation') return ''
   if (splitStore.active) {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     if (!tab) return ''
@@ -249,6 +252,7 @@ const rightDocName = computed(() => {
 })
 
 const rightDocTitle = computed(() => {
+  if (bpStore.activeTab === 'annotation') return ''
   if (splitStore.active) {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     return tab?.pathname ?? rightDocName.value
@@ -259,6 +263,7 @@ const rightDocTitle = computed(() => {
 
 // 右文档磁盘路径：小箭头按钮的显隐与「在访达中打开」参数。
 const rightDocPathname = computed(() => {
+  if (bpStore.activeTab === 'annotation') return ''
   if (splitStore.active) {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     return tab?.pathname ?? ''

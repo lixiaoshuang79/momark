@@ -491,6 +491,11 @@
         "delay10s": "10 秒",
         "namedFilesNote": "已命名文件默认自动保存；未命名文档不弹保存框。"
       },
+      "annotation": {
+        "title": "内容标注",
+        "enabled": "启用内容标注",
+        "enabledNotes": "选中正文即可写备注；右栏第三个 tab 是标注面板"
+      },
       "window": {
         "title": "窗口",
         "titleBarStyle": {
@@ -1081,6 +1086,79 @@
       "renderPdf": "正在生成 PDF…"
     },
     "canceled": "导出已取消。"
+  },
+  "annotation": {
+    "tab": "标注",
+    "tabPanel": "标注面板",
+    "current": "当前",
+    "history": "历史",
+    "count": {
+      "uncopied": "未复制",
+      "copied": "已复制",
+      "orphan": "失效"
+    },
+    "status": {
+      "uncopied": "未复制",
+      "copied": "第 {round} 轮 · 已复制",
+      "orphan": "失效 · 原文已不存在"
+    },
+    "hint": {
+      "changed": "内容已变化",
+      "unchanged": "内容未变化",
+      "orphan": "原文已删除"
+    },
+    "action": {
+      "edit": "编辑备注",
+      "locate": "定位到正文",
+      "unmark": "重新标记为未复制",
+      "archive": "归档",
+      "delete": "删除",
+      "restore": "恢复",
+      "cancel": "取消",
+      "save": "保存"
+    },
+    "empty": {
+      "current": "选中正文中的内容，",
+      "currentSub": "就可以开始标注",
+      "history": "历史里还没有内容，",
+      "historySub": "归档后的标注会按轮次收在这里"
+    },
+    "orphanGroup": "失效（{n}）",
+    "orphanGroupNote": "正文无高亮",
+    "copyAll": "复制所有标注（{n}）",
+    "copyAllHint": "仅复制未复制的 {n} 条",
+    "copiedDone": "已复制 ✓",
+    "copiedText": "已复制文本",
+    "copiedTextTitle": "已复制到剪贴板的文本",
+    "copiedTextLines": "共 {n} 行",
+    "archiveMenu": "归档",
+    "archiveCopied": "归档已复制（{n} 条）",
+    "archiveOrphan": "归档已失效（{n} 条）",
+    "archiveAll": "归档全部",
+    "archiveHint": "上一轮的 {n} 条已复制标注可以归档了",
+    "archiveHintAction": "归档",
+    "historyRound": "第 {round} 轮",
+    "historyUntitledRound": "未复制",
+    "historyCount": "{n} 条",
+    "deleteRound": "整组删除",
+    "retention": "历史保留最近 20 轮 / 500 条，超出的自动清理",
+    "clearHistory": "清空历史",
+    "untitledNote": "文档还没保存：标注暂存在内存里，保存后随文件落盘",
+    "confirm": {
+      "deleteRound": "删除第 {round} 轮的 {n} 条历史标注？此操作不可撤销。",
+      "deleteRoundTitle": "删除本轮历史",
+      "clearHistory": "清空全部 {n} 条历史标注？此操作不可撤销。",
+      "clearHistoryTitle": "清空历史"
+    },
+    "toast": {
+      "copied": "已复制到剪贴板",
+      "archived": "该标注已归档，已在历史中定位",
+      "orphan": "该标注的原文已不存在",
+      "engineMissing": "编辑器还没就绪，稍后再试",
+      "archiveCount": "已归档 {n} 条，可在「历史」里找到",
+      "clearHistory": "已清空历史，共 {n} 条",
+      "deleteRound": "已删除第 {round} 轮共 {n} 条"
+    }
   },
   "welcome": {
     "windowTitle": "欢迎使用墨记",

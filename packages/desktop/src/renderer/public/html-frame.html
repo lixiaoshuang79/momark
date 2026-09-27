@@ -31,7 +31,11 @@
 
         function reportHeight() {
           if (!document.documentElement) return;
-          var height = Math.ceil(document.documentElement.scrollHeight);
+          // 用 <html> 盒子的实际高度，而不是 scrollHeight：根元素的
+          // scrollHeight 不会小于视口高（iframe 高度就是视口），矮内容
+          // 永远缩不回去，父页面的 60px 下限也就形同虚设（实测：24px 内容
+          // 在 600px 窗口里 scrollHeight=513、rect.height=24）。
+          var height = Math.ceil(document.documentElement.getBoundingClientRect().height);
           try {
             parent.postMessage({ type: 'momark-html-frame-height', height: height }, '*');
           } catch (e) {

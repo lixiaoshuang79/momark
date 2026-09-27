@@ -13,6 +13,13 @@ export function lexBlock(
     options: ILexOption = DEFAULT_OPTIONS,
 ): TLexedToken[] {
     options = Object.assign({}, DEFAULT_OPTIONS, options);
+    // `marked.lex()` normalizes CRLF/CR before tokenizing; calling
+    // `Lexer.blockTokens` directly bypasses that step, so a CRLF document kept a
+    // `\r` glued to the end of every heading / fence / front-matter line — which
+    // defeat the `^`-anchored block starts and misparse the document (C-11).
+    // Normalize once, at the single entry, so every downstream consumer
+    // (front matter included) sees LF.
+    src = src.replace(/\r\n?/g, '\n');
     const { math, frontMatter, footnote } = options;
     let tokens: (Token | IFrontmatterToken)[] = [];
 

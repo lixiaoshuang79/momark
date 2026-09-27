@@ -261,8 +261,12 @@ class App {
 
     // We should NOT restore the previous buffer or open a folder if the user just wants to double click to open a file
     if (_openFilesCache.length === 0) {
-      // MoMark：冷启动固定进欢迎页（'restoreAll' 分支有意移除——恢复上次
-      // 会话会把残留缓冲的 md 直接打开，与「打开即欢迎页」的产品预期冲突）。
+      // MoMark：冷启动固定进欢迎页——「恢复上次会话」分支**已彻底移除**
+      // （F1/P0-1：`restoreAll` 同时从 schema enum 与默认值中清理，老用户磁盘上
+      // 已存的值在 preferences 侧迁移为 'blank'，否则 enum 校验会抛
+      // Config schema violation）。残留缓冲永远不会被打开，未被保存的内容只留在
+      // buffer JSON 里，因此渲染层的关窗确认不再有 restoreAll 豁免
+      // （见 renderer store/editor.ts 的 LISTEN_FOR_CLOSE）。
       if (startUpAction === 'folder' && defaultDirectoryToOpen) {
         const info = normalizeMarkdownPath(defaultDirectoryToOpen)
         if (info) {

@@ -65,7 +65,13 @@ class InlineRenderer {
         if (block.isParent())
             debug.error('Patch can only handle content block');
 
-        const tokens = this._tokenizer(block, highlights);
+        // 标注高亮在合并进本次 patch：`patch` 是所有行内渲染（段落 / 标题 / 引用 /
+        // 表格单元格）的唯一入口，每次重渲染都会带上标注高亮，不需要另开重放通道，
+        // 打字后也不会被冲掉。搜索高亮仍按调用方传入的顺序排在前，重叠区由
+        // `union()` 按 `annotation-active > annotation > search` 决定归属。
+        const annotations = this.muya.annotation.highlightsFor(block);
+        const merged = annotations.length ? highlights.concat(annotations) : highlights;
+        const tokens = this._tokenizer(block, merged);
         const html = this.renderer.output(
             tokens,
             block,

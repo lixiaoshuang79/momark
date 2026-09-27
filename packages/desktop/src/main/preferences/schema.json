@@ -10,6 +10,11 @@
     "enum": [3000, 5000, 10000],
     "default": 5000
   },
+  "annotationEnabled": {
+    "description": "General--Content annotations: select text and add a note; the notes panel lives in the third tab of the right panel. Turning this off hides the panel tab, the annotate button and the highlights; stored annotations are kept.",
+    "type": "boolean",
+    "default": true
+  },
   "titleBarStyle": {
     "description": "General--The title bar style (Windows and Linux system only).",
     "enum": ["custom", "native"],
@@ -59,8 +64,8 @@
   },
   "startUpAction": {
     "description": "General--The action after MoMark startup, open the last opened folder, open the specified folder or blank page",
-    "enum": ["folder", "openLastFolder", "blank", "restoreAll"],
-    "default": "restoreAll"
+    "enum": ["folder", "openLastFolder", "blank"],
+    "default": "blank"
   },
   "defaultDirectoryToOpen": {
     "description": "General--The default directory that should be opened on startup when startUp=folder.",

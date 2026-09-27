@@ -167,6 +167,10 @@ const selectFile = (file: IFileState) => {
 }
 
 const removeFileInTab = (file: IFileState) => {
+  // F1(B-26)：先 flush 再判 isSaved——引擎 rAF 批里可能还有这一帧的最后一次编辑
+  // （尚未提交进 tab），不 flush 就会把刚敲的字判成「已保存」直接关掉，
+  // 那次输入随标签一起消失。
+  editorStore.flushActiveEditor()
   const { isSaved } = file
   if (isSaved) {
     editorStore.FORCE_CLOSE_TAB(file)

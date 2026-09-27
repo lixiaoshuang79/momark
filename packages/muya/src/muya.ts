@@ -8,6 +8,7 @@ import type { IHistorySelection, IPublicCursorInput } from './selection/types';
 import type { ITocItem } from './state/getTOC';
 import type { IBulletListState, IHtmlBlockState, IOrderListState, ITableState, ITaskListState, TState } from './state/types';
 import type { IMuyaOptions, Nullable } from './types';
+import { AnnotationModule } from './annotation/index';
 import Format from './block/base/format';
 import { canTurnInto, insertBlockBelowByLabel, insertFrontMatterAtStart, replaceBlockByLabel } from './block/blockTransforms';
 import { ScrollPage } from './block/scrollPage';
@@ -144,6 +145,7 @@ export class Muya {
     public ui: Ui;
     public i18n: I18n;
 
+    private _annotation: AnnotationModule;
     private _uiPlugins: Record<string, unknown> = {};
 
     constructor(element: HTMLElement, options?: Partial<IMuyaOptions>) {
@@ -152,9 +154,15 @@ export class Muya {
         this.domNode = getContainer(element, this.options);
         // this.domNode[BLOCK_DOM_PROPERTY] = this;
         this.editor = new Editor(this);
+        // 标注模块只订阅事件、不碰块树，构造期创建即可（与 `Search` 同一形态）；
+        // 同时挂到 `editor.annotation`——方案 §5.8 的工具条代码走的是那条路径，
+        // 两处必须拿到同一个实例（否则会各建一份、重复订阅、状态分叉）。
+        this._annotation = new AnnotationModule(this);
+        this.editor.annotation = this._annotation;
         this.ui = new Ui(this);
         this.i18n = new I18n(this, this.options.locale);
         this._bindFocusBlurEvents();
+        this._bindVisibilityFlush();
     }
 
     private _bindFocusBlurEvents() {
@@ -163,6 +171,19 @@ export class Muya {
         });
         this.eventCenter.attachDOMEvent(this.domNode, 'blur', () => {
             this.eventCenter.emit('blur');
+        });
+    }
+
+    // The deferred-op batch is drained by `requestAnimationFrame`, which the
+    // browser stops while the window is hidden — occluded, minimised, or in a
+    // background tab. Without this, the last keystrokes of a document stay in
+    // the batch until the window is shown again, so anything that reads the
+    // document while it is hidden (autosave, word count, TOC, an external
+    // `getMarkdown`) sees stale text (C-4).
+    private _bindVisibilityFlush() {
+        this.eventCenter.attachDOMEvent(document, 'visibilitychange', () => {
+            if (document.visibilityState === 'hidden')
+                this.flush();
         });
     }
 
@@ -207,7 +228,19 @@ export class Muya {
         return this.editor.jsonState.getState();
     }
 
+    /** 标注模块（引擎侧唯一实例，同时也是 `editor.annotation`）。 */
+    get annotation(): AnnotationModule {
+        return this._annotation;
+    }
+
     getMarkdown() {
+        // A same-frame keystroke is still in the deferred op batch; as far as
+        // any caller is concerned it is already part of the document, and the
+        // desktop shell serializes this straight to disk. Landing the batch
+        // first keeps a save from writing a markdown that is one keystroke
+        // behind the visible text (C-4).
+        this.editor.jsonState.flush();
+
         return this.editor.jsonState.getMarkdown();
     }
 
@@ -295,6 +328,12 @@ export class Muya {
      */
     replaceContent(content: TState[] | string, recordSelection?: Nullable<IHistorySelection>): boolean {
         const { jsonState, history } = this.editor;
+        // Land any same-frame keystroke first: `buildReplaceOp` diffs the target
+        // content against the LIVE state, and a still-queued edit would then be
+        // composed on top of the replacement — re-inserting text the caller just
+        // replaced away, and leaving the recorded inverse op unreplayable (C-4).
+        jsonState.flush();
+
         const { op, prevState } = jsonState.buildReplaceOp(content);
 
         if (op.length === 0)
@@ -1681,6 +1720,7 @@ export class Muya {
     }
 
     destroy() {
+        this._annotation.destroy();
         this.eventCenter.detachAllDomEvents();
         this.eventCenter.unsubscribeAll();
         // this.domNode[BLOCK_DOM_PROPERTY] = null;

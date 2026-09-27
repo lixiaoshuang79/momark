@@ -249,3 +249,82 @@ body {
 
     background: var(--highlight-color);
 }
+
+/* ── 内容标注（annotation） ──────────────────────────────────────────────
+   正文只表达两态：未复制（淡墨蓝底 + 底部细线）/ 已复制（灰底，`data-copied`）。
+   色值全走 CSS 变量并带兜底：muya 自带浅色默认，桌面主题（claude-light/dark）
+   覆盖 `--accent` / `--hover` / `--line-strong`。
+
+   序号角标**必须**是 `::after` 伪元素：伪元素不进 DOM 文本节点，
+   `selection/dom.ts` 的 DOM↔偏移映射不会把序号算进正文长度；用真实文本节点
+   会破坏选区与光标。`[data-index]` 选择器同时承担「只有首段画角标」——非首段的
+   高亮不带该属性，伪元素根本不生成。 */
+.mu-annotation {
+    position: relative;
+
+    background: color-mix(in srgb, var(--accent, #3d5a80) 14%, transparent);
+    border-radius: 2px;
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent, #3d5a80) 42%, transparent);
+}
+
+.mu-annotation:hover {
+    background: color-mix(in srgb, var(--accent, #3d5a80) 20%, transparent);
+}
+
+.mu-annotation[data-copied] {
+    background: var(--hover, rgb(11 11 11 / 5%));
+    box-shadow: inset 0 -1px 0 var(--line-strong, rgb(11 11 11 / 15%));
+}
+
+.mu-annotation[data-index]::after,
+.mu-annotation-active[data-index]::after {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    box-sizing: border-box;
+    min-width: 12px;
+    height: 12px;
+    padding: 0 2px;
+
+    color: #fff;
+    font-weight: 600;
+    font-size: 9px;
+    line-height: 1;
+
+    background: var(--accent, #3d5a80);
+    border-radius: 999px;
+
+    content: attr(data-index);
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 当前激活标注（卡片编辑中 / 面板定位）：焦点环族 + 底色加深。 */
+.mu-annotation-active {
+    position: relative;
+
+    background: color-mix(in srgb, var(--accent, #3d5a80) 20%, transparent);
+    border-radius: 2px;
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent, #3d5a80) 70%, transparent);
+}
+
+/* 面板 / 历史点击定位时的 1.2s 脉冲（由宿主给对应高亮 span 临时加类）。 */
+@keyframes annotation-pulse {
+    0%,
+    100% {
+        background: color-mix(in srgb, var(--accent, #3d5a80) 20%, transparent);
+    }
+
+    45% {
+        background: color-mix(in srgb, var(--accent, #3d5a80) 44%, transparent);
+    }
+}
+
+.mu-annotation-pulse {
+    animation: annotation-pulse 1.2s ease-in-out;
+}
