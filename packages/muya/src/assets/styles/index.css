@@ -262,13 +262,15 @@ body {
 .mu-annotation {
     position: relative;
 
-    background: color-mix(in srgb, var(--accent, #3d5a80) 14%, transparent);
+    /* 用户拍板：标注要一眼看出「这段被标了」——底色对齐文本选中态
+       （`--selection-color`，青蓝 30%），不再是原来 accent 14% 的淡墨底。 */
+    background: var(--selection-color, rgb(45 170 219 / 30%));
     border-radius: 2px;
     box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent, #3d5a80) 42%, transparent);
 }
 
 .mu-annotation:hover {
-    background: color-mix(in srgb, var(--accent, #3d5a80) 20%, transparent);
+    background: rgb(45 170 219 / 45%);
 }
 
 .mu-annotation[data-copied] {
@@ -317,11 +319,12 @@ body {
     background: color-mix(in srgb, var(--accent, #3d5a80) 18%, transparent);
 }
 
-/* 当前激活标注（卡片编辑中 / 面板定位）：焦点环族 + 底色加深。 */
+/* 当前激活标注（卡片编辑中 / 面板定位）：焦点环族 + 底色比常态再深一档
+   （常态已是选中态的青蓝，激活靠加深 + 墨蓝焦点环区分）。 */
 .mu-annotation-active {
     position: relative;
 
-    background: color-mix(in srgb, var(--accent, #3d5a80) 20%, transparent);
+    background: rgb(45 170 219 / 45%);
     border-radius: 2px;
     box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent, #3d5a80) 70%, transparent);
 }

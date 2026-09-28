@@ -93,11 +93,6 @@ class App {
       app.commandLine.appendSwitch('enable-experimental-web-platform-features', 'true')
     }
 
-    // 显示器拔掉 / 分辨率变化后，把跑到屏幕外的窗口拉回主屏（外接屏场景下
-    // 窗口会「消失」——进程健在、渲染正常，用户只看到没有窗口）。
-    screen.on('display-removed', keepWindowsOnScreen)
-    screen.on('display-metrics-changed', keepWindowsOnScreen)
-
     app.on('second-instance', (_event, argv, workingDirectory) => {
       const { _openFilesCache, _windowManager } = this
       log.info('[second-instance] argv:', argv.slice(1).join(' '))
@@ -269,6 +264,13 @@ class App {
       return
     }
     this._initialized = true
+
+    // 显示器拔掉 / 分辨率变化后，把跑到屏幕外的窗口拉回主屏（外接屏场景下
+    // 窗口会「消失」——进程健在、渲染正常，用户只看到没有窗口）。
+    // 必须放在 ready 之后：`screen` 模块在 app ready 前不可用，提前访问会
+    // 直接打挂主进程（实测：应用启动即退，只剩崩溃处理器）。
+    screen.on('display-removed', keepWindowsOnScreen)
+    screen.on('display-metrics-changed', keepWindowsOnScreen)
 
     const { _args: args, _openFilesCache } = this
     const { preferences, keybindings } = this._accessor
