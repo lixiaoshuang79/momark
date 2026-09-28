@@ -579,6 +579,19 @@ export const useAnnotationStore = defineStore('annotation', () => {
     syncFromEngine()
   }
 
+  /** 面板「新标注」：有选区用选区；无选区取光标所在整块（引擎侧入口）。 */
+  function annotateCurrentParagraph(): void {
+    const module = annotationModule() as { annotateCurrentParagraph?: () => boolean } | undefined
+    const ok = module?.annotateCurrentParagraph?.() ?? false
+    if (!ok) {
+      notice.notify({
+        message: t('annotation.hint.cursorNeeded'),
+        type: 'info',
+        time: 2500
+      })
+    }
+  }
+
   function remove(id: string): void {
     annotationModule()?.remove?.(id)
     const doc = currentDoc.value
@@ -841,6 +854,7 @@ export const useAnnotationStore = defineStore('annotation', () => {
     loadFor,
     persist,
     flush,
+    annotateCurrentParagraph,
     MIGRATE_PATH,
     SWITCH_DOC,
     ADOPT_PATH,

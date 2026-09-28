@@ -1103,7 +1103,8 @@
     "hint": {
       "changed": "Content changed",
       "unchanged": "Content unchanged",
-      "orphan": "Source deleted"
+      "orphan": "Source deleted",
+      "cursorNeeded": "Place the cursor in a paragraph first"
     },
     "action": {
       "edit": "Edit note",
@@ -1115,7 +1116,9 @@
       "cancel": "Cancel",
       "save": "Save",
       "close": "Close",
-      "clear": "Clear"
+      "clear": "Clear",
+      "newAnnotation": "New",
+      "newAnnotationTitle": "Annotate the paragraph at the cursor without selecting text"
     },
     "empty": {
       "current": "Select text in the document,",

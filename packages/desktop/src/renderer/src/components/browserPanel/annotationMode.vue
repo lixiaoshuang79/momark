@@ -169,6 +169,13 @@
     <div class="ann-foot">
       <template v-if="view === 'current'">
         <button
+          class="btn-ghost"
+          :title="t('annotation.action.newAnnotationTitle')"
+          @click.stop="store.annotateCurrentParagraph()"
+        >
+          ＋ {{ t('annotation.action.newAnnotation') }}
+        </button>
+        <button
           class="btn-primary"
           :disabled="!counts.pending"
           :title="copyButtonTitle"

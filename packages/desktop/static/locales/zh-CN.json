@@ -1105,7 +1105,8 @@
     "hint": {
       "changed": "内容已变化",
       "unchanged": "内容未变化",
-      "orphan": "原文已删除"
+      "orphan": "原文已删除",
+      "cursorNeeded": "先把光标放到要标注的段落"
     },
     "action": {
       "edit": "编辑备注",
@@ -1117,7 +1118,9 @@
       "cancel": "取消",
       "save": "保存",
       "close": "关闭",
-      "clear": "清空"
+      "clear": "清空",
+      "newAnnotation": "新标注",
+      "newAnnotationTitle": "不选中文字，直接标注光标所在的段落"
     },
     "empty": {
       "current": "选中正文中的内容，",

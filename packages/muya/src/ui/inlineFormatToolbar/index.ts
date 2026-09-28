@@ -122,6 +122,61 @@ export class InlineFormatToolbar extends BaseFloat {
             }
         });
 
+        // 原生 selectionchange 通道（拖动选择 / 跨块选区都走这里）。
+        //
+        // 引擎的 `selection-change` 只在同块路径发出：`editor/index.ts::_dispatchEvents`
+        // 对 `!isSelectionInSameBlock` 直接 return，块处理器（click/keyup）不执行，
+        // 跨块选区永远到不了上面那条订阅；而拖动选择（mousedown→move→mouseup）不产生
+        // click 事件，clickHandler 也不会跑——两种情况下工具条都不会弹（用户实测：
+        // 拖选一大段无法标注）。这里直接听浏览器原生事件，rAF 合并后评估选区：
+        //  - 选区必须落在编辑器内（排除面板输入框等处的选区变化）；
+        //  - 同块 → 补发 `muya-format-picker`（与 clickHandler 同一条下游链路）；
+        //  - 跨块 → 以标注单项显示（格式按钮没有跨块实现，隐藏它们是诚实的能力映射）；
+        //  - 折叠 → 仅复位跨块态（同块态的隐藏由既有 click/keyup 逻辑负责）。
+        let selectionRafPending = false;
+        eventCenter.attachDOMEvent(document, 'selectionchange', () => {
+            if (selectionRafPending)
+                return;
+            selectionRafPending = true;
+            requestAnimationFrame(() => {
+                selectionRafPending = false;
+
+                const nativeSelection = document.getSelection();
+                if (!nativeSelection || nativeSelection.isCollapsed || !nativeSelection.anchorNode
+                    || !this.muya.domNode.contains(nativeSelection.anchorNode)) {
+                    if (this._crossBlock) {
+                        this._crossBlock = false;
+                        this.hide();
+                    }
+                    return;
+                }
+
+                const selection = this.muya.editor.selection.getSelection();
+                if (!selection || selection.isCollapsed)
+                    return;
+
+                const enabled = this._annotationModule()?.enabled;
+
+                if (selection.isSelectionInSameBlock) {
+                    const block = selection.anchor.block;
+                    const reference = getCursorReference();
+                    if (reference && block)
+                        this.muya.eventCenter.emit('muya-format-picker', { reference, block });
+                }
+                else if (enabled) {
+                    this._crossBlock = true;
+                    this._block = null;
+                    this._formats = [];
+
+                    const reference = getCursorReference();
+                    if (reference)
+                        this.show(reference);
+
+                    this._render();
+                }
+            });
+        });
+
         // While open, re-sync the highlight from the selection's current
         // formats — this is how formats applied outside the toolbar (menu /
         // command / shortcut) light up their buttons. Single-block tool, so

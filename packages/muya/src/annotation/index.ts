@@ -123,6 +123,52 @@ export class AnnotationModule {
     }
 
     /**
+     * 面板「新标注」按钮入口（方案 §3.2）：有非折叠选区时等价于工具条按钮
+     * （用选区本身）；折叠光标时取光标所在**整块**（quote 取整段）——不要求
+     * 用户先在正文里选中。空块或没有光标时返回 false（调用方提示用户）。
+     * 构造出快照后走与工具条相同的事件（`muya-annotation-request` → 卡片）。
+     */
+    annotateCurrentParagraph(): boolean {
+        const sel = this._muya.editor.selection;
+        const anchor = sel.anchor;
+        const focus = sel.focus;
+        const anchorBlock = sel.anchorBlock;
+        const focusBlock = sel.focusBlock;
+        if (!anchor || !focus || !anchorBlock || !focusBlock)
+            return false;
+
+        let selAnchor = { offset: anchor.offset, block: anchorBlock, path: sel.anchorPath };
+        let selFocus = { offset: focus.offset, block: focusBlock, path: sel.focusPath };
+
+        const snap: TSelectionSnapshot = {
+            anchor: selAnchor,
+            focus: selFocus,
+            anchorBlock,
+            focusBlock,
+            anchorPath: sel.anchorPath,
+            focusPath: sel.focusPath,
+        };
+
+        if (anchorBlock === focusBlock && anchor.offset === focus.offset) {
+            // 折叠光标：把范围扩到整块。
+            const length = (anchorBlock.text ?? '').length;
+            if (!length)
+                return false;
+            selAnchor = { offset: 0, block: anchorBlock, path: sel.anchorPath };
+            selFocus = { offset: length, block: anchorBlock, path: sel.focusPath };
+            snap.anchor = selAnchor;
+            snap.focus = selFocus;
+            snap.focusBlock = anchorBlock;
+        }
+
+        // 与工具条早返回同一手法：点面板按钮会让正文丢 DOM 选区，先把选区还原。
+        sel.setSelection(selAnchor, selFocus);
+
+        this._muya.eventCenter.emit('muya-annotation-request', snap);
+        return true;
+    }
+
+    /**
      * 由选区快照新建一条标注。备注 trim 后为空、选区为空或块解析失败时返回 null
      * （空备注不允许保存，引擎侧同样兜住）。
      */
