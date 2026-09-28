@@ -2,6 +2,7 @@ import type { VNode } from 'snabbdom';
 import type { AnnotationModule } from '../../annotation';
 import type { Muya } from '../../index';
 import type { Token } from '../../inlineRenderer/types';
+import type { ISelection } from '../../selection/types';
 import type { IBaseOptions } from '../types';
 
 import type { FormatToolIcon } from './config';
@@ -79,6 +80,14 @@ export class InlineFormatToolbar extends BaseFloat {
      * annotation action alone (see `listen()`).
      */
     private _crossBlock = false;
+    /**
+     * 最近一次"有效实时选区"的快照（selectionchange 通道在选区还在时捕获）。
+     *
+     * 首屏后的异步重渲（innerHTML patch）会把绑在旧 DOM 节点上的原生选区清掉——
+     * 用户"打开文档后第一次拖选就去点「标注」"时 `getSelection()` 已经为空，
+     * 快照整段作废（表现为点了没反应）。点按钮时用这份缓存兜底。
+     */
+    private _lastLiveSelection: Pick<ISelection, 'anchor' | 'focus'> | null = null;
 
     /** Format tool icons configuration */
     private _icons: FormatToolIcon[] = icons;
@@ -122,6 +131,14 @@ export class InlineFormatToolbar extends BaseFloat {
             }
         });
 
+        // 点浮层按钮时，浏览器的默认行为会在 mousedown 阶段就把正文选区塌陷
+        // （塌到点击处最近的文本）——跨块长选区会被毁成空块 offset 0，随后的
+        // 快照全部作废（卡片引文空、定位贴到 (0,0)）。preventDefault 保住选区；
+        // 这也是格式化按钮既有的"点击后还能取回选区"能成立的前提。
+        eventCenter.attachDOMEvent(this.container!, 'mousedown', (event) => {
+            event.preventDefault();
+        });
+
         // 原生 selectionchange 通道（拖动选择 / 跨块选区都走这里）。
         //
         // 引擎的 `selection-change` 只在同块路径发出：`editor/index.ts::_dispatchEvents`
@@ -154,6 +171,12 @@ export class InlineFormatToolbar extends BaseFloat {
                 const selection = this.muya.editor.selection.getSelection();
                 if (!selection || selection.isCollapsed)
                     return;
+
+                // 此刻选区还在——捕获一份，供点按钮时的兜底（见 `_lastLiveSelection`）。
+                this._lastLiveSelection = {
+                    anchor: selection.anchor,
+                    focus: selection.focus,
+                };
 
                 const enabled = this._annotationModule()?.enabled;
 
@@ -412,23 +435,29 @@ export class InlineFormatToolbar extends BaseFloat {
 
         // 标注是纯动作入口：不进 block.format()，也不重算 _formats / 重渲染工具条，
         // 避免非格式动作混进格式态同步逻辑。早返回也让跨块（_block 为 null）安全。
+        //
+        // 快照必须从**实时 DOM 选区**解析（`selection.getSelection()`），不能读
+        // 开头解构的引擎缓存——拖动选择不更新缓存，里面是上一次点击/键盘的残留
+        // 位置（跨块拖选后实测为空块 offset 0，整条快照作废：引文空、卡片贴 (0,0)）。
         if (item.type === 'annotation') {
-            if (!anchor || !focus || !anchorBlock || !focusBlock)
+            const fresh = selection.getSelection();
+            // 首屏后的异步重渲可能已把原生选区清掉（选区绑在旧节点上）——回退到
+            // selectionchange 通道在选区还在时缓存的那一份（见 `_lastLiveSelection`）。
+            const live: Pick<ISelection, 'anchor' | 'focus'> | null
+                = fresh && !fresh.isCollapsed ? fresh : this._lastLiveSelection;
+            if (!live)
                 return;
 
-            // 与既有格式化路径同一手法：点击浮层会丢 DOM 选区，先还原再取快照
-            selection.setSelection(
-                { offset: anchor.offset, block: anchorBlock, path: anchorPath },
-                { offset: focus.offset, block: focusBlock, path: focusPath },
-            );
+            // 与既有格式化路径同一手法：点击浮层可能丢 DOM 选区，先还原再取快照。
+            selection.setSelection(live.anchor, live.focus);
 
             this.muya.eventCenter.emit('muya-annotation-request', {
-                anchor,
-                focus,
-                anchorBlock,
-                focusBlock,
-                anchorPath,
-                focusPath,
+                anchor: live.anchor,
+                focus: live.focus,
+                anchorBlock: live.anchor.block,
+                focusBlock: live.focus.block,
+                anchorPath: live.anchor.path,
+                focusPath: live.focus.path,
             });
             this.hide();
 

@@ -93,7 +93,7 @@ function stubDocumentSelection() {
     } as unknown as Selection);
 }
 
-/** 钉住选区的六个端点 getter + `setSelection`（`_selectItem` 只读这些）。 */
+/** 钉住选区的六个端点 getter + `setSelection` + `getSelection`（实时快照源）。 */
 function stubSelection(muya: Muya, sameBlock = true) {
     const { first, last } = realBlocks(muya);
     const anchorBlock = first;
@@ -109,6 +109,13 @@ function stubSelection(muya: Muya, sameBlock = true) {
         focusPath: focusBlock.path,
         isSelectionInSameBlock: sameBlock,
         setSelection,
+        // 早返回现在从**实时选区**取快照（getSelection()）；缓存端点保留给格式化路径。
+        getSelection: () => ({
+            anchor: { offset: 0, block: anchorBlock, path: anchorBlock.path },
+            focus: { offset: 5, block: focusBlock, path: focusBlock.path },
+            isCollapsed: false,
+            isSelectionInSameBlock: sameBlock,
+        }),
     }).forEach(([key, value]) => {
         Object.defineProperty(muya.editor.selection, key, { value, configurable: true });
     });

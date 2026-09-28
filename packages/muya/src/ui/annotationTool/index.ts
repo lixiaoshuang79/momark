@@ -72,6 +72,12 @@ export class AnnotationTool extends BaseFloat {
      * 就跑到卡片里去了。
      */
     private _range: Range | null = null;
+    /**
+     * 定位兜底：快照末块（focusBlock）的 DOM 矩形。跨块选区的 DOM 还原有
+     * 已知缺陷（引擎 C-23：反向/跨块选区被压缩甚至归零），克隆到的 Range
+     * 可能是坏的（rect 全 0）——这时贴「末块的矩形」，即用户松手那一端。
+     */
+    private _fallbackRect: (() => DOMRect) | null = null;
     private _note: HTMLTextAreaElement | null = null;
     private _saveButton: HTMLButtonElement | null = null;
     private _repositionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -106,6 +112,7 @@ export class AnnotationTool extends BaseFloat {
         this._editing = null;
         this._quote = '';
         this._range = null;
+        this._fallbackRect = null;
 
         if (this._note)
             this._note.value = '';
@@ -145,6 +152,26 @@ export class AnnotationTool extends BaseFloat {
         this._editing = editing;
         this._quote = editing ? editing.anchor.quote : this._liveSelectionText();
         this._range = this._cloneLiveRange();
+
+        // 坏 Range 判定：跨块选区点击浮层后，引擎还原出的 DOM 选区可能被压缩/
+        // 归零（C-23）——克隆到的 Range rect 全 0，卡片会被贴到 (0,0)。
+        if (this._range && ![...this._range.getClientRects()].some(r => r.width > 0))
+            this._range = null;
+
+        // 兜底矩形：快照末块的 DOM 矩形（用户松手的一端，一定在视口里）。
+        const focusBlock = snapshot.focusBlock as { domNode?: HTMLElement } | undefined;
+        if (focusBlock?.domNode) {
+            const node = focusBlock.domNode;
+            this._fallbackRect = () => node.getBoundingClientRect();
+        }
+
+        // 引文兜底：坏选区下实时文本也会读空（同上），退化为快照首块文本——
+        // 保存用的锚点取自快照切片，不依赖这里；这里只影响卡片头部预览。
+        if (!this._quote) {
+            const anchorBlock = snapshot.anchorBlock as { text?: string } | undefined;
+            if (anchorBlock?.text)
+                this._quote = anchorBlock.text.replace(/\s+/g, ' ').trim();
+        }
 
         this._render();
 
@@ -303,11 +330,23 @@ export class AnnotationTool extends BaseFloat {
     private _reference(): ReferenceElement | null {
         const { _range: range } = this;
 
-        if (!range)
-            return getCursorReference();
+        if (!range) {
+            const cursor = getCursorReference();
+            if (cursor)
+                return cursor;
+            if (this._fallbackRect)
+                return { getBoundingClientRect: this._fallbackRect };
+            return null;
+        }
 
         return {
-            getBoundingClientRect: () => range.getBoundingClientRect(),
+            // 跨块长选区的外接矩形高几百像素，卡片贴它会被 flip/定位推到视口外
+            // （用户实测：选中一大段后点「标注」像"没反应"）。改用**选区末行**
+            // 的矩形做参照——那是用户松手的位置，一定在视口里，语义也更对。
+            getBoundingClientRect: () => {
+                const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+                return rects.length ? rects[rects.length - 1] : range.getBoundingClientRect();
+            },
         };
     }
 
