@@ -675,9 +675,11 @@ export const useAnnotationStore = defineStore('annotation', () => {
    * 复制所有标注：**只含未复制条目**（方案 §2.4.1）。
    *
    * 链路：未复制 ids → 引擎 `getExport(ids)`（含批量行号）→ `buildCopyText`
-   * → 剪贴板；成功后把这一批标为「已复制（第 N 轮）」并记 sentQuote，轮次 +1。
-   * 已失效的条目也一起导出（走文末附录，agent 至少知道原文已不在），但只有
-   * 未失效的条目会被标记为已复制。
+   * → 剪贴板；成功后把这一批标为「已复制（第 N 轮）」并记 sentQuote、直接归档
+   * 移入历史，轮次 +1。
+   *
+   * 失效条目不在复制范围（用户拍板）：它已被排除在 `pendingList` 外，想让它
+   * 离开当前列表走「归档失效」。
    */
   async function copyAll(): Promise<boolean> {
     const doc = currentDoc.value
@@ -685,8 +687,7 @@ export const useAnnotationStore = defineStore('annotation', () => {
     if (!doc) return false
 
     const pending = pendingList.value
-    const orphans = orphanList.value
-    const ids = [...pending.map((a) => a.id), ...orphans.map((a) => a.id)]
+    const ids = pending.map((a) => a.id)
     if (!ids.length) return false
     if (!module) {
       notice.notify({ message: t('annotation.toast.engineMissing'), type: 'error', time: 3000 })
@@ -714,6 +715,9 @@ export const useAnnotationStore = defineStore('annotation', () => {
       annotation.round = round
       annotation.sentQuote = annotation.anchor.quote
       annotation.updatedAt = now
+      // 用户拍板：复制过的条目直接移入历史（不再留在当前列表等手动归档）。
+      annotation.archived = true
+      annotation.archivedAt = now
     }
     doc.round = round + 1
     copiedText.value = text

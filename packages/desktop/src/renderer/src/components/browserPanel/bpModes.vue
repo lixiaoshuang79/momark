@@ -118,13 +118,17 @@ const select = (next: BpActiveTab) => {
 }
 
 .bp-mode-ann .bp-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   min-width: 15px;
   height: 15px;
   padding: 0 4px;
   border-radius: 8px;
   background: var(--accent);
   color: var(--accent-on);
-  font: 500 10px/15px var(--font-mono);
+  font: 500 10px/1 var(--font-mono);
   text-align: center;
   letter-spacing: 0;
 }

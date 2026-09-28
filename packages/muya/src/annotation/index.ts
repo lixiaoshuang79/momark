@@ -324,6 +324,12 @@ export class AnnotationModule {
         if (!this._enabled || !this._annotations.length)
             return NO_HIGHLIGHTS;
 
+        // 块正在销毁 / 重建时（`parent` 被置空），其 `path` getter 会抛
+        // `Cannot destructure property 'path' of 'this.parent'`（标题块 blur
+        // 重渲染路径实测崩溃）——此时该块不需要高亮，直接返回空。
+        if (!block.parent)
+            return NO_HIGHLIGHTS;
+
         return this._highlightMap().get(pathKey(block.path))?.highlights ?? NO_HIGHLIGHTS;
     }
 
