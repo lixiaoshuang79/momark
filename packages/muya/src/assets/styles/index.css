@@ -262,15 +262,21 @@ body {
 .mu-annotation {
     position: relative;
 
-    /* 用户拍板：标注要一眼看出「这段被标了」——底色对齐文本选中态
-       （`--selection-color`，青蓝 30%），不再是原来 accent 14% 的淡墨底。 */
-    background: var(--selection-color, rgb(45 170 219 / 30%));
+    background: color-mix(in srgb, var(--accent, #3d5a80) 14%, transparent);
     border-radius: 2px;
     box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent, #3d5a80) 42%, transparent);
 }
 
 .mu-annotation:hover {
-    background: rgb(45 170 219 / 45%);
+    background: color-mix(in srgb, var(--accent, #3d5a80) 20%, transparent);
+}
+
+/* 正在被标注的选区（卡片打开期间）：观感对齐文本选中态——用户拍板「点标注
+   出弹窗时，被选中的文字要有选中的样式」。卡片一关就移除，不留常驻痕迹。 */
+.mu-annotation-pending {
+    padding: 0 0.2em;
+    border-radius: 2px;
+    background: var(--selection-color, rgb(45 170 219 / 30%));
 }
 
 .mu-annotation[data-copied] {

@@ -6,6 +6,7 @@ import type { Nullable } from '../types';
 import type {
     IAnnotation,
     IAnnotationExportItem,
+    IAnnotationRange,
     TAnnotationChangeType,
     TSelectionSnapshot,
 } from './types';
@@ -52,6 +53,12 @@ export class AnnotationModule {
     /** 因「光标所在块」被跳过的条目，等 blur / 光标离开后补做。 */
     private _deferred = new Set<string>();
     private _cache: Nullable<Map<string, IBlockHighlightEntry>> = null;
+    /**
+     * 卡片打开期间「正在标注的选区」——画成选中态，卡片一关就清（用户拍板）。
+     * 走高亮通道而不是直接改 DOM：卡片抢焦点后原生选区就没了，而高亮是引擎
+     * 自己的渲染层，块重渲染也稳。
+     */
+    private _pendingRanges: IAnnotationRange[] = [];
 
     constructor(private _muya: Muya) {
         const { eventCenter } = _muya;
@@ -356,17 +363,48 @@ export class AnnotationModule {
     }
 
     /**
+     * 设置「正在标注的选区」（卡片打开期间）：这些 range 会以选中态底色画出来，
+     * 传空数组即清除。卡片在 `_open` / `hide` 两侧调用。
+     */
+    setPendingRanges(ranges: IAnnotationRange[]) {
+        const next = Array.isArray(ranges) ? ranges : [];
+        const same
+            = next.length === this._pendingRanges.length
+                && next.every((range, index) => {
+                    const prev = this._pendingRanges[index]!;
+
+                    return (
+                        pathKey(range.blockPath) === pathKey(prev.blockPath)
+                        && range.start === prev.start
+                        && range.end === prev.end
+                    );
+                });
+
+        if (same)
+            return;
+
+        const before = this._highlightedPaths();
+        this._pendingRanges = next;
+        this._invalidate();
+        this._repaint([...before, ...this._highlightedPaths()]);
+    }
+
+    /**
      * 行内渲染器取的标注高亮（`InlineRenderer.patch` 的唯一入口）。
      * 偏好关闭、条目已归档 / 已失效时不返回任何高亮。
      */
     highlightsFor(block: Content): IHighlight[] {
-        if (!this._enabled || !this._annotations.length)
+        if (!this._enabled)
             return NO_HIGHLIGHTS;
 
         // 块正在销毁 / 重建时（`parent` 被置空），其 `path` getter 会抛
         // `Cannot destructure property 'path' of 'this.parent'`（标题块 blur
         // 重渲染路径实测崩溃）——此时该块不需要高亮，直接返回空。
         if (!block.parent)
+            return NO_HIGHLIGHTS;
+
+        // 卡片打开期间即使一条标注都没有（新建第一张卡片），pending 选区也要画。
+        if (!this._annotations.length && !this._pendingRanges.length)
             return NO_HIGHLIGHTS;
 
         return this._highlightMap().get(pathKey(block.path))?.highlights ?? NO_HIGHLIGHTS;
@@ -428,7 +466,7 @@ export class AnnotationModule {
 
         const cache = new Map<string, IBlockHighlightEntry>();
 
-        if (this._enabled && this._annotations.length) {
+        if (this._enabled && (this._annotations.length || this._pendingRanges.length)) {
             const indexes = this._indexMap();
 
             for (const annotation of this._annotations) {
@@ -456,6 +494,26 @@ export class AnnotationModule {
                             note: annotation.note,
                         },
                     });
+                });
+            }
+
+            // 正在标注的选区（卡片打开期间）：与标注高亮同走一条渲染通道，
+            // 只是样式换成选中态（`.mu-annotation-pending`）。
+            for (const range of this._pendingRanges) {
+                const key = pathKey(range.blockPath);
+                let entry = cache.get(key);
+
+                if (!entry) {
+                    entry = { path: [...range.blockPath], highlights: [] };
+                    cache.set(key, entry);
+                }
+
+                entry.highlights.push({
+                    start: range.start,
+                    end: range.end,
+                    active: false,
+                    type: 'annotation-pending',
+                    data: {},
                 });
             }
 

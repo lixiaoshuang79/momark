@@ -71,6 +71,8 @@ function stubAnnotationModule(
         addFromSnapshot: vi.fn((): { id: string } | null => ({ id: 'new-1' })),
         // `updateNote` 返回布尔（false = 条目已不存在），桩默认保存成功
         updateNote: vi.fn(() => true),
+        // 卡片打开期间画「正在标注的选区」（选中态）；桩记下调用即可
+        setPendingRanges: vi.fn(),
         findAtSnapshot: vi.fn(() => (hit
             ? { id: hit.id, note: hit.note, anchor: { quote: '' } }
             : null)),

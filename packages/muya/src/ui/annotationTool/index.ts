@@ -1,6 +1,7 @@
 import type { ReferenceElement } from '@floating-ui/dom';
 import type { VNode } from 'snabbdom';
 import type { AnnotationModule } from '../../annotation';
+import { selectionToRanges } from '../../annotation/anchor';
 import type { IAnnotation, TSelectionSnapshot } from '../../annotation/types';
 import type { Muya } from '../../muya';
 import type { IBaseOptions } from '../types';
@@ -106,6 +107,24 @@ export class AnnotationTool extends BaseFloat {
 
     /** 本次打开的选区快照；关闭即清空。 */
     private _snapshot: TSelectionSnapshot | null = null;
+    /**
+     * 打开瞬间测得的贴边矩形（**数值快照**，不是 Range）。
+     *
+     * 卡片打开时会立刻给选区加 pending 高亮（选中态），那会让块重渲染、换掉
+     * DOM 节点——此时 `_range` 指向已移除的节点，再量就是 0×0，卡片会贴到
+     * 屏幕左上角。所以位置在加高亮**之前**就量成普通对象，整个卡片生命周期
+     * 都用它。
+     */
+    private _referenceRect: {
+        top: number
+        bottom: number
+        left: number
+        right: number
+        width: number
+        height: number
+        x: number
+        y: number
+    } | null = null;
     /** 编辑态命中的标注；null = 新建态。 */
     private _editing: IAnnotation | null = null;
     /**
@@ -197,7 +216,10 @@ export class AnnotationTool extends BaseFloat {
 
         this._snapshot = null;
         this._editing = null;
+        // 卡片真正关闭，「正在标注的选区」也不再画（退场动画期间保留，见 _leaveCard）
+        this.muya.editor.annotation?.setPendingRanges([]);
         this._range = null;
+        this._referenceRect = null;
         this._fallbackRect = null;
         this._phrases = [];
         this._chipEls = [];
@@ -295,9 +317,20 @@ export class AnnotationTool extends BaseFloat {
         this._syncCollect();
         this._syncHint();
 
+        // 先把位置量成数值快照，再加 pending 高亮：后者会让块重渲染、换掉 DOM
+        // 节点，届时 `_range` 已失效、量出来是 0×0，卡片会贴到屏幕左上角。
         const reference = this._reference();
-        if (reference)
-            this.show(reference);
+        this._referenceRect = reference ? reference.getBoundingClientRect() : null;
+
+        // 卡片打开期间把「正在标注的选区」画成选中态（用户拍板）：卡片抢焦点后
+        // 原生选区就没了，用户看不出这条备注是给哪段写的。关卡片时清掉。
+        module.setPendingRanges(selectionToRanges(snapshot));
+
+        // 闭包捕获快照本身（而不是 this._referenceRect）：floating-ui 是异步量
+        // 位置的，等到它回调时卡片可能已关闭、字段已被清成 null。
+        const rect = this._referenceRect;
+        if (rect)
+            this.show({ getBoundingClientRect: () => rect });
 
         this._focusNote();
         this._runEnter();
@@ -1000,8 +1033,12 @@ export class AnnotationTool extends BaseFloat {
         note.setSelectionRange(note.value.length, note.value.length);
     }
 
-    /** 卡片贴边参照：优先用打开时的选区 Range（跨块时即整段外接矩形）。 */
+    /** 卡片贴边参照：打开瞬间的数值快照（见 `_referenceRect`），退化时才现量。 */
     private _reference(): ReferenceElement | null {
+        const rect = this._referenceRect;
+        if (rect)
+            return { getBoundingClientRect: () => rect };
+
         const { _range: range } = this;
 
         if (!range) {

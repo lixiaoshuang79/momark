@@ -8,7 +8,7 @@ import type { Nullable } from '../types';
  * `annotation` = 常规标注，`annotation-active` = 当前激活条（卡片编辑中 / 面板定位）。
  * 重叠时按 `annotation-active > annotation > search` 取高优先级。
  */
-export type THighlightType = 'search' | 'annotation' | 'annotation-active';
+export type THighlightType = 'search' | 'annotation' | 'annotation-active' | 'annotation-pending';
 
 /**
  * 标注高亮 span 的 class 名，与 `assets/styles/index.css` 中的规则一一对应。
@@ -19,6 +19,8 @@ export type THighlightType = 'search' | 'annotation' | 'annotation-active';
 export const ANNOTATION_CLASS_NAMES = {
     MU_ANNOTATION: 'mu-annotation',
     MU_ANNOTATION_ACTIVE: 'mu-annotation-active',
+    /** 卡片打开期间「正在标注的选区」：选中态观感（用户拍板）。 */
+    MU_ANNOTATION_PENDING: 'mu-annotation-pending',
 } as const;
 
 /** 一段（块内）定位；跨块标注有多段，按文档顺序。 */
