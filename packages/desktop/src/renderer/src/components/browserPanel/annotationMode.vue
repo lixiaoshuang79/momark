@@ -2,6 +2,7 @@
   <div class="ann-panel">
     <div class="ann-head">
       <div class="seg2" role="tablist" aria-label="标注视图">
+        <span class="seg2-slider" :class="{ right: view === 'history' }" aria-hidden="true" />
         <button
           role="tab"
           data-view="current"
@@ -444,7 +445,10 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--line);
   flex: none;
 }
+/* 「当前 / 历史」滑块：与顶部「网页/文档/标注」同一套视觉语言——
+   白卡滑块在选项间滑动（同款回弹缓动），按钮只做文字颜色过渡。 */
 .seg2 {
+  position: relative;
   display: flex;
   gap: 2px;
   padding: 2px;
@@ -453,7 +457,28 @@ onBeforeUnmount(() => {
   background: var(--hover);
   height: 29px;
 }
+.seg2-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 3px);
+  height: calc(100% - 4px);
+  background: var(--surface-2);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--line-strong);
+  transition: transform 0.34s cubic-bezier(0.3, 1.35, 0.4, 1);
+  z-index: 0;
+}
+[data-theme='dark'] .seg2-slider {
+  background: #3d5a80;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.seg2-slider.right {
+  transform: translateX(calc(100% + 2px));
+}
 .seg2 button {
+  position: relative;
+  z-index: 1;
   flex: 1;
   display: grid;
   place-items: center;
@@ -464,15 +489,11 @@ onBeforeUnmount(() => {
   font-family: inherit;
   color: var(--muted);
   cursor: pointer;
-  transition:
-    background 0.14s ease,
-    color 0.14s ease;
+  transition: color 0.14s ease;
 }
 .seg2 button[aria-selected='true'] {
-  background: var(--surface-2);
   color: var(--ink);
   font-weight: 500;
-  box-shadow: inset 0 0 0 1px var(--line);
 }
 .counts {
   font-size: 11.5px;
