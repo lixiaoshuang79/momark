@@ -188,10 +188,12 @@ const statusText = computed(() => {
 const hint = computed<{ dot: string; text: string } | null>(() => {
   if (status.value === 'orphan') return { dot: '', text: t('annotation.hint.orphan') }
   if (status.value !== 'copied') return null
-  if (annotation.contentChanged === true)
+  if (annotation.contentChanged === true) {
     return { dot: 'green', text: t('annotation.hint.changed') }
-  if (annotation.contentChanged === false)
+  }
+  if (annotation.contentChanged === false) {
     return { dot: 'amber', text: t('annotation.hint.unchanged') }
+  }
   return null
 })
 
@@ -266,15 +268,15 @@ const locate = (): void => store.locate(annotation.id)
   background: var(--accent);
   color: var(--accent-on);
 }
+/* 已复制：淡墨蓝底 + 墨蓝字（取代 1.5px 线框空心——线框版笨重，用户反馈「丑」）。 */
 .ac-idx.hollow {
-  background: transparent;
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
   color: var(--accent);
-  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
+/* 失效：淡灰底 + 灰字，同样不打线框。 */
 .ac-idx.dead {
-  background: transparent;
+  background: color-mix(in oklab, var(--fg) 7%, transparent);
   color: var(--faint);
-  box-shadow: inset 0 0 0 1.5px var(--line-strong);
 }
 .ac-body {
   min-width: 0;
