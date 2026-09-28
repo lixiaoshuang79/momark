@@ -137,6 +137,29 @@ describe('标注高亮渲染', () => {
         expect(text).toBe(para!.text);
     });
 
+    it('跨内联格式（加粗）的标注只画一个角标（跨 token 段去重）', () => {
+        // 回归：标注范围跨过 `**` 边界时高亮被切成多个 token 段——
+        // 旧实现每段都带 data-index，一处标注长出 4 个角标（实机复现）。
+        const BOLD_DOC = ['普通开头 **加粗内容** 普通结尾。', ''].join('\n');
+        const muya = bootMuya(BOLD_DOC);
+        const [para] = contentBlocks(muya);
+        // 源码偏移：0-3「普通开头」+ 空格，槽位 5/6 与 11/12 是 `**`
+        const quote = '开头 **加粗内容** 普通结尾';
+        addAnnotation(muya, para!, 2, para!, 2 + quote.length);
+
+        const spans = highlightSpans(para!);
+        // 高亮至少被切成两段（正文段 / 加粗段），但带 data-index 的只有第一段。
+        expect(spans.length).toBeGreaterThan(1);
+        const indexed = spans.filter((s) => s.dataset.index != null);
+        expect(indexed).toHaveLength(1);
+        expect(indexed[0]).toBe(spans[0]);
+        // 其余段保留底色 class、没有角标序号。
+        for (const s of spans)
+            expect(s.className).toBe('mu-annotation');
+        // 文本不变量：序号没有混进正文。
+        expect(para!.domNode!.textContent).toBe(para!.text);
+    });
+
     it('已复制态走 data-copied（class 不变）', () => {
         const muya = bootMuya(DOC);
         const [, para] = contentBlocks(muya);

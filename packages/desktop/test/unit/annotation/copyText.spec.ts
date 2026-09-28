@@ -58,18 +58,21 @@ describe('buildCopyText — 抬头', () => {
 
     expect(lines[0]).toBe('【文档标注】')
     expect(lines[1]).toBe(`文件：${DOC_PATH}`)
-    expect(lines[2]).toBe('条目：2 条（按文档顺序）')
+    expect(lines[2]).toBe('共 2 条')
   })
 
   it('抬头句声明「行号基于复制时的版本」，抑制 agent 盲信行号', () => {
     const text = buildCopyText([item()], DOC_PATH)
     expect(text).toContain('行号基于复制时的版本')
-    expect(text).toContain('只改被标注的位置')
+    // 精简：指令句式一律不出现（用户拍板），只留信息性声明。
+    expect(text).not.toContain('只改被标注的位置')
+    expect(text).not.toContain('请按下述')
+    expect(text).toContain('定位以「原文」为准')
   })
 
   it('条目数只算正文条目，失效条目由附录那句单独交代', () => {
     const text = buildCopyText([item(), item({ index: 2, orphaned: true })], DOC_PATH)
-    expect(text).toContain('条目：1 条（按文档顺序）')
+    expect(text).toContain('共 1 条')
     expect(text).toContain('（另有 1 条标注的原文已不存在，见文末附录，请判断是否已被你处理）')
   })
 })

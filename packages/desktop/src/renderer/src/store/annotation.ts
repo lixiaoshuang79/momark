@@ -105,11 +105,10 @@ export const buildCopyText = (items: IAnnotationExportItem[], pathname: string):
 
   out.push('【文档标注】')
   out.push(`文件：${pathname}`)
-  out.push(`条目：${main.length} 条（按文档顺序）`)
-  out.push(
-    '要求：请按下述标注逐条修改该 Markdown 文件。定位以「原文」为准——行号基于复制时的版本，可能已偏移；如遇空白或列表符号差异，以文字内容为准。'
-  )
-  out.push('只改被标注的位置，不要重写未标注的内容，也不要改变文档结构。')
+  out.push(`共 ${main.length} 条`)
+  // 只留信息性声明（定位依据 + 行号时效）。不写「请逐条修改」「只改被标注的位置」
+  // 这类指令句——用户拍板：文本要精简，教 agent 做事的表述不要出现。
+  out.push('定位以「原文」为准；行号基于复制时的版本，可能已偏移。')
 
   main.forEach((item, index) => {
     const quote = truncateQuote(item.quote)

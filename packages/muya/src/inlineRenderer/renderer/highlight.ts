@@ -76,7 +76,15 @@ export default function highlight(
                 result.push(text.substring(pos, start));
 
             const className = this.getHighlightClassName(!!active, type);
-            const vNodeData = highlightVNodeData(data);
+            // 同一条标注在块内可能被内联格式（加粗等）切成多个 token 段：
+            // 序号角标只画在第一段，后续段保留底色/已复制态与 tooltip。
+            let vNodeData = highlightVNodeData(data);
+            if (data?.index != null) {
+                if (this._drawnAnnotationIndexes.has(data.index))
+                    vNodeData = highlightVNodeData({ ...data, index: undefined });
+                else
+                    this._drawnAnnotationIndexes.add(data.index);
+            }
             const content = text.substring(start, end);
 
             result.push(

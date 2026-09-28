@@ -108,6 +108,13 @@ class Renderer {
 
     public urlMap: Map<string, string> = new Map();
 
+    /**
+     * 本块渲染中已画过角标的标注序号。同一条标注的高亮可能被内联格式
+     * （加粗等）切成多个 token 段——序号角标只画在第一段，否则一处标注
+     * 会沿着文本长出多个角标（跨格式选区时实测出现 4 个）。
+     */
+    public _drawnAnnotationIndexes = new Set<number>();
+
     constructor(public muya: Muya, public parent: InlineRenderer) {}
 
     private _checkConflicted(block: Format, token: Token, cursor: IRenderCursor = {}) {
@@ -167,6 +174,8 @@ class Renderer {
     }
 
     output(tokens: Token[], block: Format, cursor: IRenderCursor) {
+        // 块级渲染边界：重置角标去重集合（见 `_drawnAnnotationIndexes`）。
+        this._drawnAnnotationIndexes.clear();
         const children: VNode[] = tokens.reduce(
             (acc, token) => [
                 ...acc,
