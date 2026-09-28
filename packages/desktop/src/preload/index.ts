@@ -16,7 +16,9 @@ import type {
   IpcSyncChannels,
   IpcMainEventChannels,
   BpZoomAction,
-  BootInfo
+  BootInfo,
+  IUpdateInfo,
+  IUpdateProgress
 } from '@shared/types/ipc'
 import { isEventChannel, isInvokeChannel, isSendChannel, isSyncChannel } from './channels'
 
@@ -106,6 +108,21 @@ const ipcWrapper = {
       return
     }
     ipcRenderer.removeAllListeners(channel as string)
+  }
+}
+
+/** 应用自动更新（feat/updater）：查新版 / 下载解压 / 提权安装 / 打开 release 页。 */
+const updaterAPI = {
+  check: () => invoke('mt::update-check'),
+  download: (info: IUpdateInfo) => invoke('mt::update-download', info),
+  install: (appPath: string) => invoke('mt::update-install', appPath),
+  openRelease: () => invoke('mt::update-open-release'),
+  /** 订阅下载/解压进度；返回取消订阅的函数。 */
+  onProgress: (listener: (progress: IUpdateProgress) => void): (() => void) => {
+    const subscription = (_event: IpcRendererEvent, progress: IUpdateProgress): void =>
+      listener(progress)
+    ipcRenderer.on('mt::update-progress', subscription)
+    return () => ipcRenderer.removeListener('mt::update-progress', subscription)
   }
 }
 
@@ -320,6 +337,7 @@ const bpAPI = {
 const electronAPI = {
   ipcRenderer: ipcWrapper,
   shell: shellAPI,
+  updater: updaterAPI,
   clipboard: clipboardAPI,
   webFrame: webFrameAPI,
   webUtils: webUtilsAPI,

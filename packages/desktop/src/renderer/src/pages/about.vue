@@ -8,6 +8,39 @@
       <h2>墨记</h2>
       <div class="ver">{{ t('about.version') }} {{ version }}</div>
 
+      <!-- 检查更新（feat/updater）：查到新版后一键下载 + 提权替换 + 重启 -->
+      <div class="update-row">
+        <template v-if="state === 'idle'">
+          <a href="#" @click.prevent="checkForUpdate">{{ t('about.checkUpdate') }}</a>
+        </template>
+        <template v-else-if="state === 'checking'">
+          {{ t('about.checking') }}
+        </template>
+        <template v-else-if="state === 'latest'">
+          {{ t('about.upToDate') }}
+          <a href="#" @click.prevent="checkForUpdate">{{ t('about.recheck') }}</a>
+        </template>
+        <template v-else-if="state === 'available'">
+          {{ t('about.updateAvailable', { version: info?.version ?? '' }) }}
+          <button class="up-btn" type="button" @click="startInstall">
+            {{ t('about.downloadAndInstall') }}
+          </button>
+        </template>
+        <template v-else-if="state === 'downloading'">
+          {{ t('about.downloading', { percent: percent }) }}
+        </template>
+        <template v-else-if="state === 'extracting'">
+          {{ t('about.preparing') }}
+        </template>
+        <template v-else-if="state === 'installing'">
+          {{ t('about.installing') }}
+        </template>
+        <template v-else-if="state === 'error'">
+          {{ t('about.updateFailed') }}
+          <a href="#" @click.prevent="openRelease">{{ t('about.manualDownload') }}</a>
+        </template>
+      </div>
+
       <div class="line" />
 
       <div class="links">
@@ -29,14 +62,86 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { t } from '../i18n'
 import { useMainStore } from '@/store'
 import { addThemeStyle } from '@/util/theme'
+import type { IUpdateInfo } from '@shared/types/ipc'
 import MoMarkLogo from '@/assets/images/logo.png'
 
 const mainStore = useMainStore()
 const version = computed(() => mainStore.appVersion || '0.1.0')
+
+/** 更新流程的状态机：查 → 有/无新版 → 下载 → 解压 → 提权安装（此时应用会退出重启）。 */
+type TUpdateState =
+  | 'idle'
+  | 'checking'
+  | 'latest'
+  | 'available'
+  | 'downloading'
+  | 'extracting'
+  | 'installing'
+  | 'error'
+
+const state = ref<TUpdateState>('idle')
+const info = ref<IUpdateInfo | null>(null)
+const progress = ref({ received: 0, total: 0 })
+let stopProgress: (() => void) | null = null
+
+const percent = computed(() =>
+  progress.value.total
+    ? Math.min(100, Math.round((progress.value.received / progress.value.total) * 100))
+    : 0
+)
+
+const checkForUpdate = async (): Promise<void> => {
+  state.value = 'checking'
+
+  try {
+    const result = await window.electron.updater.check()
+
+    if (result.error || !result.info) {
+      state.value = 'error'
+      return
+    }
+
+    if (result.hasUpdate && result.info.assetUrl) {
+      info.value = result.info
+      state.value = 'available'
+    } else {
+      state.value = 'latest'
+    }
+  } catch {
+    state.value = 'error'
+  }
+}
+
+const startInstall = async (): Promise<void> => {
+  if (!info.value) return
+
+  state.value = 'downloading'
+  progress.value = { received: 0, total: 0 }
+  stopProgress?.()
+  stopProgress = window.electron.updater.onProgress((p) => {
+    if (p.phase === 'extract') state.value = 'extracting'
+    else progress.value = { received: p.received, total: p.total }
+  })
+
+  try {
+    const { appPath } = await window.electron.updater.download(info.value)
+    state.value = 'installing'
+    // 成功后主进程会退出重启（安装脚本接管），这里等不到返回也正常
+    await window.electron.updater.install(appPath)
+  } catch {
+    stopProgress?.()
+    stopProgress = null
+    state.value = 'error'
+  }
+}
+
+const openRelease = (): void => {
+  window.electron.updater.openRelease()
+}
 
 const applyInitialTheme = (): void => {
   // 关于窗口不在 App 壳内，主题样式需要自行应用一次。
@@ -50,6 +155,10 @@ const openExternal = (url: string): void => {
 
 onMounted(() => {
   applyInitialTheme()
+})
+
+onBeforeUnmount(() => {
+  stopProgress?.()
 })
 </script>
 
@@ -101,6 +210,42 @@ h2 {
   font-size: var(--f11);
   color: var(--muted);
   margin-top: 5px;
+}
+
+/* 检查更新一行（feat/updater）：状态文案 + 内联动作，宽度变化时窗口不跳。 */
+.update-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 24px;
+  margin-top: 8px;
+  font-size: var(--f11);
+  color: var(--muted);
+}
+
+.update-row a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.update-row a:hover {
+  text-decoration: underline;
+}
+
+.up-btn {
+  padding: 3px 10px;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-on);
+  font-family: inherit;
+  font-size: var(--f11);
+  cursor: pointer;
+}
+
+.up-btn:hover {
+  opacity: 0.9;
 }
 
 .line {

@@ -49,6 +49,12 @@ export interface IpcInvokeChannels {
     args: [payload: AnnotationMigratePayload]
     ret: { ok: boolean }
   }
+  // ── 应用自动更新（feat/updater，实现见 main/updater/index.ts）──
+  // 查最新 release → 下载并解压（进度经 'mt::update-progress' 回推）→ 提权安装重启。
+  'mt::update-check': { args: []; ret: IUpdateCheckResult }
+  'mt::update-download': { args: [info: IUpdateInfo]; ret: { appPath: string } }
+  'mt::update-install': { args: [appPath: string]; ret: { ok: true } }
+  'mt::update-open-release': { args: []; ret: { ok: true } }
   'mt::ask-for-image-path': { args: []; ret: string[] }
   'mt::boot-info-async': { args: []; ret: BootInfo }
   // ── 右侧浏览器面板（PHASE2-SPEC §5，webview 主方案，见 main/browserPanel.ts）──
@@ -352,6 +358,7 @@ export interface IpcMainEventChannels {
   'mt::toggle-view-layout-entry': [entry: string]
   'mt::toggle-view-mode-entry': [entry: string]
   'mt::update-file': [payload: { type: 'add' | 'change' | 'unlink'; change: FileChangeDetail }]
+  'mt::update-progress': [progress: IUpdateProgress]
   'mt::update-object-tree': [payload: unknown]
   'mt::user-preference': [partial: unknown]
   'mt::window-active-status': [active: boolean]
@@ -518,6 +525,40 @@ export interface AnnotationSavePayload {
 export interface AnnotationMigratePayload {
   from: string
   to: string
+}
+
+// =================================================================
+// 应用自动更新（feat/updater，实现见 main/updater/index.ts）
+// =================================================================
+
+export interface IUpdateInfo {
+  /** 纯版本号，如 `1.5.1`。 */
+  version: string
+  /** 原始 tag，如 `momark/1.5.1`。 */
+  tagName: string
+  /** Release 正文（Markdown）。 */
+  notes: string
+  publishedAt: string
+  /** mac arm64 的 zip 直链；release 里没有该附件时为 null。 */
+  assetUrl: string | null
+  assetName: string | null
+  assetSize: number | null
+}
+
+export interface IUpdateCheckResult {
+  hasUpdate: boolean
+  /** 当前应用版本。 */
+  current: string
+  info: IUpdateInfo | null
+  /** 检查失败的原因（非空且 hasUpdate=false = 检查失败，而非「已是最新」）。 */
+  error?: string
+}
+
+export interface IUpdateProgress {
+  /** download = 正在下载；extract = 正在解压（此时 total 为 0）。 */
+  phase: 'download' | 'extract'
+  received: number
+  total: number
 }
 
 // =================================================================

@@ -11,6 +11,7 @@ import { registerCmdHandlers } from './cmd'
 import { registerI18nHandlers } from './i18n'
 import { registerAnnotationHandlers } from './annotation'
 import { registerMomarkFileProtocol } from './momarkFileProtocol'
+import { registerUpdaterHandlers } from './updater'
 import { registerBrowserPanelIpc } from '../browserPanel'
 
 export const registerSandboxIpcHandlers = (): void => {
@@ -30,5 +31,6 @@ export const registerSandboxIpcHandlers = (): void => {
   registerCmdHandlers()
   registerI18nHandlers()
   registerAnnotationHandlers()
+  registerUpdaterHandlers()
   registerBrowserPanelIpc()
 }

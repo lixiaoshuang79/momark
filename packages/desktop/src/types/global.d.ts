@@ -10,6 +10,9 @@ import type {
   IpcMainEventChannels,
   BootInfo,
   BpPageState,
+  IUpdateCheckResult,
+  IUpdateInfo,
+  IUpdateProgress,
   BpZoomAction
 } from '@shared/types/ipc'
 import type { MenuTemplate, MenuPopupPosition } from '@shared/types/menu'
@@ -79,9 +82,19 @@ declare global {
     popupApplicationMenu(position?: MenuPopupPosition): void
   }
 
+  /** 应用自动更新（feat/updater）：查新版 / 下载解压 / 提权安装 / 打开 release 页。 */
+  interface ElectronUpdaterAPI {
+    check(): Promise<IUpdateCheckResult>
+    download(info: IUpdateInfo): Promise<{ appPath: string }>
+    install(appPath: string): Promise<{ ok: true }>
+    openRelease(): Promise<{ ok: true }>
+    onProgress(listener: (progress: IUpdateProgress) => void): () => void
+  }
+
   interface ElectronAPI {
     ipcRenderer: ElectronIpcRenderer
     shell: ElectronShellAPI
+    updater: ElectronUpdaterAPI
     clipboard: ElectronClipboardAPI
     webFrame: ElectronWebFrameAPI
     webUtils: ElectronWebUtilsAPI

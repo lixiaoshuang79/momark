@@ -812,7 +812,18 @@
     "copyrightContributors": "墨记 MoMark 团队",
     "version": "Version",
     "thanks": "Thanks: MarkText community · muya editor engine (MIT)",
-    "license": "© {year} MoMark contributors · Distributed under the MIT License"
+    "license": "© {year} MoMark contributors · Distributed under the MIT License",
+    "checkUpdate": "Check for updates",
+    "checking": "Checking…",
+    "upToDate": "You're up to date",
+    "recheck": "Check again",
+    "updateAvailable": "Version {version} is available",
+    "downloadAndInstall": "Download and install",
+    "downloading": "Downloading {percent}%",
+    "preparing": "Preparing…",
+    "installing": "Installing — please authorize in the system dialog…",
+    "updateFailed": "Update failed",
+    "manualDownload": "Download manually"
   },
   "commands": {
     "mt": {

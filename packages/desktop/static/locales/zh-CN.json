@@ -814,7 +814,18 @@
     "copyrightContributors": "墨记 MoMark 团队",
     "version": "版本",
     "thanks": "致谢：MarkText 社区 · muya 编辑器引擎（MIT）",
-    "license": "© {year} MoMark 贡献者 · 依据 MIT 许可证分发"
+    "license": "© {year} MoMark 贡献者 · 依据 MIT 许可证分发",
+    "checkUpdate": "检查更新",
+    "checking": "检查中…",
+    "upToDate": "已是最新版本",
+    "recheck": "重新检查",
+    "updateAvailable": "发现新版本 v{version}",
+    "downloadAndInstall": "下载并安装",
+    "downloading": "下载中 {percent}%",
+    "preparing": "正在准备…",
+    "installing": "正在安装，请在系统弹窗中授权…",
+    "updateFailed": "更新失败",
+    "manualDownload": "手动下载"
   },
   "commands": {
     "mt": {
