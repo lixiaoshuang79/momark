@@ -1345,8 +1345,33 @@ const replaceMisspelling = (payload: unknown) => {
   }
 }
 
+/**
+ * 焦点在编辑器 DOM 之外的可编辑控件上时，把撤销 / 重做就地交给该控件。
+ *
+ * 典型场景：标注卡片的 `textarea.mu-annotation-note`——浮层挂在 document.body
+ * 下、不在编辑器容器里。卡片内部的键盘路径已按焦点分流，但菜单「编辑 → 撤销」
+ * 与命令面板撤销走 bus 'undo' 直达这里，不拦就会撤到正文。编辑器自己 DOM 里的
+ * 输入控件（代码块语言、图片题注等）不属于「外部」，仍归编辑器管。
+ *
+ * @returns true 表示按键已就地消化，调用方不要再动编辑器。
+ */
+const undoInFocusedControl = (command: 'undo' | 'redo'): boolean => {
+  const active = document.activeElement
+  if (!(active instanceof HTMLTextAreaElement) && !(active instanceof HTMLInputElement)) {
+    return false
+  }
+  const domNode = editor.value?.domNode as HTMLElement | undefined
+  if (domNode?.contains(active)) return false
+  document.execCommand(command)
+  return true
+}
+
 const handleUndo = () => {
   if (sourceCode.value) {
+    return
+  }
+
+  if (undoInFocusedControl('undo')) {
     return
   }
 
@@ -1357,6 +1382,10 @@ const handleUndo = () => {
 
 const handleRedo = () => {
   if (sourceCode.value) {
+    return
+  }
+
+  if (undoInFocusedControl('redo')) {
     return
   }
 

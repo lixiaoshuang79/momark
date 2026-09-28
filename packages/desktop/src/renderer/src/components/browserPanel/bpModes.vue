@@ -63,7 +63,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import { t } from '../../i18n'
-import { useAnnotationStore } from '@/store/annotation'
+import { prefersReducedMotion, useAnnotationStore } from '@/store/annotation'
 import { useBrowserPanelStore, type BpActiveTab } from '@/store/browserPanel'
 import { usePreferencesStore } from '@/store/preferences'
 
@@ -101,6 +101,8 @@ watch(uncopied, (value, previous) => {
 watch(
   () => annotationStore.badgePulse,
   () => {
+    // 系统开了「减少动态效果」就不弹：飞点已经跳过，这里再弹一下反而更跳脱
+    if (prefersReducedMotion()) return
     nextTick(() => {
       const el = badgeEl.value
       if (!el) return

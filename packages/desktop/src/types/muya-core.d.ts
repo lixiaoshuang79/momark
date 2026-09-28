@@ -121,3 +121,20 @@ declare module '@muyajs/core' {
   }
   export function collectHtmlFrameTargets(root: ParentNode | null | undefined): IHtmlFrameTarget[]
 }
+
+/**
+ * 常用语（feat/quick-phrases）的规范化与上限：唯一一份规则在
+ * `packages/muya/src/annotation/quickPhrase.ts`，卡片的判定、桌面的写入
+ * （store/annotation.ts）与设置弹窗（quickPhraseSettings.vue）共用，桌面不抄。
+ *
+ * 走子路径而不是包根：`packages/muya/src/index.ts` 的手写导出表里还没有这些
+ * 名字（引擎侧分工也不含 index.ts），而包的 exports 映射
+ * `"./*": "./src/*"` 保证子路径可用；副作用也更小——包根会把整个引擎拉进
+ * `store/preferences.ts` 消费者的模块图。引擎从包根转出后，桌面可一行切回。
+ */
+declare module '@muyajs/core/annotation/quickPhrase' {
+  export const QUICK_PHRASE_MAX_LEN: number
+  export const QUICK_PHRASE_MAX_COUNT: number
+  export function normalizePhrase(value: unknown): string
+  export function normalizePhraseList(list: unknown, maxCount?: number): string[]
+}

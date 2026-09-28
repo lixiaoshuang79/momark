@@ -67,6 +67,8 @@ export const de = {
         'to annotate directly': 'direkt annotieren',
         'Added': 'Hinzugefügt',
         'Save as quick phrase': 'Als Kurzsatz speichern',
+        'Write a note of your own': 'Schreiben Sie eine eigene Notiz',
+        'Could not save, try again': 'Speichern fehlgeschlagen, bitte erneut versuchen',
         // Code block
         'Copy content': 'Inhalt kopieren',
         'Input Language Identifier...': 'Sprachkennung eingeben...',

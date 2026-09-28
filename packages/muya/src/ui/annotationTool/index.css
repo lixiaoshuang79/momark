@@ -216,9 +216,10 @@
         color 100ms var(--mu-ease-standard);
 }
 
-/* #28 新 chip 诞生 */
+/* #28 新 chip 诞生。填充用 backwards 而不是 both：`born` 要等下一次渲染才摘掉，
+   `both` 会在结束后继续把 scale 锁在 1，新胶囊的按下缩放（:active）会失效。 */
 .mu-annotation-quick-chip.born {
-    animation: mu-annotation-chip-born 300ms var(--mu-ease-tab) both;
+    animation: mu-annotation-chip-born 300ms var(--mu-ease-tab) backwards;
 }
 
 @keyframes mu-annotation-chip-born {

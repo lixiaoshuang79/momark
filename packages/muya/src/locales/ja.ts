@@ -67,6 +67,8 @@ export const ja = {
         'to annotate directly': '直接注釈',
         'Added': '追加しました',
         'Save as quick phrase': 'よく使うフレーズとして保存',
+        'Write a note of your own': '自分のメモを書く',
+        'Could not save, try again': '保存できませんでした。もう一度お試しください',
         // Code block
         'Copy content': '内容をコピーする',
         'Input Language Identifier...': 'プログラム言語IDを入力する...',

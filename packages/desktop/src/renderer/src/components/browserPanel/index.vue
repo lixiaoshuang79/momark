@@ -58,7 +58,7 @@ import DocMode from './docMode.vue'
 import AnnotationMode from './annotationMode.vue'
 import NavBar from './navBar.vue'
 import QuickPhraseSettings from '@/components/quickPhraseSettings.vue'
-import { useAnnotationStore } from '@/store/annotation'
+import { prefersReducedMotion, useAnnotationStore } from '@/store/annotation'
 
 /**
  * 右侧浏览器面板容器（PHASE2-SPEC §5 / STATE-MACHINE BpState）：
@@ -141,9 +141,6 @@ const annotationStore = useAnnotationStore()
 
 const FLY_DURATION = 460
 const FLY_APEX = 36
-const REDUCED_MOTION =
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
  * 飞点落点：`.bp-mode-badge` 是 `v-if="uncopied"`，可能不存在；面板收起时整排
@@ -208,7 +205,7 @@ const playFlyDot = (origin: { x: number; y: number }): void => {
 watch(
   () => annotationStore.savedPulse,
   (pulse) => {
-    if (!pulse || !pulse.origin || REDUCED_MOTION) return
+    if (!pulse || !pulse.origin || prefersReducedMotion()) return
     // 标注面板正开着：新条目在面板里入场（#24），不飞
     if (bpanelOpen.value && activeTab.value === 'annotation') return
     // 等一帧：徽标计数由 annotation-change 驱动的重渲染落地后才量得到

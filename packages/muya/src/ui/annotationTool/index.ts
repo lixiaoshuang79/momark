@@ -20,7 +20,7 @@ const GEAR_ICON
     = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 4.3h11.2"/><path d="M2.4 7.9h4.8"/><path d="M11.5 6.5l1.4 1.4-4.4 4.4-1.9.5.5-1.9z"/></svg>';
 
 /** 底栏情境提示的五个状态：同一位置交叉淡入 120ms 轮换（原型 §3.2 #25）。 */
-const HINT_STATES = ['default', 'hover', 'alt', 'saved', 'typed'] as const;
+const HINT_STATES = ['default', 'hover', 'alt', 'saved', 'failed', 'typed'] as const;
 type THintState = (typeof HINT_STATES)[number];
 
 /** `muya-annotation-saved` 的载荷：`origin` 供桌面飞点动画起点，`mode` 区分保存路径。 */
@@ -64,6 +64,8 @@ const ENTER_DURATION = 620;
 const ENTER_MAX_FRAMES = 40;
 /** 底栏「已加入」临时提示的保持时长。 */
 const HINT_FLASH_DURATION = 1600;
+/** 底栏「保存失败」提示的保持时长（比「已加入」短一档：失败要尽快回到可操作态）。 */
+const FAILED_HINT_DURATION = 2200;
 /** 备注输入框自适应高度：3 行起、10 行封顶（之后内部滚动）。 */
 const NOTE_MIN_ROWS = 3;
 const NOTE_MAX_ROWS = 10;
@@ -136,8 +138,10 @@ export class AnnotationTool extends BaseFloat {
     private _altTimer: ReturnType<typeof setTimeout> | null = null;
     /** chip 点击后的落印 → 保存接力。 */
     private _chipSaveTimer: ReturnType<typeof setTimeout> | null = null;
-    /** 「已加入 · ⌥N」临时提示覆盖中。 */
-    private _hintOverride = false;
+    /** 底栏提示的临时覆盖态（「已加入 · ⌥N」/「保存失败」），null = 走情境态。 */
+    private _hintOverride: THintState | null = null;
+    /** 失败提示的回落定时器。 */
+    private _failHintTimer: ReturnType<typeof setTimeout> | null = null;
     /** 卡片自己的退场在途标记（BaseFloat 内部还有一个同义的私有标记）。 */
     private _exiting = false;
     private _enterRaf: number | null = null;
@@ -201,10 +205,16 @@ export class AnnotationTool extends BaseFloat {
         this._hintEl = null;
         this._collectButton = null;
         this._hoveredPhrase = null;
-        this._hintOverride = false;
+        this._hintOverride = null;
         this._bornPhrases.clear();
         this._exiting = false;
         this.floatBox?.classList.remove('is-leaving', 'quick', 'is-pre-enter', 'is-entering', 'is-editing');
+
+        // 焦点还在卡片里（输入框 / 按钮）就交还给编辑器：不交的话用户接着打字会
+        // 打进屏幕外的输入框，⌘Z 也会被卡片（已隐藏）的键盘处理吃掉——正文撤销
+        // 反而失效。
+        if (this.floatBox?.contains(document.activeElement))
+            this.muya.focus();
 
         if (this._note)
             this._note.value = '';
@@ -268,7 +278,7 @@ export class AnnotationTool extends BaseFloat {
         this._cancelEnter();
         this._phrases = Array.isArray(module.quickPhrases) ? [...module.quickPhrases] : [];
         this._hoveredPhrase = null;
-        this._hintOverride = false;
+        this._hintOverride = null;
         this._bornPhrases.clear();
         // 上一张卡片可能是在 ⌥ 按住时被关掉的：角标态随卡片一起收走
         this._quickRow?.classList.remove('alt-on');
@@ -340,6 +350,9 @@ export class AnnotationTool extends BaseFloat {
                 },
                 keydown: (event: Event) => this._handleKeydown(event),
                 keyup: (event: Event) => this._handleKeyup(event),
+                // 失焦（含切走窗口）时收起 ⌥ 角标：只在 keyup 收的话，按住 ⌥ 直接
+                // 切走窗口会一直卡在角标态。
+                blur: () => this._setAltOn(false),
             },
         });
 
@@ -404,6 +417,9 @@ export class AnnotationTool extends BaseFloat {
         return h(
             'button.mu-annotation-quick-chip',
             {
+                // snabbdom 按 key 复用节点：设置里删掉/拖动中间一条时，不写 key
+                // 会按位置复用，DOM 上手动加的 `.stamp`（落印态）会跑到别人身上。
+                key: phrase,
                 // 入场错峰：70 + 30·i，第 6 枚起封顶 220ms（§3.2 #5）
                 style: { '--d': `${Math.min(70 + index * 30, 220)}ms` },
                 attrs: { type: 'button', title: phrase },
@@ -434,6 +450,11 @@ export class AnnotationTool extends BaseFloat {
      * 走保存编排。用户自己写的字由 `composeNote` 并进去，一个字不丢。
      */
     private _clickChip(phrase: string, point?: { x: number; y: number }) {
+        // 退场在途时不再受理（`_save` 里也有同样的守卫，这里挡住「连点两枚
+        // chip、第二个定时器晚于退场起点」的重复落标）
+        if (this._exiting)
+            return;
+
         const index = this._phrases.indexOf(phrase);
         const chip = index >= 0 ? this._chipEls[index] : null;
 
@@ -473,25 +494,44 @@ export class AnnotationTool extends BaseFloat {
 
     /** 保存并收场：编辑态改备注，新建态落一条新标注。`phrase` 非空 = chip 路径。 */
     private _save(phrase?: string) {
+        // 退场窗口内（快照已摘、卡片正在消失）不再接受任何提交：`_snapshot` 的
+        // 判空之外再加一道，挡住 chip 定时器与键盘这两条仍在途的路径。
+        if (this._exiting)
+            return;
+
         const noteValue = this._note?.value ?? '';
         const module = this._annotationModule();
         const { _snapshot: snapshot, _editing: editing } = this;
         if (!snapshot || !module)
             return;
 
-        const note = phrase ? composeNote(noteValue, phrase, this._phrases) : noteValue.trim();
+        const note = phrase ? composeNote(noteValue, phrase) : noteValue.trim();
         if (!note)
             return;
 
-        // 飞点起点先取：卡片紧接着开始退场，但退出动画是异步的，此刻矩形还是准的。
-        const origin = this._saveOrigin();
-        const payload: IAnnotationSavedPayload = { origin, mode: phrase ? 'chip' : 'manual' };
-
         let saved: IAnnotation | null = null;
-        if (editing)
-            module.updateNote(editing.id, note);
-        else
+
+        if (editing) {
+            // 编辑态的条目可能已经在面板里被删掉了：`updateNote` 返回 false 时不能
+            // 当成保存成功——否则卡片收场、飞点照播，用户刚写的字静默消失。
+            if (!module.updateNote(editing.id, note)) {
+                this._flashSaveFailed();
+                return;
+            }
+        }
+        else {
             saved = module.addFromSnapshot(snapshot, note);
+            // 空选区 / 锚点提取失败（一期不画高亮的块）会返回 null——同样不退场、
+            // 不播动效，把失败亮在底栏，输入框里的字保留给用户重试或复制。
+            if (!saved) {
+                this._flashSaveFailed();
+                return;
+            }
+        }
+
+        // 飞点起点先取：卡片紧接着开始退场，但退出动画是异步的，此刻矩形还是准的。
+        const origin = this._saveOrigin(phrase);
+        const payload: IAnnotationSavedPayload = { origin, mode: phrase ? 'chip' : 'manual' };
 
         this.muya.eventCenter.emit('muya-annotation-saved', payload);
         this._leaveCard(false);
@@ -519,7 +559,10 @@ export class AnnotationTool extends BaseFloat {
             if (!index)
                 return;
 
-            const spans = document.querySelectorAll<HTMLElement>(
+            // 限定在本编辑器内查询：分屏时第二个 Muya 实例的正文里会有同序号
+            // 的高亮，全局查询会把别人的 span 也点亮。
+            const root: ParentNode = this.muya.domNode ?? document;
+            const spans = root.querySelectorAll<HTMLElement>(
                 `.mu-annotation[data-index="${index}"], .mu-annotation-active[data-index="${index}"]`,
             );
             spans.forEach((span) => {
@@ -531,9 +574,19 @@ export class AnnotationTool extends BaseFloat {
         this._relayTimers.add(timer);
     }
 
-    /** 保存按钮中心的视口坐标（缺按钮时退到卡片中心）；供桌面飞点动画起点。 */
-    private _saveOrigin(): { x: number; y: number } | null {
-        const el = this._saveButton ?? this.floatBox;
+    /**
+     * 飞点起点（供桌面动画）：chip 路径取那枚胶囊的中心（用户刚点的就是它），
+     * 手写路径取保存按钮中心（缺按钮时退到卡片中心）。
+     */
+    private _saveOrigin(phrase?: string): { x: number; y: number } | null {
+        let el: HTMLElement | null = null;
+
+        if (phrase) {
+            const index = this._phrases.indexOf(phrase);
+            el = (index >= 0 ? this._chipEls[index] : null) ?? null;
+        }
+
+        el = el ?? this._saveButton ?? this.floatBox;
         if (!el)
             return null;
 
@@ -554,6 +607,16 @@ export class AnnotationTool extends BaseFloat {
 
         this._exiting = true;
         this._cancelEnter();
+
+        // 退场这 110–150ms 里卡片必须"已经结束"：清掉待触发的 chip 保存、让输入框
+        // 失焦、把快照摘掉。否则再按一次 ⌘↵ / ⌥N 会拿同一份快照再落一条（重复
+        // 标注）；切文档 / 重载的窗口里还会把旧快照落到新文档上。
+        this._chipSaveTimer = this._cancelTimer(this._chipSaveTimer);
+        this._snapshot = null;
+        this._editing = null;
+        this._hoveredPhrase = null;
+        if (this._note && document.activeElement === this._note)
+            this._note.blur();
 
         if (this._repositionTimer) {
             clearTimeout(this._repositionTimer);
@@ -630,6 +693,10 @@ export class AnnotationTool extends BaseFloat {
 
     private _handleKeydown(event: Event) {
         if (!isKeyboardEvent(event))
+            return;
+
+        // 退场在途：Esc / ⌘↵ 都不再受理（快照已摘，提交也只会被 `_save` 丢掉）
+        if (this._exiting)
             return;
 
         if (event.key === EVENT_KEYS.Escape) {
@@ -737,7 +804,7 @@ export class AnnotationTool extends BaseFloat {
     /** 底栏情境提示的当前态（#25）：临时覆盖 > 悬停 > ⌥ > 手写 > 默认。 */
     private _hintState(): THintState {
         if (this._hintOverride)
-            return 'saved';
+            return this._hintOverride;
         if (this._hoveredPhrase)
             return 'hover';
         if (this._altOn && this._phrases.length)
@@ -751,7 +818,10 @@ export class AnnotationTool extends BaseFloat {
 
         switch (state) {
             case 'default':
-                return i18n.t('Click a phrase to annotate, or write your own');
+                // 一条常用语都没有时不能还说「点常用语」——那时根本没有 chip 可点
+                return this._phrases.length
+                    ? i18n.t('Click a phrase to annotate, or write your own')
+                    : i18n.t('Write a note of your own');
             case 'hover':
                 return i18n.t('Click to save with this phrase as the note');
             case 'alt': {
@@ -762,6 +832,8 @@ export class AnnotationTool extends BaseFloat {
             case 'saved':
                 // 实际序号在闪示时写进文本（`_flashHint`），这里给个安全的初值
                 return `${i18n.t('Added')} · ⌥${this._phrases.length}`;
+            case 'failed':
+                return i18n.t('Could not save, try again');
             case 'typed':
                 return `Esc ${i18n.t('Cancel')} · ${COMMAND_KEY}↵ ${i18n.t('Save')}`;
         }
@@ -828,13 +900,33 @@ export class AnnotationTool extends BaseFloat {
             return;
 
         saved.textContent = `${this.muya.i18n.t('Added')} · ${label}`;
-        this._hintOverride = true;
+        this._hintOverride = 'saved';
         this._syncHint();
         this._setTimeout(() => {
-            this._hintOverride = false;
+            this._hintOverride = null;
             // 重算提示位：桌面若没真的收下这条（写盘失败 / 去重），把「＋ 存为常用语」放回来
             this._syncCollect();
         }, HINT_FLASH_DURATION);
+    }
+
+    /** 保存失败（条目已被删 / 锚点提取失败）：不退场，底栏亮一句失败提示后回落。 */
+    private _flashSaveFailed() {
+        const { _hintEl: hint } = this;
+        // 提示位正让给「＋ 存为常用语」时失败提示无处可放——先把它收掉，失败更要紧
+        if (this._collectButton)
+            this._collectButton.hidden = true;
+        if (hint)
+            hint.hidden = false;
+
+        this._hintOverride = 'failed';
+        this._syncHint();
+        this._failHintTimer = this._cancelTimer(this._failHintTimer);
+        this._failHintTimer = this._setTimeout(() => {
+            this._failHintTimer = null;
+            this._hintOverride = null;
+            // 回落时重算提示位：该出现的「＋ 存为常用语」要放回来
+            this._syncCollect();
+        }, FAILED_HINT_DURATION);
     }
 
     /** 常用语整表刷新（桌面偏好变化）：新增的 chip 播出生动画，提示位与键位重算。 */
@@ -874,12 +966,20 @@ export class AnnotationTool extends BaseFloat {
 
         // 行高优先读计算样式（CSS 改了字号也不会算歪）；无单位值（`line-height: 1.6`
         // 在未布局环境里会原样返回 "1.6"）与拿不到值时退回常量。
-        const computed = Number.parseFloat(getComputedStyle(note).lineHeight);
+        const cs = getComputedStyle(note);
+        const computed = Number.parseFloat(cs.lineHeight);
         const lineHeight = Number.isFinite(computed) && computed >= MIN_LINE_HEIGHT
             ? computed
             : NOTE_LINE_HEIGHT;
-        const min = lineHeight * NOTE_MIN_ROWS;
-        const max = lineHeight * NOTE_MAX_ROWS;
+        // 高度按 border-box 写：上下 padding 与边框不占内容区，min/max 必须把它们
+        // 加回去，否则「10 行封顶」实际在 9 行出头就冒出滚动条。
+        const chrome
+            = (Number.parseFloat(cs.paddingTop) || 0)
+                + (Number.parseFloat(cs.paddingBottom) || 0)
+                + (Number.parseFloat(cs.borderTopWidth) || 0)
+                + (Number.parseFloat(cs.borderBottomWidth) || 0);
+        const min = lineHeight * NOTE_MIN_ROWS + chrome;
+        const max = lineHeight * NOTE_MAX_ROWS + chrome;
 
         note.style.height = 'auto';
         note.style.height = `${Math.min(Math.max(note.scrollHeight, min), max)}px`;

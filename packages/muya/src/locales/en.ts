@@ -67,6 +67,8 @@ export const en = {
         'to annotate directly': 'to annotate directly',
         'Added': 'Added',
         'Save as quick phrase': 'Save as quick phrase',
+        'Write a note of your own': 'Write a note of your own',
+        'Could not save, try again': 'Could not save, try again',
         // Code block
         'Copy content': 'Copy content',
         'Input Language Identifier...': 'Input Language Identifier...',

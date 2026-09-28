@@ -16,13 +16,16 @@
     "default": true
   },
   "annotationQuickPhrases": {
-    "description": "General--Quick phrases offered in the annotation card; clicking one uses it as the note directly. Order is the ⌥1–⌥9 order; at most 9 phrases of 24 characters each.",
+    "description": "General--Quick phrases offered in the annotation card; clicking one uses it as the note directly. Order is the ⌥1–⌥9 order; at most 9 non-empty single-line phrases of 24 characters each, without duplicates.",
     "type": "array",
     "items": {
       "type": "string",
-      "maxLength": 24
+      "minLength": 1,
+      "maxLength": 24,
+      "pattern": "^[^\\n\\r]*$"
     },
     "maxItems": 9,
+    "uniqueItems": true,
     "default": ["看不懂，优化表达", "删掉", "写详细", "待定"]
   },
   "titleBarStyle": {

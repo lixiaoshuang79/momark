@@ -22,6 +22,7 @@ import {
     relocateAnnotation,
     selectionToRanges,
 } from './anchor';
+import { normalizePhraseList } from './quickPhrase';
 
 /** `json-change` 后的重定位节流窗口（方案 §2.3）。 */
 const RELOCATE_DEBOUNCE = 400;
@@ -84,8 +85,21 @@ export class AnnotationModule {
      * 整表替换常用语并广播 `annotation-quick-phrases-change`：卡片开着时就地刷新
      * chips。与标注数据无关（应用级偏好，不进存储结构、不触发重定位）。
      */
+    /**
+     * 常用语整表替换（应用级数据，桌面偏好是唯一写方）。
+     *
+     * 逐条规范化 + 去重 + 按上限截断；与当前内容完全一致时不广播——`pushToEngine`
+     * 在归档 / 复制 / 切文档时都会推一次，不判等会让开着的卡片无谓地整张重渲染。
+     */
     setQuickPhrases(list: string[]) {
-        this._quickPhrases = Array.isArray(list) ? [...list] : [];
+        const next = normalizePhraseList(list);
+        if (
+            next.length === this._quickPhrases.length
+            && next.every((phrase, index) => phrase === this._quickPhrases[index])
+        )
+            return;
+
+        this._quickPhrases = next;
         this._muya.eventCenter.emit('annotation-quick-phrases-change', this.quickPhrases);
     }
 
@@ -215,16 +229,25 @@ export class AnnotationModule {
     }
 
     /** 编辑备注；trim 后为空或内容未变时不动。 */
-    updateNote(id: string, note: string) {
+    /**
+     * 编辑备注；返回是否「可以视为保存成功」。条目已不存在（在面板里被删掉）
+     * 或文本为空时返回 false——卡片据此不退场、亮失败提示，而不是静默收场、
+     * 让用户刚写的字消失。文本与现值相同算成功（用户只是确认了一下）。
+     */
+    updateNote(id: string, note: string): boolean {
         const annotation = this._find(id);
         const text = (note ?? '').trim();
-        if (!annotation || !text || annotation.note === text)
-            return;
+        if (!annotation || !text)
+            return false;
+        if (annotation.note === text)
+            return true;
 
         this._mutate('update', id, () => {
             annotation.note = text;
             annotation.updatedAt = Date.now();
         });
+
+        return true;
     }
 
     /** 删除条目。 */

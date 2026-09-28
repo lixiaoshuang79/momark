@@ -67,6 +67,8 @@ export const es = {
         'to annotate directly': 'para anotar directamente',
         'Added': 'Añadida',
         'Save as quick phrase': 'Guardar como frase rápida',
+        'Write a note of your own': 'Escribe una nota propia',
+        'Could not save, try again': 'No se pudo guardar, inténtalo de nuevo',
         // Code block
         'Copy content': 'Copiar contenido',
         'Input Language Identifier...': 'Introducir identificador de lenguaje...',

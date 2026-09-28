@@ -67,6 +67,8 @@ export const ko = {
         'to annotate directly': '바로 주석 달기',
         'Added': '추가됨',
         'Save as quick phrase': '빠른 문구로 저장',
+        'Write a note of your own': '직접 메모를 작성하세요',
+        'Could not save, try again': '저장하지 못했습니다. 다시 시도하세요',
         // Code block
         'Copy content': '내용 복사',
         'Input Language Identifier...': '언어 식별자 입력...',

@@ -66,8 +66,11 @@ function stubAnnotationModule(
     const module = {
         enabled: true,
         quickPhrases: [...phrases],
-        addFromSnapshot: vi.fn(() => null),
-        updateNote: vi.fn(),
+        // 返回一个假条目：卡片把 `null`（空选区 / 锚点提取失败）当作保存失败、
+        // 不退场——桩要返回成功值，才走得到「已发出保存事件」的链路。
+        addFromSnapshot: vi.fn((): { id: string } | null => ({ id: 'new-1' })),
+        // `updateNote` 返回布尔（false = 条目已不存在），桩默认保存成功
+        updateNote: vi.fn(() => true),
         findAtSnapshot: vi.fn(() => (hit
             ? { id: hit.id, note: hit.note, anchor: { quote: '' } }
             : null)),
@@ -284,6 +287,43 @@ describe('annotationTool · 保存与取消', () => {
 
         finishLeave(tool);
         expect(tool.status).toBe(false);
+    });
+
+    it('keeps the card open and shows a failure hint when the anchor cannot be created', () => {
+        const muya = bootMuya();
+        const module = stubAnnotationModule(muya);
+        // 空选区 / 锚点提取失败时真实模块返回 null
+        module.addFromSnapshot.mockReturnValue(null);
+        stubDocumentSelection();
+        const tool = makeTool(muya);
+        openCard(muya);
+        const saved = vi.fn();
+        muya.eventCenter.subscribe('muya-annotation-saved', saved);
+
+        typeAs(noteOf(tool), '这段逻辑不通');
+        saveOf(tool).dispatchEvent(new Event('click'));
+
+        // 不退场、不发保存事件（否则飞点照播、卡片收场，用户写的字静默消失）
+        expect(saved).not.toHaveBeenCalled();
+        expect(tool.status).toBe(true);
+        expect(noteOf(tool).value).toBe('这段逻辑不通');
+        expect(hintOf(tool).querySelector('[data-hint="failed"]')!.classList.contains('on')).toBe(true);
+    });
+
+    it('ignores a second submit during the exit animation', () => {
+        const muya = bootMuya();
+        const module = stubAnnotationModule(muya);
+        stubDocumentSelection();
+        const tool = makeTool(muya);
+        openCard(muya);
+        typeAs(noteOf(tool), '这段逻辑不通');
+
+        saveOf(tool).dispatchEvent(new Event('click'));
+        expect(module.addFromSnapshot).toHaveBeenCalledTimes(1);
+
+        // 退场在途再按一次 ⌘↵：同一个选区不得落下第二条标注
+        press(noteOf(tool), 'Enter', true);
+        expect(module.addFromSnapshot).toHaveBeenCalledTimes(1);
     });
 
     it('opens in edit mode and updates the existing note', () => {
@@ -513,6 +553,14 @@ describe('annotationTool · 备注框高度自适应', () => {
         // 与实现同口径：无单位/拿不到的行高按 13px × 1.6 兜底（happy-dom 返回 "1.6"）。
         const computed = Number.parseFloat(getComputedStyle(note).lineHeight);
         const lineHeight = Number.isFinite(computed) && computed >= 8 ? computed : 20.8;
+        // 高度按 border-box 写，min/max 要含上下 padding 与边框——少了这一项
+        // 「10 行封顶」实际会在 9 行出头就冒出滚动条。
+        const cs = getComputedStyle(note);
+        const chrome
+            = (Number.parseFloat(cs.paddingTop) || 0)
+                + (Number.parseFloat(cs.paddingBottom) || 0)
+                + (Number.parseFloat(cs.borderTopWidth) || 0)
+                + (Number.parseFloat(cs.borderBottomWidth) || 0);
 
         // happy-dom 没有布局，scrollHeight 只能手工钉。
         const scrollHeight = vi.spyOn(note, 'scrollHeight', 'get');
@@ -520,7 +568,7 @@ describe('annotationTool · 备注框高度自适应', () => {
         scrollHeight.mockReturnValue(0);
         typeAs(note, 'x');
         // 起始 3 行（happy-dom 会把浮点结果序列化，按数值比）
-        expect(Number.parseFloat(note.style.height)).toBeCloseTo(lineHeight * 3, 5);
+        expect(Number.parseFloat(note.style.height)).toBeCloseTo(lineHeight * 3 + chrome, 5);
         expect(note.style.overflowY).toBe('hidden');
 
         scrollHeight.mockReturnValue(100);
@@ -530,7 +578,7 @@ describe('annotationTool · 备注框高度自适应', () => {
 
         scrollHeight.mockReturnValue(5000);
         typeAs(note, 'x'.repeat(400));
-        expect(Number.parseFloat(note.style.height)).toBeCloseTo(lineHeight * 10, 5);
+        expect(Number.parseFloat(note.style.height)).toBeCloseTo(lineHeight * 10 + chrome, 5);
         // 封顶之后改为内部滚动，卡片本身不再长高。
         expect(note.style.overflowY).toBe('auto');
     });

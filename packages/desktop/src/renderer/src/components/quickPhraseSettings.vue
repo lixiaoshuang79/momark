@@ -77,10 +77,11 @@
                 </svg>
               </span>
               <template v-if="editingIndex === index">
+                <!-- 刻意不挂 maxlength：它按 UTF-16 码元计数，含 emoji 的短语会被
+                     提前截断；长度只在提交时按码点校验（validate）。 -->
                 <input
                   class="qp-input"
                   :value="editDraft"
-                  :maxlength="QUICK_PHRASE_MAX_LEN"
                   @input="onEditInput"
                   @keydown.enter.prevent="commitEdit"
                   @keydown.esc.stop.prevent="cancelEdit"
@@ -132,7 +133,6 @@
               <input
                 class="qp-input"
                 :value="addDraft"
-                :maxlength="QUICK_PHRASE_MAX_LEN"
                 :placeholder="t('annotation.quickPhrase.addPlaceholder')"
                 @input="onAddInput"
                 @keydown.enter.prevent="commitAdd"
@@ -190,11 +190,11 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { t } from '../i18n'
 import { useAnnotationStore } from '@/store/annotation'
 import {
-  DEFAULT_QUICK_PHRASES,
+  normalizePhrase,
   QUICK_PHRASE_MAX_COUNT,
-  QUICK_PHRASE_MAX_LEN,
-  usePreferencesStore
-} from '@/store/preferences'
+  QUICK_PHRASE_MAX_LEN
+} from '@muyajs/core/annotation/quickPhrase'
+import { DEFAULT_QUICK_PHRASES, usePreferencesStore } from '@/store/preferences'
 
 /**
  * 常用语设置弹窗（原型 v8 §2.2 / 实现规格 §三 B 线）。
@@ -245,15 +245,19 @@ type Invalid = 'empty' | 'long' | 'dup'
 /**
  * 校验一条待写入的常用语。`except` 是「正在被改的那一行」的下标（改自己不算重复）。
  * 空 = 取消语义（各调用方各自处理），超长 / 重复 = 抖动 + 行下提示、不写入。
+ *
+ * 规范化走引擎的 `normalizePhrase`（折叠含全角空格的连续空白）：卡片的判定 /
+ * 这里的写入 / 回推引擎必须同源，只 trim 会让全角空格的短语存成另一串，
+ * 卡片就出现「按钮在、点了没用」。长度按码点计（与引擎 `Array.from` 同口径）。
  */
 const validate = (
   value: string,
   except: number | null
 ): { ok: true; value: string } | { ok: false; reason: Invalid } => {
-  const phrase = value.trim()
+  const phrase = normalizePhrase(value)
   if (!phrase) return { ok: false, reason: 'empty' }
   if (Array.from(phrase).length > QUICK_PHRASE_MAX_LEN) return { ok: false, reason: 'long' }
-  if (phrases.value.some((item, index) => item === phrase && index !== except)) {
+  if (phrases.value.some((item, index) => normalizePhrase(item) === phrase && index !== except)) {
     return { ok: false, reason: 'dup' }
   }
   return { ok: true, value: phrase }
@@ -267,14 +271,20 @@ const errorText = (reason: Invalid): string =>
 const error = ref<{ key: number | 'new'; text: string } | null>(null)
 let errorTimer: ReturnType<typeof setTimeout> | null = null
 
+/** 清掉错误提示与它的自清定时器（关闭弹窗时也用；幂等）。 */
+const clearError = (): void => {
+  error.value = null
+  if (errorTimer) {
+    clearTimeout(errorTimer)
+    errorTimer = null
+  }
+}
+
 /** 抖动 + 行下红字提示（1.4s 后自清，同原型 qpShake）。 */
 const flashError = (key: number | 'new', reason: Invalid): void => {
   error.value = { key, text: errorText(reason) }
   if (errorTimer) clearTimeout(errorTimer)
-  errorTimer = setTimeout(() => {
-    error.value = null
-    errorTimer = null
-  }, 1400)
+  errorTimer = setTimeout(clearError, 1400)
   // 抖动是纯装饰：类名等本次渲染落地后再挂，否则会被 Vue 的 class patch 抹掉；
   // 先移除再强制 reflow，保证连续两次同样的错误也能重放动画。
   nextTick(() => {
@@ -402,17 +412,36 @@ const onAddBlur = (): void => {
 
 // ── 删除 / 恢复默认 / 撤销 ────────────────────────────────────────────
 
-/** 撤销条：删除与「恢复默认」共用一个槽位，保留 5s。 */
-const undo = ref<{ text: string; list: string[] } | null>(null)
+/**
+ * 撤销条：删除与「恢复默认」共用一个槽位，保留 5s。
+ *
+ * 删除只记「被删的那一条 + 原下标」而不是整表快照：整表回写会把期间在别处
+ * （另一个窗口 / 连续操作）新增的条目一并抹掉。恢复默认记整表——「撤销恢复
+ * 默认」的语义本来就是把这整份旧表还回来。
+ */
+type UndoEntry =
+  | { kind: 'deleted'; text: string; phrase: string; index: number }
+  | { kind: 'reset'; text: string; list: string[] }
+
+const undo = ref<UndoEntry | null>(null)
 let undoTimer: ReturnType<typeof setTimeout> | null = null
 
-const armUndo = (text: string, list: string[]): void => {
-  undo.value = { text, list: [...list] }
+const armUndo = (entry: UndoEntry): void => {
+  undo.value = entry
   if (undoTimer) clearTimeout(undoTimer)
   undoTimer = setTimeout(() => {
     undo.value = null
     undoTimer = null
   }, 5000)
+}
+
+/** 收掉撤销条与它的计时器（应用撤销 / 关闭弹窗时用；幂等）。 */
+const clearUndo = (): void => {
+  undo.value = null
+  if (undoTimer) {
+    clearTimeout(undoTimer)
+    undoTimer = null
+  }
 }
 
 const removeAt = (index: number): void => {
@@ -425,7 +454,12 @@ const removeAt = (index: number): void => {
   // 编辑态跟着行号走：删掉的正是编辑行则取消，否则整体前移一位
   if (editingIndex.value === index) cancelEdit()
   else if (editingIndex.value !== null && editingIndex.value > index) editingIndex.value -= 1
-  armUndo(t('annotation.quickPhrase.undoDeleted', { label }), before)
+  armUndo({
+    kind: 'deleted',
+    text: t('annotation.quickPhrase.undoDeleted', { label }),
+    phrase: label,
+    index
+  })
 }
 
 const resetDefaults = (): void => {
@@ -434,18 +468,24 @@ const resetDefaults = (): void => {
   writePhrases([...DEFAULT_QUICK_PHRASES])
   cancelEdit()
   cancelAdd()
-  armUndo(t('annotation.quickPhrase.undoReset'), before)
+  armUndo({ kind: 'reset', text: t('annotation.quickPhrase.undoReset'), list: before })
 }
 
 const applyUndo = (): void => {
-  const snapshot = undo.value
-  if (!snapshot) return
-  undo.value = null
-  if (undoTimer) {
-    clearTimeout(undoTimer)
-    undoTimer = null
+  const entry = undo.value
+  if (!entry) return
+  clearUndo()
+  if (entry.kind === 'reset') {
+    writePhrases([...entry.list])
+    return
   }
-  writePhrases(snapshot.list)
+  // 只把被删的那一条按原下标插回（越界则贴到末尾）；期间别人又加了同名条目
+  // 就不重复插。
+  const next = phrases.value.slice()
+  if (!next.includes(entry.phrase)) {
+    next.splice(Math.min(entry.index, next.length), 0, entry.phrase)
+  }
+  writePhrases(next)
 }
 
 // ── 拖拽排序（原生 pointer events；拖动期间不重排 DOM）─────────────────
@@ -567,10 +607,33 @@ const onListKeydown = (event: KeyboardEvent): void => {
 
 // ── 关闭（「完成」/ Esc / 点遮罩）─────────────────────────────────────
 
+/**
+ * 引擎卡片还开着时返回它的输入框，否则 null。
+ *
+ * 卡片浮层关闭时不是从 DOM 摘除，而是被引擎 BaseFloat 挪到 (-9999, -9999)
+ * 并把 opacity 置 0——节点一直挂着，直接 querySelector 在卡片已关时也会命中。
+ * 必须按可见性过滤，否则会把焦点送进屏幕外的输入框（正是引擎侧刚修掉的缺陷）。
+ */
+const cardNoteIfOpen = (): HTMLTextAreaElement | null => {
+  // 主编辑器与分屏各可能有一张卡片，取第一张「开着」的（隐藏的节点会一直挂着）。
+  const notes = document.querySelectorAll<HTMLTextAreaElement>('textarea.mu-annotation-note')
+  for (const note of notes) {
+    const wrapper = note.closest<HTMLElement>('.mu-float-wrapper')
+    if (wrapper && wrapper.style.opacity !== '0' && wrapper.style.top !== '-9999px') return note
+  }
+  return null
+}
+
 const close = (): void => {
   cancelEdit()
   cancelAdd()
   annotationStore.quickPhraseSettingsOpen = false
+  // 关闭即作废上一次的状态：5 秒内重开不该再看到旧撤销条 / 旧错误提示。
+  clearUndo()
+  clearError()
+  // 焦点还给卡片输入框：弹窗开着时键盘归弹窗，关闭后卡片的 Esc / ⌥N / ⌘↵
+  // 必须重新可用。卡片已关时不动焦点（返回 null），免得抢走正文的焦点。
+  cardNoteIfOpen()?.focus()
 }
 
 const onCardKeydown = (event: KeyboardEvent): void => {
@@ -599,8 +662,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onWindowKeydown, true)
-  if (errorTimer) clearTimeout(errorTimer)
-  if (undoTimer) clearTimeout(undoTimer)
+  clearError()
+  clearUndo()
 })
 </script>
 

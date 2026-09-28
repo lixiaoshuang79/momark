@@ -67,6 +67,8 @@ export const zhCN = {
         'to annotate directly': '直接标注',
         'Added': '已加入',
         'Save as quick phrase': '存为常用语',
+        'Write a note of your own': '写一句自己的备注',
+        'Could not save, try again': '保存失败，请重试',
         // Code block
         'Copy content': '复制内容',
         'Input Language Identifier...': '输入程序语言标识...',

@@ -3,8 +3,14 @@ import { defineStore } from 'pinia'
 import notice from '../services/notification'
 import { t } from '../i18n'
 import type { AnnotationDocument, IAnnotation, IAnnotationExportItem } from '@shared/types/ipc'
+import {
+  normalizePhrase,
+  normalizePhraseList,
+  QUICK_PHRASE_MAX_COUNT,
+  QUICK_PHRASE_MAX_LEN
+} from '@muyajs/core/annotation/quickPhrase'
 import { useBrowserPanelStore } from './browserPanel'
-import { QUICK_PHRASE_MAX_COUNT, QUICK_PHRASE_MAX_LEN, usePreferencesStore } from './preferences'
+import { usePreferencesStore } from './preferences'
 
 /**
  * 内容标注 store（feat/annotations，方案 §5.1 / 契约冻结接口）。
@@ -109,6 +115,15 @@ const headline = (item: IAnnotationExportItem, order: number): string => {
   }
   return `[${order}] ${section}${line}`
 }
+
+/**
+ * 系统「减少动态效果」开关的当前值。每次现查而不是缓存模块加载时的快照——
+ * 用户在系统设置里中途改掉要能立刻生效。标注的飞点 / 徽标弹跳 / 条目入场
+ * 都经它降级。
+ */
+export const prefersReducedMotion = (): boolean =>
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
  * 生成交给 agent 的复制文本（**纯函数**，单测覆盖）。
@@ -273,13 +288,18 @@ export const useAnnotationStore = defineStore('annotation', () => {
    * 「＋ 存为常用语」：把备注 push 进偏好（写盘）。空 / 重复 / 超长 / 已满 9 条
    * 一律静默丢弃——引擎侧按钮显隐已按同一组条件判定，这里是第二道防线：非法值
    * 会让主进程 electron-store 的 ajv 校验失败，整次偏好写入被拒。
+   *
+   * 规范化必须走引擎的 `normalizePhrase`：卡片判定 / 这里写入 / 回推引擎三处
+   * 共用同一份规则（折叠含全角空格的连续空白）。桌面若按另一套（如只 trim）
+   * 存盘，全角空格会让卡片误判「可采集」——按钮在、点了没反应、还回假回执。
    */
   function addQuickPhrase(raw: string): void {
-    // 单行是 chip 的硬约束：粘贴的多行按空格合并（方案 §1.6），再 trim。
-    const phrase = raw.replace(/\s+/g, ' ').trim()
+    const phrase = normalizePhrase(raw)
     if (!phrase) return
     if (Array.from(phrase).length > QUICK_PHRASE_MAX_LEN) return
-    const list = quickPhrases()
+    // 既有表先整表规范化（丢空 / 去重 / 截断）：手改偏好留下的脏数据不参与
+    // 去重比较，也顺手收敛，避免把脏表原样带回盘上。
+    const list = normalizePhraseList(quickPhrases())
     if (list.includes(phrase)) return
     if (list.length >= QUICK_PHRASE_MAX_COUNT) return
     preferencesStore.SET_SINGLE_PREFERENCE({
@@ -303,13 +323,19 @@ export const useAnnotationStore = defineStore('annotation', () => {
   onEngineEvent('muya-annotation-saved', (payload) => {
     const data = payload as { origin?: unknown; mode?: unknown } | undefined
     const rawOrigin = data?.origin as { x?: unknown; y?: unknown } | null | undefined
+    const rawX = rawOrigin?.x
+    const rawY = rawOrigin?.y
+    // `typeof === 'number'` 会放过 NaN / Infinity：那样的原点会把飞点画到屏幕外，
+    // 按有限数判定（Number.isFinite 对非数字本身也返回 false）。
     const origin =
-      rawOrigin && typeof rawOrigin.x === 'number' && typeof rawOrigin.y === 'number'
-        ? { x: rawOrigin.x, y: rawOrigin.y }
+      Number.isFinite(rawX) && Number.isFinite(rawY)
+        ? { x: rawX as number, y: rawY as number }
         : null
     savedPulse.value = {
       origin,
-      mode: data?.mode === 'manual' ? 'manual' : 'chip',
+      // mode 未知（字段缺失 / 引擎旧版）按最保守的 manual 处理：chip 是明确已知的
+      // 直标路径，拿它兜底会把一次普通保存放大成「直标回执」。
+      mode: data?.mode === 'chip' ? 'chip' : 'manual',
       at: Date.now(),
       seq: ++savedSeq
     }
@@ -388,11 +414,6 @@ export const useAnnotationStore = defineStore('annotation', () => {
     engine = instance as { annotation?: unknown; eventCenter?: EngineEventCenter }
     bindEngineEvents(engine.eventCenter ?? null)
     pushToEngine()
-  }
-
-  function detachEngine(): void {
-    bindEngineEvents(null)
-    engine = null
   }
 
   /** 把当前文档的标注表、开关与常用语一次性推给引擎（切换文档 / 挂载时）。 */
@@ -986,7 +1007,6 @@ export const useAnnotationStore = defineStore('annotation', () => {
     archivableAfterCopy,
     // engine
     attachEngine,
-    detachEngine,
     syncFromEngine,
     pushToEngine,
     // 载入 / 落盘

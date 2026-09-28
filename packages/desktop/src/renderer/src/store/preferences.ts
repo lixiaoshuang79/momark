@@ -26,15 +26,15 @@ export type FileSortBy = 'created' | 'modified' | 'title'
 export type FileSortOrder = 'asc' | 'desc'
 
 /**
- * 常用语（标注卡片 chips）的默认值与上限。三处必须一致：本文件的默认值、
+ * 常用语（标注卡片 chips）的默认值。三处必须一致：本文件的默认值、
  * `main/preferences/schema.json` 的 default/maxItems/maxLength、
  * `static/preference.json` 的种子——任一处漂移都会让「恢复默认」与首启不一致。
- * 引擎侧同名常量（`packages/muya/src/annotation/quickPhrase.ts`）由 A 线维护，
- * 桌面不跨包 import（两条线并行开发期间互不依赖构建产物）。
+ *
+ * 上限与规范化只有引擎一份（`@muyajs/core` 的 `annotation/quickPhrase`）：
+ * 卡片的判定、桌面的写入、回推引擎三处必须共用同一套规则，否则会出现
+ * 「按钮在、点了没反应、还回假回执」的漂移。桌面不要再抄第二份。
  */
 export const DEFAULT_QUICK_PHRASES: string[] = ['看不懂，优化表达', '删掉', '写详细', '待定']
-export const QUICK_PHRASE_MAX_LEN = 24
-export const QUICK_PHRASE_MAX_COUNT = 9
 
 export interface PreferencesState {
   // ----- General -----

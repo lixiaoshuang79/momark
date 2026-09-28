@@ -67,6 +67,8 @@ export const zhTW = {
         'to annotate directly': '直接標註',
         'Added': '已加入',
         'Save as quick phrase': '存為常用語',
+        'Write a note of your own': '寫一句自己的備註',
+        'Could not save, try again': '儲存失敗，請重試',
         // Code block
         'Copy content': '複製內容',
         'Input Language Identifier...': '輸入程式語言識別碼...',

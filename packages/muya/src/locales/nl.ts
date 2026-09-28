@@ -64,6 +64,8 @@ export const nl = {
         'to annotate directly': 'direct annoteren',
         'Added': 'Toegevoegd',
         'Save as quick phrase': 'Opslaan als snelle zin',
+        'Write a note of your own': 'Schrijf je eigen notitie',
+        'Could not save, try again': 'Opslaan mislukt, probeer opnieuw',
         // Code block
         'Copy content': 'Inhoud kopiëren',
         'Input Language Identifier...': 'Voer taalidentificatie in...',
