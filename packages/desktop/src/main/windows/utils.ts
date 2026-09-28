@@ -1,5 +1,5 @@
-import { screen } from 'electron'
-import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
+import { BrowserWindow, screen } from 'electron'
+import type { BrowserWindowConstructorOptions } from 'electron'
 import { isLinux } from '../config'
 
 export const zoomIn = (win: BrowserWindow | null | undefined): void => {
@@ -84,5 +84,48 @@ export const ensureWindowPosition = (
     y: y as number,
     width,
     height
+  }
+}
+
+/**
+ * 显示器拔掉 / 配置变化后，把落在所有显示器之外的窗口拉回主屏居中。
+ *
+ * 典型场景：窗口原本在外接显示器上，拔线后 macOS 不会动它——窗口「消失」，
+ * 用户以为应用坏了（实测反馈：「打开一个文档结果连窗口都没有」，进程与渲染
+ * 都健在，只是窗口坐标在屏幕外）。启动时的 `ensureWindowPosition` 只管首次
+ * 恢复，运行中的显示器变化要靠这里。
+ */
+export const keepWindowsOnScreen = (): void => {
+  const displays = screen.getAllDisplays()
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    // 最小化的窗口由系统自己管位置；全屏窗口离开全屏后再校验也不迟。
+    if (win.isDestroyed() || win.isMinimized() || win.isFullScreen()) continue
+
+    const bounds = win.getBounds()
+    // 与任一显示器的工作区**有交集**才算可见（只比较原点会把「大部分在屏幕外、
+    // 只露一角」的窗口也放过）。
+    const visible = displays.some((display) => {
+      const area = display.workArea
+
+      return (
+        bounds.x < area.x + area.width &&
+        bounds.x + bounds.width > area.x &&
+        bounds.y < area.y + area.height &&
+        bounds.y + bounds.height > area.y
+      )
+    })
+
+    if (visible) continue
+
+    const area = screen.getPrimaryDisplay().workArea
+    const width = Math.min(bounds.width, area.width)
+    const height = Math.min(bounds.height, area.height)
+    win.setBounds({
+      x: Math.ceil(area.x + (area.width - width) / 2),
+      y: Math.ceil(area.y + (area.height - height) / 2),
+      width,
+      height
+    })
   }
 }

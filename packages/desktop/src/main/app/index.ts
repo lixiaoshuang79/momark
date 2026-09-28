@@ -3,7 +3,16 @@ import fsPromises from 'fs/promises'
 import { exec } from 'child_process'
 import dayjs from 'dayjs'
 import log from 'electron-log'
-import { app, BrowserWindow, clipboard, dialog, nativeTheme, shell, ipcMain } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  nativeTheme,
+  screen,
+  shell,
+  ipcMain
+} from 'electron'
 import type { BrowserWindowConstructorOptions } from 'electron'
 import { isChildOfDirectory, MARKDOWN_EXTENSIONS } from 'common/filesystem/paths'
 import { isFile2 } from 'common/filesystem'
@@ -19,6 +28,7 @@ import registerSpellcheckerListeners from '../spellchecker'
 import { watchers } from '../utils/imagePathAutoComplement'
 import { onInternalChannel } from '../utils/internalIpc'
 import { WindowType } from '../windows/base'
+import { keepWindowsOnScreen } from '../windows/utils'
 import EditorWindow from '../windows/editor'
 import SettingWindow from '../windows/setting'
 import WelcomeWindow from '../windows/welcome'
@@ -82,6 +92,11 @@ class App {
     if (isOsx) {
       app.commandLine.appendSwitch('enable-experimental-web-platform-features', 'true')
     }
+
+    // 显示器拔掉 / 分辨率变化后，把跑到屏幕外的窗口拉回主屏（外接屏场景下
+    // 窗口会「消失」——进程健在、渲染正常，用户只看到没有窗口）。
+    screen.on('display-removed', keepWindowsOnScreen)
+    screen.on('display-metrics-changed', keepWindowsOnScreen)
 
     app.on('second-instance', (_event, argv, workingDirectory) => {
       const { _openFilesCache, _windowManager } = this
