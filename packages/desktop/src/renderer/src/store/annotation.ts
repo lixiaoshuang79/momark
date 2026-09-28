@@ -663,6 +663,29 @@ export const useAnnotationStore = defineStore('annotation', () => {
   }
 
   /**
+   * 焦点切到某个编辑器：把它挂成当前引擎，并把面板切到它正在编辑的文档。
+   *
+   * 左右两侧编辑器在**焦点侧真正切换**时各调一次（而不是每次光标移动）——
+   * 「谁有光标，标注面板就显示谁的标注」，与顶栏字数/保存状态的焦点路由同源。
+   * 右栏分屏文档（docEditorPane）由此与主编辑器平等接入：同一套引擎事件、
+   * 同一份按文档存放的标注表。
+   */
+  async function FOCUS_EDITOR({
+    engine: instance,
+    pathname,
+    tabId
+  }: {
+    engine: unknown
+    pathname: string
+    tabId: string
+  }): Promise<void> {
+    // 先挂引擎再切文档：attachEngine 里的 pushToEngine 会推一次旧表，随后
+    // SWITCH_DOC 装载新文档并覆盖——顺序反过来则会用旧引擎推新表。
+    attachEngine(instance)
+    await SWITCH_DOC({ pathname, tabId })
+  }
+
+  /**
    * tab-saved：未保存文档落盘 → 把标注从 `untitled:<tabId>` 迁到路径 key。
    *
    * 目标路径可能**已经有标注文件**（另存为覆盖一个已标注的文件，`save` 的合并规则
@@ -1016,6 +1039,7 @@ export const useAnnotationStore = defineStore('annotation', () => {
     addGlobalNote,
     MIGRATE_PATH,
     SWITCH_DOC,
+    FOCUS_EDITOR,
     ADOPT_PATH,
     // 动作
     addAnnotation,

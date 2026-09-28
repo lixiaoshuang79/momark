@@ -15,6 +15,7 @@ import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useSplitStore } from '@/store/split'
+import { useAnnotationStore } from '@/store/annotation'
 import { DEFAULT_EDITOR_FONT_FAMILY, DEFAULT_CODE_FONT_FAMILY } from '@/config'
 import { guessClipboardFilePath } from '@/util/clipboard'
 import { createImageAction } from '@/util/docPaneImage'
@@ -40,6 +41,7 @@ const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
 const workspaceStore = useWorkspaceStore()
 const splitStore = useSplitStore()
+const annotationStore = useAnnotationStore()
 const { splitDocTab } = storeToRefs(workspaceStore)
 
 const {
@@ -156,8 +158,25 @@ onMounted(() => {
 
   // round10：光标落在右编辑器 → 顶栏字数/保存状态切为右文档数据
   // （左侧编辑器 selection-change 会切回）。
+  // 标注走同一套焦点路由：从左侧**真正切过来**时才重挂引擎 + 切面板文档
+  // ——右栏分屏文档由此与主编辑器平等接入（同一份按文档存放的标注表）。
   muya.on('selection-change', () => {
+    if (splitStore.docFocused) return
     splitStore.SET_DOC_FOCUSED(true)
+    const tab = splitDocTab.value
+    if (tab) {
+      annotationStore.FOCUS_EDITOR({
+        engine: muya,
+        pathname: tab.pathname,
+        tabId: tab.id
+      })
+    }
+  })
+
+  // 标注面板数据同步：引擎侧增删改 / 重定位完成后回读面板（仅在本文档持有
+  // 焦点时——否则会拿左侧文档的引擎数据刷面板）。
+  muya.on('annotation-change', () => {
+    if (splitStore.docFocused) annotationStore.syncFromEngine()
   })
 
   bus.on('language-changed', handleLocale)
@@ -192,6 +211,20 @@ watch(
   }
 )
 
+// 分屏换文档（把另一个标签拖进来）：焦点在右栏时，标注面板跟着切到新文档。
+watch(
+  () => splitDocTab.value?.id,
+  () => {
+    const tab = splitDocTab.value
+    if (!muya || !tab || !splitStore.docFocused) return
+    annotationStore.FOCUS_EDITOR({
+      engine: muya,
+      pathname: tab.pathname,
+      tabId: tab.id
+    })
+  }
+)
+
 // 主题切换：更新图表主题。
 watch(
   () => theme.value,
@@ -208,6 +241,12 @@ watch(
 onBeforeUnmount(() => {
   bus.off('language-changed', handleLocale)
   bus.off('flush-active-editor', handleFlush)
+  // 右栏关闭：标注焦点交还主编辑器（面板不能停在已销毁的引擎 / 已关掉的
+  // 文档上）。必须在 destroy 之前——交还动作会把 store 的当前引擎换回主编辑器。
+  if (splitStore.docFocused) {
+    splitStore.SET_DOC_FOCUSED(false)
+    bus.emit('annotation-focus-primary')
+  }
   if (muya) {
     muya.destroy()
     muya = null

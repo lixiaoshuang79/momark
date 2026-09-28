@@ -1394,6 +1394,22 @@ const handleRedo = () => {
   }
 }
 
+/**
+ * 右栏分屏文档关闭 / 销毁时把标注焦点交还主编辑器：重挂本编辑器引擎并把
+ * 面板切回当前标签的文档（否则面板会停在已关闭的右栏文档上）。
+ */
+const handleAnnotationFocusPrimary = () => {
+  splitStore.SET_DOC_FOCUSED(false)
+  const tab = editorStore.currentFile
+  const instance = editor.value
+  if (!tab || !instance) return
+  annotationStore.FOCUS_EDITOR({
+    engine: instance,
+    pathname: tab.pathname,
+    tabId: tab.id
+  })
+}
+
 const handleSelectAll = () => {
   if (sourceCode.value) {
     return
@@ -2228,6 +2244,8 @@ onMounted(() => {
   bus.on('selectAll', handleSelectAll)
   bus.on('export', handleExport)
   bus.on('print-service-clearup', handlePrintServiceClearup)
+  // 右栏分屏文档关闭 / 销毁 → 标注焦点交还主编辑器
+  bus.on('annotation-focus-primary', handleAnnotationFocusPrimary)
   bus.on('paragraph', handleEditParagraph)
   bus.on('format', handleInlineFormat)
   bus.on('searchValue', handleSearch)
@@ -2379,7 +2397,20 @@ onMounted(() => {
 
   editor.value.on('selection-change', (changes: MuyaChange) => {
     // round10：光标回到左编辑器 → 顶栏字数/保存状态切回左文档。
-    splitStore.SET_DOC_FOCUSED(false)
+    // 标注走同一套焦点路由：只有从右栏**真正切回来**时才重挂引擎 + 切面板文档
+    // ——每次光标移动都做一遍会让 attachEngine 反复 pushToEngine 整表。
+    if (splitStore.docFocused) {
+      splitStore.SET_DOC_FOCUSED(false)
+      const tab = editorStore.currentFile
+      const instance = editor.value
+      if (tab && instance) {
+        annotationStore.FOCUS_EDITOR({
+          engine: instance,
+          pathname: tab.pathname,
+          tabId: tab.id
+        })
+      }
+    }
     const y = (changes.cursorCoords?.y ?? null) as number | null
     const caretKey = caretKeyOf(changes.anchorPath, changes.anchor?.offset, changes.focus?.offset)
     const caretMoved = caretKey !== lastCaretKey
@@ -2439,6 +2470,7 @@ onBeforeUnmount(() => {
   bus.off('selectAll', handleSelectAll)
   bus.off('export', handleExport)
   bus.off('print-service-clearup', handlePrintServiceClearup)
+  bus.off('annotation-focus-primary', handleAnnotationFocusPrimary)
   bus.off('paragraph', handleEditParagraph)
   bus.off('format', handleInlineFormat)
   bus.off('searchValue', handleSearch)
