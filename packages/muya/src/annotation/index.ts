@@ -44,6 +44,8 @@ const NO_HIGHLIGHTS: IHighlight[] = [];
 export class AnnotationModule {
     private _annotations: IAnnotation[] = [];
     private _enabled = true;
+    /** 常用语列表（应用级偏好，不进标注存储结构；卡片 chips 的唯一数据源）。 */
+    private _quickPhrases: string[] = [];
     private _activeId: Nullable<string> = null;
     private _relocateTimer: Nullable<ReturnType<typeof setTimeout>> = null;
     /** 因「光标所在块」被跳过的条目，等 blur / 光标离开后补做。 */
@@ -71,6 +73,20 @@ export class AnnotationModule {
     /** 偏好开关（`annotationEnabled`）。false → 不画高亮。 */
     get enabled() {
         return this._enabled;
+    }
+
+    /** 常用语列表（原样副本，外部改动不影响模块内部状态）。 */
+    get quickPhrases(): string[] {
+        return [...this._quickPhrases];
+    }
+
+    /**
+     * 整表替换常用语并广播 `annotation-quick-phrases-change`：卡片开着时就地刷新
+     * chips。与标注数据无关（应用级偏好，不进存储结构、不触发重定位）。
+     */
+    setQuickPhrases(list: string[]) {
+        this._quickPhrases = Array.isArray(list) ? [...list] : [];
+        this._muya.eventCenter.emit('annotation-quick-phrases-change', this.quickPhrases);
     }
 
     /** 当前激活条 id（卡片编辑中 / 面板定位），无激活为 null。 */

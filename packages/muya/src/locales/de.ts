@@ -61,6 +61,12 @@ export const de = {
         'Cancel': 'Abbrechen',
         'Save': 'Speichern',
         'Write a note, e.g. this logic is wrong': 'Eine Notiz schreiben, z. B.: diese Logik ist falsch',
+        'Manage quick phrases…': 'Kurzsätze verwalten…',
+        'Click a phrase to annotate, or write your own': 'Kurzsatz anklicken oder eine eigene Notiz schreiben',
+        'Click to save with this phrase as the note': 'Klicken, um mit diesem Kurzsatz als Notiz zu speichern',
+        'to annotate directly': 'direkt annotieren',
+        'Added': 'Hinzugefügt',
+        'Save as quick phrase': 'Als Kurzsatz speichern',
         // Code block
         'Copy content': 'Inhalt kopieren',
         'Input Language Identifier...': 'Sprachkennung eingeben...',

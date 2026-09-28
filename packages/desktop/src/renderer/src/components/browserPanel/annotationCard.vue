@@ -1,7 +1,7 @@
 <template>
   <article
     class="ann-card"
-    :class="{ 'is-active': active }"
+    :class="{ 'is-active': active, 'just-entered': entering }"
     :data-status="status"
     tabindex="0"
     @click="locate"
@@ -164,6 +164,11 @@ import type { IAnnotation } from '@shared/types/ipc'
 const props = defineProps<{
   annotation: IAnnotation
   order: number
+  /**
+   * 刚保存的新条目（面板可见时由 annotationMode 标记 ~1.3s）：opacity+translate
+   * 入场（#24）。只走 CSS 动画，不改任何布局属性。
+   */
+  entering?: boolean
 }>()
 
 const store = useAnnotationStore()
@@ -262,6 +267,32 @@ const locate = (): void => store.locate(annotation.id)
 .ann-card:hover,
 .ann-card.is-active {
   background: var(--hover);
+}
+/* 新条目入场（原型动效 #24）：opacity+translate 280ms + 底色 accent 8%→0 1200ms。
+   底色那条**不写 fill**：动画结束后把背景还给这一级的 hover 规则——fill: forwards
+   会把 hover 底色永久压掉。 */
+.ann-card.just-entered {
+  animation:
+    annCardIn 280ms var(--ease-grow, cubic-bezier(0.18, 1.28, 0.36, 1)) both,
+    annCardGlow 1200ms var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+@keyframes annCardIn {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@keyframes annCardGlow {
+  from {
+    background-color: color-mix(in oklab, var(--accent) 8%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
 }
 .ac-idx {
   width: 16px;

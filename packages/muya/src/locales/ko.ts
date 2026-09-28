@@ -61,6 +61,12 @@ export const ko = {
         'Cancel': '취소',
         'Save': '저장',
         'Write a note, e.g. this logic is wrong': '수정 내용을 한 줄로 적어 주세요(예: 이 로직은 잘못됨)',
+        'Manage quick phrases…': '빠른 문구 관리…',
+        'Click a phrase to annotate, or write your own': '문구를 클릭해 주석을 달거나 직접 작성하세요',
+        'Click to save with this phrase as the note': '클릭하면 이 문구를 메모로 저장합니다',
+        'to annotate directly': '바로 주석 달기',
+        'Added': '추가됨',
+        'Save as quick phrase': '빠른 문구로 저장',
         // Code block
         'Copy content': '내용 복사',
         'Input Language Identifier...': '언어 식별자 입력...',

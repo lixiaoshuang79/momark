@@ -15,6 +15,16 @@
     "type": "boolean",
     "default": true
   },
+  "annotationQuickPhrases": {
+    "description": "General--Quick phrases offered in the annotation card; clicking one uses it as the note directly. Order is the ⌥1–⌥9 order; at most 9 phrases of 24 characters each.",
+    "type": "array",
+    "items": {
+      "type": "string",
+      "maxLength": 24
+    },
+    "maxItems": 9,
+    "default": ["看不懂，优化表达", "删掉", "写详细", "待定"]
+  },
   "titleBarStyle": {
     "description": "General--The title bar style (Windows and Linux system only).",
     "enum": ["custom", "native"],

@@ -1164,7 +1164,26 @@
     },
     "globalNotePlaceholder": "Write a note about the whole document…",
     "globalNoteTag": "Global note",
-    "moreMenu": "More"
+    "moreMenu": "More",
+    "quickPhrase": {
+      "settingsTitle": "Quick phrases",
+      "reset": "Reset to defaults",
+      "done": "Done",
+      "add": "Add a phrase",
+      "addPlaceholder": "Type a phrase, press Enter to keep adding",
+      "count": "{n} / {max}",
+      "empty": "No quick phrases yet",
+      "restoreDefaults": "Restore the {n} defaults",
+      "emptyAdd": "Add",
+      "editTitle": "Click to edit in place",
+      "dragTitle": "Drag to reorder, or press ⌥↑ / ⌥↓",
+      "delete": "Delete",
+      "undoDeleted": "Deleted “{label}”",
+      "undoReset": "Defaults restored",
+      "undo": "Undo",
+      "exists": "Already exists",
+      "tooLong": "Up to {n} characters"
+    }
   },
   "welcome": {
     "windowTitle": "Welcome to MoMark",

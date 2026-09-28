@@ -61,6 +61,12 @@ export const pt = {
         'Cancel': 'Cancelar',
         'Save': 'Salvar',
         'Write a note, e.g. this logic is wrong': 'Escreva uma nota, por ex.: esta lógica está incorreta',
+        'Manage quick phrases…': 'Gerenciar frases rápidas…',
+        'Click a phrase to annotate, or write your own': 'Clique em uma frase para anotar, ou escreva a sua',
+        'Click to save with this phrase as the note': 'Clique para salvar com esta frase como nota',
+        'to annotate directly': 'para anotar diretamente',
+        'Added': 'Adicionada',
+        'Save as quick phrase': 'Salvar como frase rápida',
         // Code block
         'Copy content': 'Copiar conteúdo',
         'Input Language Identifier...': 'Inserir identificador de linguagem...',

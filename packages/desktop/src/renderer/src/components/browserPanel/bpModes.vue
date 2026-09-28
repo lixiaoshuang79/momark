@@ -53,13 +53,13 @@
         <path d="M5.4 6.2h5.2M5.4 8.4h3.2" />
       </svg>
       {{ t('annotation.tab') }}
-      <span v-if="uncopied" class="bp-mode-badge">{{ uncopied }}</span>
+      <span v-if="uncopied" ref="badgeEl" class="bp-mode-badge">{{ uncopied }}</span>
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import { t } from '../../i18n'
@@ -87,6 +87,31 @@ const { activeTab } = storeToRefs(bpStore)
 
 const showAnnotation = computed(() => preferencesStore.annotationEnabled !== false)
 const uncopied = computed(() => annotationStore.uncopiedCount)
+
+// ── 徽标弹跳（原型动效 #23，feat/quick-phrases）────────────────────────
+// 飞点到达时由 annotation store 的 badgePulse 触发：1→1.22→1（300ms 回弹）。
+// 「0→1 条」意味着徽标本身刚出现，从 .5 长起来与飞点到达衔接（设计如此）。
+const badgeEl = ref<HTMLElement | null>(null)
+let appearedAt = 0
+
+watch(uncopied, (value, previous) => {
+  if (previous === 0 && value > 0) appearedAt = Date.now()
+})
+
+watch(
+  () => annotationStore.badgePulse,
+  () => {
+    nextTick(() => {
+      const el = badgeEl.value
+      if (!el) return
+      const from = Date.now() - appearedAt < 2000 ? 0.5 : 1
+      el.animate(
+        [{ transform: `scale(${from})` }, { transform: 'scale(1.22)' }, { transform: 'scale(1)' }],
+        { duration: 300, easing: 'cubic-bezier(0.18, 1.28, 0.36, 1)' }
+      )
+    })
+  }
+)
 
 const sliderPos = computed(() => {
   // doc 档沿用全局 `.bp-slider.right`（100% + 2px = 滑块宽 + 档间 gap）；

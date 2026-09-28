@@ -61,6 +61,12 @@ export const es = {
         'Cancel': 'Cancelar',
         'Save': 'Guardar',
         'Write a note, e.g. this logic is wrong': 'Escribe una nota, p. ej.: esta lógica es incorrecta',
+        'Manage quick phrases…': 'Gestionar frases rápidas…',
+        'Click a phrase to annotate, or write your own': 'Haz clic en una frase para anotar, o escribe la tuya',
+        'Click to save with this phrase as the note': 'Haz clic para guardar con esta frase como nota',
+        'to annotate directly': 'para anotar directamente',
+        'Added': 'Añadida',
+        'Save as quick phrase': 'Guardar como frase rápida',
         // Code block
         'Copy content': 'Copiar contenido',
         'Input Language Identifier...': 'Introducir identificador de lenguaje...',

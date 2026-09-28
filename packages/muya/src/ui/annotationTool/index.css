@@ -1,8 +1,20 @@
-/* 备注卡片浮层（方案 §3.3：--surface-2 底、--radius-md 圆角、--shadow-win 阴影、
-   宽 300px、头部 12px --muted、正文 13px/1.6 --ink、主按钮走 --buttonPrimary*）。
+/* 备注卡片浮层（v8：头 → 常用语 chips → 输入框 → 底栏 四段）。
+   定位仍由 BaseFloat 每帧直写 left/top；背景·描边·圆角·阴影留在 wrapper 上，
+   入场/退场动效也挂在 wrapper 上——只动 transform/opacity 系属性（opacity /
+   scale / translate 三个独立属性），绝不给 top/left 加过渡。
    色值一律走变量：宿主主题里 --float-* / --button-* 就是那几个设计令牌的别名，
-   所以这里以引擎变量为主、宿主令牌作兜底 —— 引擎单独跑时也不会掉成裸样式。 */
+   所以这里以引擎变量为主、宿主令牌作兜底 —— 引擎单独跑时也不会掉成裸样式。
+   动效参数（时长/曲线/延迟）逐条对照原型 §3.2 的参数表。 */
+
 .mu-float-wrapper.mu-annotation-tool-container {
+    /* 动效曲线（§3.2 参数表）：standard / grow / line-out 与宿主令牌同值，直接沿用；
+       「chip 回弹」与「内容分层滑入」这两条宿主同名令牌是零过冲的 S 型，观感与
+       评审过的原型不同 —— 照原型把带过冲的曲线值写死在这里。 */
+    --mu-ease-standard: var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+    --mu-ease-grow: var(--ease-grow, cubic-bezier(0.18, 1.28, 0.36, 1));
+    --mu-ease-line-out: var(--ease-line-out, cubic-bezier(0.4, 0, 0.8, 0.2));
+    --mu-ease-line-in: cubic-bezier(0.16, 1.14, 0.3, 1);
+    --mu-ease-tab: cubic-bezier(0.18, 1.32, 0.36, 1);
     overflow: hidden;
 
     border-radius: var(--radius-md, 12px);
@@ -24,58 +36,323 @@
     font-family: var(--font-body, inherit);
 }
 
+/* ---- 入场 / 退场（原型 §3.2 #1–#3、#18、#19） ---- */
+
+.mu-annotation-tool-container[data-side='below'] {
+    --qp-dy: -6px;
+    transform-origin: 50% 0;
+}
+
+.mu-annotation-tool-container[data-side='above'] {
+    --qp-dy: 6px;
+    transform-origin: 50% 100%;
+}
+
+/* 先压一帧再进 is-entering：BaseFloat 写 opacity 是异步的，抢跑会闪一下整卡 */
+.mu-annotation-tool-container.is-pre-enter {
+    opacity: 0 !important;
+}
+
+.mu-annotation-tool-container.is-entering {
+    animation:
+        mu-annotation-card-fade 140ms var(--mu-ease-standard) both,
+        mu-annotation-card-scale 240ms var(--mu-ease-standard) both,
+        mu-annotation-card-slide 300ms var(--mu-ease-grow) both;
+}
+
+@keyframes mu-annotation-card-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes mu-annotation-card-scale {
+    from { scale: 0.96; }
+    to { scale: 1; }
+}
+
+@keyframes mu-annotation-card-slide {
+    from { translate: 0 var(--qp-dy, -6px); }
+    to { translate: 0 0; }
+}
+
+.mu-annotation-tool-container.is-leaving {
+    animation: mu-annotation-card-out 150ms var(--mu-ease-line-out) both;
+
+    pointer-events: none;
+}
+
+/* 取消 / Esc / 点外部（§3.2 #19）：更快、更平，不带朝选区的位移 */
+.mu-annotation-tool-container.is-leaving.quick {
+    --qp-dy: 0px;
+    animation-duration: 110ms;
+}
+
+@keyframes mu-annotation-card-out {
+    from {
+        opacity: 1;
+        scale: 1;
+        translate: 0 0;
+    }
+
+    to {
+        opacity: 0;
+        scale: 0.97;
+        translate: 0 calc(var(--qp-dy, -6px) * 0.66);
+    }
+}
+
+/* ---- 头部：左「标注」/「标注 · 编辑」，右管理常用语（原型 §1.1） ---- */
+
 .mu-annotation-head {
     display: flex;
-    align-items: baseline;
     gap: 7px;
+    align-items: center;
 }
 
 .mu-annotation-tag {
     flex: 0 0 auto;
 
-    font-size: 11.5px;
-    font-weight: 500;
     color: var(--theme-color, var(--accent, #3d5a80));
+    font-weight: 500;
+
+    font-size: 11.5px;
 }
 
-.mu-annotation-quote {
-    flex: 1 1 auto;
+.mu-annotation-gear {
+    display: grid;
+    flex: 0 0 auto;
+
+    width: 16px;
+    height: 16px;
+    margin-bottom: -2px;
+    margin-left: auto;
+    padding: 0;
+
+    color: var(--faint, var(--editor-color-40));
+
+    background: none;
+    border: none;
+    cursor: pointer;
+
+    transition: color 0.12s var(--mu-ease-standard);
+    place-items: center;
+}
+
+.mu-annotation-gear:hover {
+    color: var(--accent, var(--theme-color, #3d5a80));
+}
+
+.mu-annotation-gear svg {
+    display: block;
+}
+
+/* ---- 常用语 chips 行（原型 §1.1） ---- */
+
+.mu-annotation-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* 空列表不占高（列表为空时容器整体隐身） */
+.mu-annotation-quick[hidden] {
+    display: none;
+}
+
+.mu-annotation-quick-chip {
+    position: relative;
+
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+
+    box-sizing: border-box;
+    max-width: 100%;
+    height: 24px;
+    padding: 0 9px;
+
+    color: var(--muted, var(--editor-color-50));
+    font-size: 12px;
+
+    font-family: inherit;
+    line-height: 1;
+
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-pill, 999px);
+    box-shadow: inset 0 0 0 1px var(--line-strong, var(--editor-color-10));
+
+    cursor: pointer;
+
+    transition:
+        background 120ms var(--mu-ease-standard),
+        color 120ms var(--mu-ease-standard),
+        box-shadow 160ms var(--mu-ease-standard),
+        scale 220ms var(--mu-ease-grow);
+}
+
+/* #9 文字转 --ink（比 --muted 更实，对比只升不降） */
+.mu-annotation-quick-chip:hover {
+    color: var(--ink, var(--editor-color));
+
+    background: var(--hover, var(--float-hover-color));
+}
+
+/* #10 按下 */
+.mu-annotation-quick-chip:active {
+    transition: scale 80ms var(--mu-ease-standard);
+    scale: 0.95;
+}
+
+/* #17 落印：点下去的一瞬间变实心 accent，随后卡片开始收场 */
+.mu-annotation-quick-chip.stamp {
+    color: var(--accent-on, #fff);
+
+    background: var(--accent, var(--theme-color, #3d5a80));
+    box-shadow: none;
+
+    transition:
+        background 100ms var(--mu-ease-standard),
+        color 100ms var(--mu-ease-standard);
+}
+
+/* #28 新 chip 诞生 */
+.mu-annotation-quick-chip.born {
+    animation: mu-annotation-chip-born 300ms var(--mu-ease-tab) both;
+}
+
+@keyframes mu-annotation-chip-born {
+    from {
+        opacity: 0;
+        scale: 0.6;
+    }
+
+    to {
+        opacity: 1;
+        scale: 1;
+    }
+}
+
+.mu-annotation-quick-text {
     min-width: 0;
     overflow: hidden;
 
-    font-family: var(--font-mono, monospace);
-    font-size: 12px;
-    color: var(--muted, var(--editor-color-50));
-    text-overflow: ellipsis;
     white-space: nowrap;
+
+    text-overflow: ellipsis;
 }
 
-/* 备注输入框：高度由脚本按内容调（2 行起、10 行封顶），所以这里只给上下限与
-   基线样式，滚动条交给脚本切。 */
+/* 墨染的裁剪层：只裁圆墨，好让左上角的 ⌥ 角标能露到胶囊外面 */
+.mu-annotation-quick-fill {
+    position: absolute;
+
+    overflow: hidden;
+
+    border-radius: inherit;
+
+    pointer-events: none;
+    inset: 0;
+}
+
+/* #12 墨染：以点击点为圆心的 accent 10% 圆 */
+.mu-annotation-quick-ink {
+    position: absolute;
+    top: var(--iy, 50%);
+    left: var(--ix, 50%);
+
+    width: var(--id, 60px);
+    height: var(--id, 60px);
+    margin-top: calc(var(--id, 60px) / -2);
+    margin-left: calc(var(--id, 60px) / -2);
+
+    background: color-mix(in srgb, var(--accent, #3d5a80) 10%, transparent);
+    border-radius: 50%;
+
+    scale: 0;
+}
+
+.mu-annotation-quick-ink.run {
+    animation: mu-annotation-ink-in 280ms var(--mu-ease-standard) both;
+}
+
+@keyframes mu-annotation-ink-in {
+    from { scale: 0; }
+    to { scale: 1; }
+}
+
+/* #26 ⌥ 数字角标 */
+.mu-annotation-quick-key {
+    position: absolute;
+    top: -7px;
+    left: -2px;
+    z-index: 2;
+
+    min-width: 13px;
+    height: 13px;
+    padding: 0 3px;
+
+    color: var(--bg, var(--float-bg-color, #fff));
+    font-weight: 500;
+    font-size: 9px;
+
+    font-family: var(--font-mono, monospace);
+    line-height: 13px;
+    text-align: center;
+
+    background: var(--ink, var(--editor-color));
+    border-radius: 4px;
+
+    opacity: 0;
+
+    pointer-events: none;
+    scale: 0.8;
+}
+
+.mu-annotation-quick.alt-on .mu-annotation-quick-key {
+    animation: mu-annotation-key-in 140ms var(--mu-ease-grow) both;
+}
+
+@keyframes mu-annotation-key-in {
+    from {
+        opacity: 0;
+        scale: 0.8;
+    }
+
+    to {
+        opacity: 1;
+        scale: 1;
+    }
+}
+
+/* ---- 备注输入框：高度由脚本按内容调（3 行起、10 行封顶），所以这里只给上下限与
+   基线样式，滚动条交给脚本切。 ---- */
+
 .mu-annotation-note {
     display: block;
     box-sizing: border-box;
     width: 100%;
-    min-height: 42px;
-    max-height: 208px;
+    min-height: 83px;
+    max-height: 228px;
     padding: 9px 11px;
     overflow-y: hidden;
-    resize: none;
-    outline: none;
+
+    color: var(--ink, var(--editor-color));
+    font-size: 13px;
 
     font-family: inherit;
-    font-size: 13px;
     line-height: 1.6;
-    color: var(--ink, var(--editor-color));
 
     background: var(--input-bg-color, rgb(0 0 0 / 4%));
     border: 1px solid var(--float-border-color, var(--editor-color-10));
     border-radius: 8px;
+    outline: none;
 
     transition:
         border-color 0.14s,
         background 0.14s,
         box-shadow 0.14s;
+
+    resize: none;
 }
 
 .mu-annotation-note:hover {
@@ -83,9 +360,8 @@
 }
 
 .mu-annotation-note:focus {
-    border-color: var(--theme-color, var(--accent, #3d5a80));
-
     background: var(--float-bg-color, #fff);
+    border-color: var(--theme-color, var(--accent, #3d5a80));
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-color, #3d5a80) 12%, transparent);
 }
 
@@ -93,26 +369,57 @@
     color: var(--faint, var(--editor-color-40));
 }
 
+/* ---- 底栏：情境提示位（或「＋ 存为常用语」）+ 取消 + 保存 ---- */
+
 .mu-annotation-foot {
     display: flex;
-    align-items: center;
     gap: 6px;
+    align-items: center;
 }
 
+/* #25 情境提示：同一位置交叉淡入淡出 120ms */
 .mu-annotation-hint {
+    position: relative;
+
     flex: 1 1 auto;
 
-    font-size: 10.5px;
+    height: 15px;
+    overflow: hidden;
+
     color: var(--faint, var(--editor-color-40));
+
+    font-size: 10.5px;
+    line-height: 15px;
+}
+
+.mu-annotation-hint[hidden] {
+    display: none;
+}
+
+.mu-annotation-hint-item {
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    white-space: nowrap;
+
+    opacity: 0;
+
+    transition: opacity 120ms var(--mu-ease-standard);
+}
+
+.mu-annotation-hint-item.on {
+    opacity: 1;
 }
 
 .mu-annotation-btn {
     height: 27px;
     padding: 0 12px;
 
-    font-family: inherit;
-    font-size: 12.5px;
     color: var(--button-font-color, var(--editor-color));
+    font-size: 12.5px;
+
+    font-family: inherit;
 
     background: var(--button-bg-color, #fff);
     border: var(--button-border, 1px solid var(--editor-color-10));
@@ -129,10 +436,33 @@
     background: var(--button-bg-color-hover, var(--float-hover-color));
 }
 
+/* 「＋ 存为常用语」：无描边无底的文字按钮，占的就是提示位（§1.5） */
+.mu-annotation-btn.ghost {
+    padding: 0 6px;
+
+    color: var(--accent, var(--theme-color, #3d5a80));
+
+    font-size: 11.5px;
+
+    background: none;
+    border: none;
+    box-shadow: none;
+}
+
+.mu-annotation-btn.ghost:hover {
+    color: var(--accent, var(--theme-color, #3d5a80));
+
+    background: color-mix(in srgb, var(--accent, #3d5a80) 10%, transparent);
+}
+
+.mu-annotation-btn[hidden] {
+    display: none;
+}
+
 /* 主按钮（墨蓝实心）；空备注时禁用，禁用态走中性灰而不是墨蓝降透明度。 */
 .mu-annotation-btn.primary {
-    font-weight: 500;
     color: var(--buttonPrimaryFontColor, #fff);
+    font-weight: 500;
 
     background: var(--buttonPrimaryBgColor, var(--theme-color, #3d5a80));
     border: none;
@@ -147,4 +477,107 @@
 
     background: var(--float-hover-color, rgb(0 0 0 / 4%));
     cursor: default;
+}
+
+/* ---- 内容分层错峰（#4–#8）：放在内容规则之后，别倒挂选择器权重 ---- */
+
+.mu-annotation-tool-container.is-entering .mu-annotation-head {
+    animation: mu-annotation-line-in 180ms var(--mu-ease-line-in) 30ms both;
+}
+
+.mu-annotation-tool-container.is-entering .mu-annotation-quick-chip {
+    animation: mu-annotation-chip-in 260ms var(--mu-ease-tab) var(--d, 70ms) both;
+}
+
+.mu-annotation-tool-container.is-entering .mu-annotation-note {
+    animation: mu-annotation-field-in 220ms var(--mu-ease-line-in) 100ms both;
+}
+
+.mu-annotation-tool-container.is-entering .mu-annotation-foot {
+    animation: mu-annotation-fade-in 180ms var(--mu-ease-standard) 140ms both;
+}
+
+/* #8 编辑已有标注：只保留 1–3，内容整体淡入（不加逐项错峰） */
+.mu-annotation-tool-container.is-entering.is-editing .mu-annotation-head,
+.mu-annotation-tool-container.is-entering.is-editing .mu-annotation-quick-chip,
+.mu-annotation-tool-container.is-entering.is-editing .mu-annotation-note {
+    animation: mu-annotation-fade-in 160ms var(--mu-ease-standard) 0ms both;
+}
+
+@keyframes mu-annotation-line-in {
+    from {
+        opacity: 0;
+        translate: 0 -3px;
+    }
+
+    to {
+        opacity: 1;
+        translate: 0 0;
+    }
+}
+
+@keyframes mu-annotation-field-in {
+    from {
+        opacity: 0;
+        translate: 0 4px;
+    }
+
+    to {
+        opacity: 1;
+        translate: 0 0;
+    }
+}
+
+@keyframes mu-annotation-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes mu-annotation-chip-in {
+    from {
+        opacity: 0;
+        scale: 0.92;
+        translate: 0 5px;
+    }
+
+    to {
+        opacity: 1;
+        scale: 1;
+        translate: 0 0;
+    }
+}
+
+/* ---- #20 正文高亮接力：保存后由卡片给刚落下的高亮 span 挂一次性 class，
+   背景 0 → 22% → 14% 亮一记（动画收尾与 `.mu-annotation` 的常驻底色同值，摘类不闪） ---- */
+
+.mu-annotation-relay {
+    animation: mu-annotation-relay 520ms var(--mu-ease-standard) both;
+}
+
+@keyframes mu-annotation-relay {
+    0% {
+        background: transparent;
+    }
+
+    55% {
+        background: color-mix(in srgb, var(--accent, #3d5a80) 22%, transparent);
+    }
+
+    100% {
+        background: color-mix(in srgb, var(--accent, #3d5a80) 14%, transparent);
+    }
+}
+
+/* 减少动态效果：只压时长，不压 delay（§3.1-6） */
+@media (prefers-reduced-motion: reduce) {
+    .mu-annotation-tool-container,
+    .mu-annotation-tool-container *,
+    .mu-annotation-tool-container *::before,
+    .mu-annotation-tool-container *::after,
+    .mu-annotation-relay {
+        transition-delay: 0s !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-delay: 0s !important;
+    }
 }

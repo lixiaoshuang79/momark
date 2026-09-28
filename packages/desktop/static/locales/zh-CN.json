@@ -1166,7 +1166,26 @@
     },
     "globalNotePlaceholder": "写一条对整篇文档的意见…",
     "globalNoteTag": "全局备注",
-    "moreMenu": "更多"
+    "moreMenu": "更多",
+    "quickPhrase": {
+      "settingsTitle": "常用语",
+      "reset": "恢复默认",
+      "done": "完成",
+      "add": "添加常用语",
+      "addPlaceholder": "输入常用语，回车连续添加",
+      "count": "{n} / {max}",
+      "empty": "还没有常用语",
+      "restoreDefaults": "恢复默认 {n} 条",
+      "emptyAdd": "添加",
+      "editTitle": "点一下就地编辑",
+      "dragTitle": "拖动排序，或按 ⌥↑ / ⌥↓ 上下移动",
+      "delete": "删除",
+      "undoDeleted": "已删除「{label}」",
+      "undoReset": "已恢复默认",
+      "undo": "撤销",
+      "exists": "已存在",
+      "tooLong": "最多 {n} 字"
+    }
   },
   "welcome": {
     "windowTitle": "欢迎使用墨记",

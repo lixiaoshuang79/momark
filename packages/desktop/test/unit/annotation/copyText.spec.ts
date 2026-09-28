@@ -195,13 +195,26 @@ describe('buildCopyText — 章节 / 行号 / 所在段落', () => {
     expect(text).not.toContain('L128–L128')
   })
 
-  it('缺章节时退化为「（未记录章节）」，缺行号时整段省略', () => {
+  it('缺章节时退化为「（无章节）」，缺行号时整段省略', () => {
     const text = buildCopyText(
       [item({ headingPath: [], lineStart: undefined, lineEnd: undefined })],
       DOC_PATH
     )
-    expect(text).toContain('[1] （未记录章节）')
+    expect(text).toContain('[1] （无章节）')
     expect(text).not.toContain('L128')
+  })
+
+  it('全局备注抬头只写「全局备注」——不写章节/行号、不出现机器占位', () => {
+    // 用户拍板（feat/annotations）：全局备注没有正文位置，抬头直接写语义标签。
+    const text = buildCopyText(
+      [
+        item({ global: true, headingPath: [], lineStart: undefined, lineEnd: undefined, quote: '' })
+      ],
+      DOC_PATH
+    )
+    expect(text).toContain('[1] 全局备注')
+    expect(text).not.toContain('（无章节）')
+    expect(text).not.toContain('未记录章节')
   })
 
   it('选区恰好等于整段时省略「所在段落」（方案 §4.3）', () => {

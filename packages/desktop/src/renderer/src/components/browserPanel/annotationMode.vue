@@ -68,6 +68,7 @@
           :key="item.id"
           :annotation="item"
           :order="store.orderOf(item.id)"
+          :entering="!!enteringIds[item.id]"
         />
         <template v-if="orphanList.length">
           <div
@@ -278,11 +279,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import notice from '@/services/notification'
 import { t } from '../../i18n'
 import AnnotationCard from './annotationCard.vue'
 import { useAnnotationStore } from '@/store/annotation'
+import { useBrowserPanelStore } from '@/store/browserPanel'
 
 /**
  * 右栏第三 tab：标注面板（方案 §3.4 / 原型 .pane[data-pane=ann]）。
@@ -311,6 +313,34 @@ const orphanList = computed(() => store.orphanList)
 /** 当前列表里未失效的条目（失效的收进折叠分组）。 */
 const healthyList = computed(() => currentList.value.filter((a) => a.anchorState !== 'orphaned'))
 const copiedLineCount = computed(() => store.copiedText.split('\n').length)
+
+// ── 新条目入场（原型动效 #24，feat/quick-phrases）──────────────────────
+// 卡片保存成功时，若面板正停在标注 tab（飞点那一路互斥跳过），新出现的条目做
+// opacity+translate 入场 + 底色 accent 8%→0。判定不挂「保存事件」的订阅，而是
+// 在列表变化时回看 savedPulse 的时间窗——事件与列表同步的先后顺序不定。
+const bpStore = useBrowserPanelStore()
+const enteringIds = ref<Record<string, boolean>>({})
+let lastHealthyIds: string[] = []
+
+watch(
+  () => healthyList.value.map((a) => a.id),
+  (ids) => {
+    const fresh = ids.filter((id) => !lastHealthyIds.includes(id))
+    const gone = lastHealthyIds.some((id) => !ids.includes(id))
+    lastHealthyIds = ids
+    if (!fresh.length || gone) return
+    const pulseAt = store.savedPulse?.at ?? 0
+    if (Date.now() - pulseAt > 1500) return
+    if (!bpStore.open || bpStore.activeTab !== 'annotation') return
+    // 一次冒出一大批（装载文档 / 换文档）不播：只有「刚保存的寥寥几条」才入场
+    if (fresh.length > 2) return
+    for (const id of fresh) enteringIds.value[id] = true
+    window.setTimeout(() => {
+      for (const id of fresh) delete enteringIds.value[id]
+    }, 1300)
+  },
+  { immediate: true }
+)
 
 const copyButtonTitle = computed(() => {
   if (!store.copiedList.length) return undefined

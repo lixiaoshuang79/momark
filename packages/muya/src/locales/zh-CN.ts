@@ -61,6 +61,12 @@ export const zhCN = {
         'Cancel': '取消',
         'Save': '保存',
         'Write a note, e.g. this logic is wrong': '写一句修改说明，例如：这段逻辑不通',
+        'Manage quick phrases…': '管理常用语…',
+        'Click a phrase to annotate, or write your own': '点常用语直接标注，或写一句自己的',
+        'Click to save with this phrase as the note': '点击即以这句为备注保存',
+        'to annotate directly': '直接标注',
+        'Added': '已加入',
+        'Save as quick phrase': '存为常用语',
         // Code block
         'Copy content': '复制内容',
         'Input Language Identifier...': '输入程序语言标识...',

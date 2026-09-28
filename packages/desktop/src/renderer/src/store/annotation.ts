@@ -4,7 +4,7 @@ import notice from '../services/notification'
 import { t } from '../i18n'
 import type { AnnotationDocument, IAnnotation, IAnnotationExportItem } from '@shared/types/ipc'
 import { useBrowserPanelStore } from './browserPanel'
-import { usePreferencesStore } from './preferences'
+import { QUICK_PHRASE_MAX_COUNT, QUICK_PHRASE_MAX_LEN, usePreferencesStore } from './preferences'
 
 /**
  * 内容标注 store（feat/annotations，方案 §5.1 / 契约冻结接口）。
@@ -36,6 +36,19 @@ const isRealPath = (key: string | null): key is string => !!key && !key.startsWi
 
 /** 交付给引擎的快照类型（引擎侧 TSelectionSnapshot，桌面不解释内部结构）。 */
 export type TSelectionSnapshot = unknown
+
+/**
+ * 引擎「保存成功」事件（`muya-annotation-saved`）的桌面表示（feat/quick-phrases）。
+ * `origin` 是保存按钮 / 卡片中心的**视口坐标**（供飞点动画取起点；引擎给不出时
+ * 为 null，飞点不播）；`mode` 区分 chip 直标与手写保存；`seq` 让「同一坐标连续
+ * 两次保存」也能被 watch 感知；`at` 供面板新条目入场判断「刚保存过」的时间窗。
+ */
+export interface AnnotationSavedSignal {
+  origin: { x: number; y: number } | null
+  mode: 'chip' | 'manual'
+  at: number
+  seq: number
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // 复制文本（方案 §4.1 模板 / §4.4 转义与截断）
@@ -203,12 +216,104 @@ export const useAnnotationStore = defineStore('annotation', () => {
   const indexById = ref<Record<string, number>>({})
 
   // 引擎（`muya.annotation`）。未挂载时面板只读。
-  let engine: { annotation?: unknown } | null = null
+  let engine: { annotation?: unknown; eventCenter?: EngineEventCenter } | null = null
 
   const annotationModule = (): Record<string, (...args: unknown[]) => unknown> | null => {
     const module = engine?.annotation as Record<string, (...args: unknown[]) => unknown> | undefined
     return module ?? null
   }
+
+  // ── 引擎事件（muya.eventCenter，契约见 实现规格 §二）─────────────────
+  // 引擎侧卡片经事件总线把「打开设置 / 存为常用语 / 保存成功」交给桌面。
+  // 引擎未挂载时静默（事件只登记，绑定发生在 attachEngine）。
+  type EngineListener = (...args: unknown[]) => void
+  interface EngineEventCenter {
+    subscribe?: (event: string, listener: EngineListener) => void
+    off?: (event: string, listener: EngineListener) => void
+  }
+
+  const engineListeners: Array<{ event: string; listener: EngineListener }> = []
+  // 监听器只登记一次、随引擎实例反复绑定：attachEngine 换实例（重新挂载 / 多
+  // 编辑器）时先 off 旧实例再 subscribe 新实例，否则同一事件会触发两遍。
+  let boundEventCenter: EngineEventCenter | null = null
+
+  function onEngineEvent(event: string, listener: EngineListener): void {
+    engineListeners.push({ event, listener })
+    boundEventCenter?.subscribe?.(event, listener)
+  }
+
+  function bindEngineEvents(center: EngineEventCenter | null): void {
+    if (center === boundEventCenter) return
+    for (const { event, listener } of engineListeners) {
+      boundEventCenter?.off?.(event, listener)
+    }
+    boundEventCenter = center
+    if (!center) return
+    for (const { event, listener } of engineListeners) {
+      center.subscribe?.(event, listener)
+    }
+  }
+
+  // ── 常用语（feat/quick-phrases）────────────────────────────────────
+  /** 设置弹窗开关（本窗口模态；由卡片头 ⚙ 的引擎事件打开，弹窗与「完成」关闭）。 */
+  const quickPhraseSettingsOpen = ref(false)
+  /** 最近一次保存成功信号（飞点 / 面板新条目入场都从它起跳）。 */
+  const savedPulse = ref<AnnotationSavedSignal | null>(null)
+  /** 徽标弹跳脉冲：飞点到达时自增，bpModes 监听后播 1→1.22→1。 */
+  const badgePulse = ref(0)
+  let savedSeq = 0
+
+  /** 偏好里的常用语（整表，顺序即键位顺序）。规范化只做「是字符串数组」这一层。 */
+  const quickPhrases = (): string[] => {
+    const raw = preferencesStore.annotationQuickPhrases
+    return Array.isArray(raw) ? raw.filter((item): item is string => typeof item === 'string') : []
+  }
+
+  /**
+   * 「＋ 存为常用语」：把备注 push 进偏好（写盘）。空 / 重复 / 超长 / 已满 9 条
+   * 一律静默丢弃——引擎侧按钮显隐已按同一组条件判定，这里是第二道防线：非法值
+   * 会让主进程 electron-store 的 ajv 校验失败，整次偏好写入被拒。
+   */
+  function addQuickPhrase(raw: string): void {
+    // 单行是 chip 的硬约束：粘贴的多行按空格合并（方案 §1.6），再 trim。
+    const phrase = raw.replace(/\s+/g, ' ').trim()
+    if (!phrase) return
+    if (Array.from(phrase).length > QUICK_PHRASE_MAX_LEN) return
+    const list = quickPhrases()
+    if (list.includes(phrase)) return
+    if (list.length >= QUICK_PHRASE_MAX_COUNT) return
+    preferencesStore.SET_SINGLE_PREFERENCE({
+      type: 'annotationQuickPhrases',
+      value: [...list, phrase]
+    })
+  }
+
+  // 卡片 ⚙ → 打开常用语设置弹窗（本窗口模态，卡片保持打开、不切偏好设置窗口）。
+  onEngineEvent('muya-annotation-settings', () => {
+    quickPhraseSettingsOpen.value = true
+  })
+
+  // 卡片「＋ 存为常用语」→ push 进偏好（去重 / 上限 9 / 长度见 addQuickPhrase）。
+  onEngineEvent('muya-annotation-phrase-add', (payload) => {
+    const phrase = (payload as { phrase?: unknown } | undefined)?.phrase
+    if (typeof phrase === 'string') addQuickPhrase(phrase)
+  })
+
+  // 卡片保存成功 → 记一次信号。（origin 缺失按 null 处理：飞点不播，其余照常。）
+  onEngineEvent('muya-annotation-saved', (payload) => {
+    const data = payload as { origin?: unknown; mode?: unknown } | undefined
+    const rawOrigin = data?.origin as { x?: unknown; y?: unknown } | null | undefined
+    const origin =
+      rawOrigin && typeof rawOrigin.x === 'number' && typeof rawOrigin.y === 'number'
+        ? { x: rawOrigin.x, y: rawOrigin.y }
+        : null
+    savedPulse.value = {
+      origin,
+      mode: data?.mode === 'manual' ? 'manual' : 'chip',
+      at: Date.now(),
+      seq: ++savedSeq
+    }
+  })
 
   const enabled = computed(() => preferencesStore.annotationEnabled !== false)
 
@@ -280,20 +385,25 @@ export const useAnnotationStore = defineStore('annotation', () => {
 
   /** 挂引擎实例（editor.vue 拿到 muya 后调用）。重复调用按覆盖处理。 */
   function attachEngine(instance: unknown): void {
-    engine = instance as { annotation?: unknown }
+    engine = instance as { annotation?: unknown; eventCenter?: EngineEventCenter }
+    bindEngineEvents(engine.eventCenter ?? null)
     pushToEngine()
   }
 
   function detachEngine(): void {
+    bindEngineEvents(null)
     engine = null
   }
 
-  /** 把当前文档的标注表与开关一次性推给引擎（切换文档 / 挂载时）。 */
+  /** 把当前文档的标注表、开关与常用语一次性推给引擎（切换文档 / 挂载时）。 */
   function pushToEngine(): void {
     const module = annotationModule()
     if (!module) return
     module.setEnabled?.(enabled.value)
     module.setAnnotations?.(currentDoc.value?.annotations ?? [])
+    // 常用语不随文档变，但引擎是「挂载时才收到整表」：漏掉这一行，编辑器在
+    // 偏好 watch（immediate 那次）之后才挂载，chips 永远是空的。
+    module.setQuickPhrases?.(quickPhrases())
   }
 
   // ── 载入 / 落盘 ───────────────────────────────────────────────────
@@ -799,6 +909,11 @@ export const useAnnotationStore = defineStore('annotation', () => {
     }
   }
 
+  /** 飞点到达徽标时调用：bpModes 监听 badgePulse 后播 1→1.22→1 弹跳。 */
+  function PULSE_BADGE(): void {
+    badgePulse.value += 1
+  }
+
   // ── 面板开合联动 ──────────────────────────────────────────────────
 
   /** 工具条「标注」按钮 → 展开右栏并切到标注 tab（方案 §3.1）。 */
@@ -824,6 +939,16 @@ export const useAnnotationStore = defineStore('annotation', () => {
   watch(enabled, (value) => {
     annotationModule()?.setEnabled?.(value)
   })
+
+  // 常用语变化（改一条也算）整表推给引擎：设置弹窗里增删改 / 排序后卡片 chips
+  // 实时刷新，无需重开卡片（方案 §2.1）。deep 才能感知数组元素级变更。
+  watch(
+    () => preferencesStore.annotationQuickPhrases,
+    () => {
+      annotationModule()?.setQuickPhrases?.(quickPhrases())
+    },
+    { deep: true, immediate: true }
+  )
 
   // 应用退出：把当前快照投给主进程（不等返回）。常规 debounce 写盘兜底。
   //
@@ -891,6 +1016,11 @@ export const useAnnotationStore = defineStore('annotation', () => {
     orderOf,
     findById,
     installUnloadFlush,
+    // 常用语（feat/quick-phrases）：设置弹窗开关 / 保存信号 / 徽标弹跳脉冲
+    quickPhraseSettingsOpen,
+    savedPulse,
+    badgePulse,
+    PULSE_BADGE,
     // 纯函数（单测直接 import 模块级导出即可，这里一并挂上便于组件统一取用）
     buildCopyText
   }

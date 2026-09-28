@@ -61,6 +61,12 @@ export const zhTW = {
         'Cancel': '取消',
         'Save': '儲存',
         'Write a note, e.g. this logic is wrong': '寫一句修改說明，例如：這段邏輯不通',
+        'Manage quick phrases…': '管理常用語…',
+        'Click a phrase to annotate, or write your own': '點常用語直接標註，或寫一句自己的',
+        'Click to save with this phrase as the note': '點擊即以這句為備註儲存',
+        'to annotate directly': '直接標註',
+        'Added': '已加入',
+        'Save as quick phrase': '存為常用語',
         // Code block
         'Copy content': '複製內容',
         'Input Language Identifier...': '輸入程式語言識別碼...',

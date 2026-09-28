@@ -4,15 +4,35 @@ import type { AnnotationModule } from '../../annotation';
 import type { IAnnotation, TSelectionSnapshot } from '../../annotation/types';
 import type { Muya } from '../../muya';
 import type { IBaseOptions } from '../types';
+import { collectablePhrase, composeNote, QUICK_PHRASE_MAX_COUNT, QUICK_PHRASE_MAX_LEN } from '../../annotation/quickPhrase';
 import { EVENT_KEYS, isOsx } from '../../config';
 import { getCursorReference } from '../../selection';
-import { isKeyboardEvent } from '../../utils';
+import { isKeyboardEvent, isMouseEvent } from '../../utils';
 import { h, patch } from '../../utils/snabbdom';
 import BaseFloat from '../baseFloat';
 
 import './index.css';
 
 const COMMAND_KEY = isOsx ? '⌘' : 'Ctrl';
+
+/** 卡片头部「管理常用语…」的图标（原型 ICON.qpmanage：两条短语 + 一支斜落下来的铅笔）。 */
+const GEAR_ICON
+    = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 4.3h11.2"/><path d="M2.4 7.9h4.8"/><path d="M11.5 6.5l1.4 1.4-4.4 4.4-1.9.5.5-1.9z"/></svg>';
+
+/** 底栏情境提示的五个状态：同一位置交叉淡入 120ms 轮换（原型 §3.2 #25）。 */
+const HINT_STATES = ['default', 'hover', 'alt', 'saved', 'typed'] as const;
+type THintState = (typeof HINT_STATES)[number];
+
+/** `muya-annotation-saved` 的载荷：`origin` 供桌面飞点动画起点，`mode` 区分保存路径。 */
+export interface IAnnotationSavedPayload {
+    origin: { x: number; y: number } | null;
+    mode: 'chip' | 'manual';
+}
+
+/** `muya-annotation-phrase-add` 的载荷。 */
+export interface IAnnotationPhraseAddPayload {
+    phrase: string;
+}
 
 const defaultOptions = {
     placement: 'bottom' as const,
@@ -24,10 +44,28 @@ const defaultOptions = {
     showArrow: false,
 };
 
-/** 卡片头部引文的显示长度（超出部分省略，全文进 `title`）。 */
-const QUOTE_PREVIEW_LENGTH = 40;
-/** 备注输入框自适应高度：2 行起、10 行封顶（之后内部滚动）。 */
-const NOTE_MIN_ROWS = 2;
+/** ⌥ 按住这么久之后浮出数字角标（原型 §3.2 #26）。 */
+const ALT_REVEAL_DELAY = 120;
+/** chip 落印（变实心 accent）到真正保存之间的停顿（#17 → #18）。 */
+const CHIP_SAVE_DELAY = 100;
+/** 落印态保持时长。 */
+const STAMP_DURATION = 200;
+/** 墨染动画时长（随后把节点摘掉）。 */
+const INK_DURATION = 320;
+/** 新 chip 出生动画时长。 */
+const BORN_DURATION = 340;
+/** 保存后正文高亮接力：离场开始后 60ms 点亮（#20）。 */
+const RELAY_DELAY = 60;
+/** 高亮接力动画时长（放完把一次性 class 摘掉，动画回落成常驻底色）。 */
+const RELAY_DURATION = 560;
+/** 入场动效总时长（最长一路是 300ms 滑动 + 320ms 的 chip 错峰）。 */
+const ENTER_DURATION = 620;
+/** 等 BaseFloat 写上位置的最多帧数；等不到就按默认方向入场，不能让卡片一直隐身。 */
+const ENTER_MAX_FRAMES = 40;
+/** 底栏「已加入」临时提示的保持时长。 */
+const HINT_FLASH_DURATION = 1600;
+/** 备注输入框自适应高度：3 行起、10 行封顶（之后内部滚动）。 */
+const NOTE_MIN_ROWS = 3;
 const NOTE_MAX_ROWS = 10;
 /** `.mu-annotation-note` 的行高兜底值（13px × 1.6），正常路径读计算样式。 */
 const NOTE_LINE_HEIGHT = 20.8;
@@ -46,6 +84,10 @@ const REPOSITION_DELAY = 480;
  * `findAtSnapshot` 判断新建态 / 编辑态 → 保存时写回 `addFromSnapshot` 或
  * `updateNote`。入口（格式工具条上的「标注」按钮）不在本文件，卡片不做第二套
  * 选中气泡。
+ *
+ * v8 起卡片是四段结构：头（标注 + 管理常用语）→ 常用语 chips → 输入框 → 底栏。
+ * 点一枚 chip 就是「以该短语为备注完成标注」——手写过的字由 `composeNote` 合并，
+ * 一个字都不会丢。
  */
 export class AnnotationTool extends BaseFloat {
     static pluginName = 'annotationTool';
@@ -64,8 +106,6 @@ export class AnnotationTool extends BaseFloat {
     private _snapshot: TSelectionSnapshot | null = null;
     /** 编辑态命中的标注；null = 新建态。 */
     private _editing: IAnnotation | null = null;
-    /** 头部引文（编辑态取标注自己的锚点原文）。 */
-    private _quote = '';
     /**
      * 打开瞬间克隆的 DOM Range：卡片位置以它为准。不能用
      * `getCursorReference()` 反复取——文本框拿到焦点后 `document.getSelection()`
@@ -81,6 +121,30 @@ export class AnnotationTool extends BaseFloat {
     private _note: HTMLTextAreaElement | null = null;
     private _saveButton: HTMLButtonElement | null = null;
     private _repositionTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /** 常用语列表（打开时从模块取，桌面偏好变化时就地刷新）。 */
+    private _phrases: string[] = [];
+    private _chipEls: HTMLButtonElement[] = [];
+    private _quickRow: HTMLElement | null = null;
+    private _hintEl: HTMLElement | null = null;
+    private _collectButton: HTMLButtonElement | null = null;
+    /** 本次渲染要播出生动画的新 chip。 */
+    private _bornPhrases = new Set<string>();
+    /** hover 预演中的短语（输入框为空时临时充当 placeholder）。 */
+    private _hoveredPhrase: string | null = null;
+    private _altOn = false;
+    private _altTimer: ReturnType<typeof setTimeout> | null = null;
+    /** chip 点击后的落印 → 保存接力。 */
+    private _chipSaveTimer: ReturnType<typeof setTimeout> | null = null;
+    /** 「已加入 · ⌥N」临时提示覆盖中。 */
+    private _hintOverride = false;
+    /** 卡片自己的退场在途标记（BaseFloat 内部还有一个同义的私有标记）。 */
+    private _exiting = false;
+    private _enterRaf: number | null = null;
+    /** 卡片生命周期内的短命定时器（隐藏 / 销毁时一并清）。 */
+    private _timers = new Set<ReturnType<typeof setTimeout>>();
+    /** 正文高亮接力用的定时器：动画打在正文的 span 上，卡片收起后仍要跑完。 */
+    private _relayTimers = new Set<ReturnType<typeof setTimeout>>();
 
     constructor(muya: Muya, options = {}) {
         const name = 'mu-annotation-tool';
@@ -100,9 +164,28 @@ export class AnnotationTool extends BaseFloat {
         eventCenter.subscribe('muya-annotation-request', (snapshot: TSelectionSnapshot) => {
             this._open(snapshot);
         });
+        // 桌面偏好变化（设置弹窗改动 / 「＋ 存为常用语」写盘回执）：卡片开着就地刷新
+        eventCenter.subscribe('annotation-quick-phrases-change', (list: unknown) => {
+            if (!this.status)
+                return;
+
+            this._applyQuickPhrases(Array.isArray(list) ? list.map(String) : []);
+        });
     }
 
     override hide() {
+        // 「关卡片」的入口（Esc / 取消 / 点外部 / 编辑器滚动）统一改走动画退场；
+        // 退场自身收尾时 `_exiting` 已置位，直达下面的关闭清理，不会绕圈。
+        if (this.status && !this._exiting) {
+            this._leaveCard(true);
+            return;
+        }
+
+        this._clearTimers();
+        this._cancelEnter();
+        this._altTimer = this._cancelTimer(this._altTimer);
+        this._setAltOn(false);
+
         if (this._repositionTimer) {
             clearTimeout(this._repositionTimer);
             this._repositionTimer = null;
@@ -110,9 +193,18 @@ export class AnnotationTool extends BaseFloat {
 
         this._snapshot = null;
         this._editing = null;
-        this._quote = '';
         this._range = null;
         this._fallbackRect = null;
+        this._phrases = [];
+        this._chipEls = [];
+        this._quickRow = null;
+        this._hintEl = null;
+        this._collectButton = null;
+        this._hoveredPhrase = null;
+        this._hintOverride = false;
+        this._bornPhrases.clear();
+        this._exiting = false;
+        this.floatBox?.classList.remove('is-leaving', 'quick', 'is-pre-enter', 'is-entering', 'is-editing');
 
         if (this._note)
             this._note.value = '';
@@ -127,6 +219,12 @@ export class AnnotationTool extends BaseFloat {
             clearTimeout(this._repositionTimer);
             this._repositionTimer = null;
         }
+        this._clearTimers();
+        this._cancelEnter();
+
+        for (const timer of this._relayTimers)
+            clearTimeout(timer);
+        this._relayTimers.clear();
 
         super.destroy();
     }
@@ -145,12 +243,11 @@ export class AnnotationTool extends BaseFloat {
         if (!snapshot || !module)
             return;
 
-        // 此刻选区还是编辑器里的真实选区（工具条发事件前刚还原过），所以引文与
-        // 贴边矩形都从它取。
+        // 此刻选区还是编辑器里的真实选区（工具条发事件前刚还原过），所以贴边矩形
+        // 都从它取。
         const editing = module.findAtSnapshot(snapshot);
         this._snapshot = snapshot;
         this._editing = editing;
-        this._quote = editing ? editing.anchor.quote : this._liveSelectionText();
         this._range = this._cloneLiveRange();
 
         // 坏 Range 判定：跨块选区点击浮层后，引擎还原出的 DOM 选区可能被压缩/
@@ -165,13 +262,18 @@ export class AnnotationTool extends BaseFloat {
             this._fallbackRect = () => node.getBoundingClientRect();
         }
 
-        // 引文兜底：坏选区下实时文本也会读空（同上），退化为快照首块文本——
-        // 保存用的锚点取自快照切片，不依赖这里；这里只影响卡片头部预览。
-        if (!this._quote) {
-            const anchorBlock = snapshot.anchorBlock as { text?: string } | undefined;
-            if (anchorBlock?.text)
-                this._quote = anchorBlock.text.replace(/\s+/g, ' ').trim();
-        }
+        // 上一轮退场若还在途，这里直接接管：先清掉它留下的定时器与浮层类。
+        this._exiting = false;
+        this._clearTimers();
+        this._cancelEnter();
+        this._phrases = Array.isArray(module.quickPhrases) ? [...module.quickPhrases] : [];
+        this._hoveredPhrase = null;
+        this._hintOverride = false;
+        this._bornPhrases.clear();
+        // 上一张卡片可能是在 ⌥ 按住时被关掉的：角标态随卡片一起收走
+        this._quickRow?.classList.remove('alt-on');
+        this._altOn = false;
+        this._altTimer = this._cancelTimer(this._altTimer);
 
         this._render();
 
@@ -180,12 +282,15 @@ export class AnnotationTool extends BaseFloat {
             this._autoGrow();
         }
         this._syncSaveState();
+        this._syncCollect();
+        this._syncHint();
 
         const reference = this._reference();
         if (reference)
             this.show(reference);
 
         this._focusNote();
+        this._runEnter();
         this._scheduleReposition();
     }
 
@@ -200,29 +305,66 @@ export class AnnotationTool extends BaseFloat {
         const head = h('div.mu-annotation-head', [
             h('span.mu-annotation-tag', tag),
             h(
-                'span.mu-annotation-quote',
-                { attrs: { title: this._quote } },
-                this._quotePreview(),
+                'button.mu-annotation-gear',
+                {
+                    attrs: {
+                        'type': 'button',
+                        'title': i18n.t('Manage quick phrases…'),
+                        'aria-label': i18n.t('Manage quick phrases…'),
+                    },
+                    props: { innerHTML: GEAR_ICON },
+                    on: { click: () => this.muya.eventCenter.emit('muya-annotation-settings') },
+                },
             ),
         ]);
+
+        // chips 行：空列表时整体隐身（children 数量恒定，patch 不会错位）
+        const quick = h(
+            'div.mu-annotation-quick',
+            { attrs: { hidden: !this._phrases.length } },
+            this._phrases.map((phrase, index) => this._chipVNode(phrase, index)),
+        );
 
         const note = h('textarea.mu-annotation-note', {
             attrs: {
                 rows: String(NOTE_MIN_ROWS),
-                placeholder: i18n.t('Write a note, e.g. this logic is wrong'),
+                placeholder: this._hoveredPhrase ?? this._notePlaceholder(),
                 spellcheck: 'false',
             },
             on: {
                 input: () => {
                     this._autoGrow();
                     this._syncSaveState();
+                    this._syncCollect();
+                    this._syncHint();
                 },
                 keydown: (event: Event) => this._handleKeydown(event),
+                keyup: (event: Event) => this._handleKeyup(event),
             },
         });
 
+        const hint = h(
+            'span.mu-annotation-hint',
+            HINT_STATES.map(state => h(
+                'span.mu-annotation-hint-item',
+                {
+                    attrs: { 'data-hint': state },
+                    class: { on: state === this._hintState() },
+                },
+                this._hintText(state),
+            )),
+        );
+
         const foot = h('div.mu-annotation-foot', [
-            h('span.mu-annotation-hint', `Esc ${i18n.t('Cancel')} · ${COMMAND_KEY}↵ ${i18n.t('Save')}`),
+            hint,
+            h(
+                'button.mu-annotation-btn.ghost.mu-annotation-collect',
+                {
+                    attrs: { type: 'button' },
+                    on: { click: () => this._collectPhrase() },
+                },
+                `＋ ${i18n.t('Save as quick phrase')}`,
+            ),
             h(
                 'button.mu-annotation-btn',
                 {
@@ -241,7 +383,7 @@ export class AnnotationTool extends BaseFloat {
             ),
         ]);
 
-        const card = h('div.mu-annotation-card', [head, note, foot]);
+        const card = h('div.mu-annotation-card', [head, quick, note, foot]);
 
         if (oldVNode)
             patch(oldVNode, card);
@@ -251,23 +393,239 @@ export class AnnotationTool extends BaseFloat {
         this._oldVNode = card;
         this._note = cardContainer.querySelector('textarea.mu-annotation-note');
         this._saveButton = cardContainer.querySelector('button.mu-annotation-btn.primary');
+        this._quickRow = cardContainer.querySelector('div.mu-annotation-quick');
+        this._hintEl = cardContainer.querySelector('span.mu-annotation-hint');
+        this._collectButton = cardContainer.querySelector('button.mu-annotation-collect');
+        this._chipEls = [...cardContainer.querySelectorAll<HTMLButtonElement>('button.mu-annotation-quick-chip')];
     }
 
-    /** 保存并关闭：编辑态改备注，新建态落一条新标注。 */
-    private _save() {
-        const note = this._note?.value.trim() ?? '';
+    /** 一枚常用语 chip：文字 + 墨染裁剪层 + ⌥N 角标（原型 §1.1）。 */
+    private _chipVNode(phrase: string, index: number) {
+        return h(
+            'button.mu-annotation-quick-chip',
+            {
+                // 入场错峰：70 + 30·i，第 6 枚起封顶 220ms（§3.2 #5）
+                style: { '--d': `${Math.min(70 + index * 30, 220)}ms` },
+                attrs: { type: 'button', title: phrase },
+                class: { born: this._bornPhrases.has(phrase) },
+                on: {
+                    // chip 在 mousedown 上 preventDefault：输入框不失焦、焦点环不闪
+                    mousedown: (event: Event) => event.preventDefault(),
+                    click: (event: Event) => {
+                        event.preventDefault();
+                        this._clickChip(phrase, isMouseEvent(event)
+                            ? { x: event.clientX, y: event.clientY }
+                            : undefined);
+                    },
+                    mouseenter: () => this._previewPhrase(phrase),
+                    mouseleave: () => this._clearPreview(),
+                },
+            },
+            [
+                h('span.mu-annotation-quick-text', phrase),
+                h('span.mu-annotation-quick-fill'),
+                h('span.mu-annotation-quick-key', `⌥${index + 1}`),
+            ],
+        );
+    }
+
+    /**
+     * 点 chip = 以该短语为备注直接完成标注（v7 定案）：先落印 + 墨染，100ms 后
+     * 走保存编排。用户自己写的字由 `composeNote` 并进去，一个字不丢。
+     */
+    private _clickChip(phrase: string, point?: { x: number; y: number }) {
+        const index = this._phrases.indexOf(phrase);
+        const chip = index >= 0 ? this._chipEls[index] : null;
+
+        if (chip) {
+            chip.classList.add('stamp');
+            // 落印 / 墨染的摘除用裸定时器：卡片即使已经在收场，这两记反馈也要播完
+            setTimeout(() => chip.classList.remove('stamp'), STAMP_DURATION);
+            this._playInk(chip, point);
+        }
+
+        this._chipSaveTimer = this._cancelTimer(this._chipSaveTimer);
+        this._chipSaveTimer = this._setTimeout(() => {
+            this._chipSaveTimer = null;
+            this._save(phrase);
+        }, CHIP_SAVE_DELAY);
+    }
+
+    /** 墨染：以点击点为圆心的 accent 圆，scale 0 → 1（§3.2 #12）。 */
+    private _playInk(chip: HTMLElement, point?: { x: number; y: number }) {
+        const fill = chip.querySelector('.mu-annotation-quick-fill') ?? chip;
+        const rect = chip.getBoundingClientRect();
+        const x = (point ? point.x : rect.left + rect.width / 2) - rect.left;
+        const y = (point ? point.y : rect.top + rect.height / 2) - rect.top;
+        // 半径取「点击点到最远角」的两倍直径，保证圆能盖满整枚胶囊
+        const diameter = Math.hypot(Math.max(x, rect.width - x), Math.max(y, rect.height - y)) * 2;
+
+        const ink = document.createElement('span');
+        ink.className = 'mu-annotation-quick-ink';
+        ink.style.setProperty('--ix', `${x}px`);
+        ink.style.setProperty('--iy', `${y}px`);
+        ink.style.setProperty('--id', `${diameter}px`);
+        fill.appendChild(ink);
+
+        requestAnimationFrame(() => ink.classList.add('run'));
+        setTimeout(() => ink.remove(), INK_DURATION);
+    }
+
+    /** 保存并收场：编辑态改备注，新建态落一条新标注。`phrase` 非空 = chip 路径。 */
+    private _save(phrase?: string) {
+        const noteValue = this._note?.value ?? '';
         const module = this._annotationModule();
         const { _snapshot: snapshot, _editing: editing } = this;
-
-        if (!note || !snapshot || !module)
+        if (!snapshot || !module)
             return;
 
+        const note = phrase ? composeNote(noteValue, phrase, this._phrases) : noteValue.trim();
+        if (!note)
+            return;
+
+        // 飞点起点先取：卡片紧接着开始退场，但退出动画是异步的，此刻矩形还是准的。
+        const origin = this._saveOrigin();
+        const payload: IAnnotationSavedPayload = { origin, mode: phrase ? 'chip' : 'manual' };
+
+        let saved: IAnnotation | null = null;
         if (editing)
             module.updateNote(editing.id, note);
         else
-            module.addFromSnapshot(snapshot, note);
+            saved = module.addFromSnapshot(snapshot, note);
 
-        this.hide();
+        this.muya.eventCenter.emit('muya-annotation-saved', payload);
+        this._leaveCard(false);
+
+        // §3.2 #20 正文高亮接力：新建成功的条目亮一记，把「落在哪」指给用户
+        if (saved)
+            this._scheduleRelay(saved.id);
+    }
+
+    /**
+     * 保存后的正文高亮接力（§3.2 #20）：给刚落下的高亮 span 挂一次性 class，
+     * 背景 0 → 22% → 14% 亮一记。DOM 上的高亮只带序号（不带 id），所以按文档
+     * 顺序反查刚保存条目的序号。
+     */
+    private _scheduleRelay(id: string) {
+        const timer = setTimeout(() => {
+            this._relayTimers.delete(timer);
+
+            const module = this._annotationModule();
+            if (!module)
+                return;
+
+            const ordered = module.list().filter(item => !item.archived);
+            const index = ordered.findIndex(item => item.id === id) + 1;
+            if (!index)
+                return;
+
+            const spans = document.querySelectorAll<HTMLElement>(
+                `.mu-annotation[data-index="${index}"], .mu-annotation-active[data-index="${index}"]`,
+            );
+            spans.forEach((span) => {
+                span.classList.add('mu-annotation-relay');
+                setTimeout(() => span.classList.remove('mu-annotation-relay'), RELAY_DURATION);
+            });
+        }, RELAY_DELAY);
+
+        this._relayTimers.add(timer);
+    }
+
+    /** 保存按钮中心的视口坐标（缺按钮时退到卡片中心）；供桌面飞点动画起点。 */
+    private _saveOrigin(): { x: number; y: number } | null {
+        const el = this._saveButton ?? this.floatBox;
+        if (!el)
+            return null;
+
+        const rect = el.getBoundingClientRect();
+        if (!rect.width && !rect.height)
+            return null;
+
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }
+
+    /**
+     * 卡片退场（§3.2 #18/#19）：保存走 150ms、取消 / Esc / 点外部走 110ms 的
+     * 收场动画，动画结束后 BaseFloat 才真正隐藏。
+     */
+    private _leaveCard(quick: boolean) {
+        if (!this.status || this._exiting)
+            return;
+
+        this._exiting = true;
+        this._cancelEnter();
+
+        if (this._repositionTimer) {
+            clearTimeout(this._repositionTimer);
+            this._repositionTimer = null;
+        }
+
+        const { floatBox } = this;
+        if (floatBox) {
+            floatBox.classList.remove('is-pre-enter', 'is-entering');
+            floatBox.classList.toggle('quick', quick);
+        }
+
+        this.leave();
+    }
+
+    /**
+     * 入场（§3.2 #1–#8）：先 `.is-pre-enter` 压一帧，再 `.is-entering` 播
+     * opacity / scale / translate 三条独立动画；方向按卡片最终落在选区的上/下方
+     * 写进 `data-side`，内容分层错峰在 CSS 里。
+     */
+    private _runEnter() {
+        const { floatBox } = this;
+        if (!floatBox)
+            return;
+
+        floatBox.classList.remove('is-leaving', 'quick', 'is-entering');
+        // 编辑态：内容整体淡入、不逐项错峰（#8）
+        floatBox.classList.toggle('is-editing', !!this._editing);
+        floatBox.classList.add('is-pre-enter');
+
+        let frames = 0;
+        const tick = () => {
+            this._enterRaf = null;
+            if (!this.status || this._exiting || !this.floatBox)
+                return;
+
+            // 等 BaseFloat 把位置与 opacity 写上的那一帧：flip 之后才知道卡片落在
+            // 上方还是下方，抢跑会把卡片从错的方向推进来。等不到就走默认方向，
+            // 但走 —— 不能让 `.is-pre-enter` 把卡片一直压在隐身态。
+            if (floatBox.style.opacity !== '1' && frames < ENTER_MAX_FRAMES) {
+                frames += 1;
+                this._enterRaf = requestAnimationFrame(tick);
+                return;
+            }
+
+            floatBox.setAttribute('data-side', this._sideOf());
+            floatBox.classList.remove('is-pre-enter');
+            floatBox.classList.add('is-entering');
+            this._setTimeout(() => floatBox.classList.remove('is-entering'), ENTER_DURATION);
+        };
+
+        this._enterRaf = requestAnimationFrame(tick);
+    }
+
+    private _cancelEnter() {
+        if (this._enterRaf !== null) {
+            cancelAnimationFrame(this._enterRaf);
+            this._enterRaf = null;
+        }
+    }
+
+    /** 卡片最终落在选区的上方还是下方（flip 由 floating-ui 倒，这里量最终落位）。 */
+    private _sideOf(): 'above' | 'below' {
+        const boxRect = this.floatBox?.getBoundingClientRect();
+        const refRect = this._reference()?.getBoundingClientRect();
+
+        if (!boxRect || !refRect || !boxRect.height)
+            return 'below';
+
+        return boxRect.top + boxRect.height / 2 <= refRect.top + refRect.height / 2
+            ? 'above'
+            : 'below';
     }
 
     private _handleKeydown(event: Event) {
@@ -280,10 +638,226 @@ export class AnnotationTool extends BaseFloat {
             return;
         }
 
+        // §1.4 卡片自己拦截 ⌘Z / ⌘⇧Z：只撤销输入框内容，不误撤正文
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+            event.preventDefault();
+            event.stopPropagation();
+            document.execCommand(event.shiftKey ? 'redo' : 'undo');
+            return;
+        }
+
+        // ⌥ 按住 120ms → chips 浮出数字角标（#26）
+        if (event.key === 'Alt' && !event.repeat) {
+            this._scheduleAltReveal();
+            return;
+        }
+
+        // 输入法候选框里的数字键不能被抢（§1.4）
+        if (event.isComposing || event.keyCode === 229)
+            return;
+
+        // 输入框为空时 ⌘↵ 没有备注可存 —— 让它走主路径：用第 1 枚常用语直接落标
         if (event.key === EVENT_KEYS.Enter && (event.metaKey || event.ctrlKey)) {
             event.preventDefault();
+            if (!this._note?.value.trim()) {
+                const first = this._phrases[0];
+                if (first)
+                    this._clickChip(first);
+                return;
+            }
             this._save();
+            return;
         }
+
+        this._triggerChipByDigit(event);
+    }
+
+    private _scheduleAltReveal() {
+        this._altTimer = this._cancelTimer(this._altTimer);
+        this._altTimer = this._setTimeout(() => this._setAltOn(true), ALT_REVEAL_DELAY);
+    }
+
+    /** ⌥N 等价于点第 N 枚 chip（#26）：preventDefault 顺手挡掉 ¡™£ 之类字符。 */
+    private _triggerChipByDigit(event: KeyboardEvent) {
+        const digit = /^Digit([1-9])$/.exec(event.code ?? '');
+        if (!digit || !event.altKey)
+            return;
+
+        const phrase = this._phrases[Number(digit[1]) - 1];
+        if (!phrase)
+            return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        this._clickChip(phrase);
+    }
+
+    private _handleKeyup(event: Event) {
+        if (!isKeyboardEvent(event) || event.key !== 'Alt')
+            return;
+
+        this._altTimer = this._cancelTimer(this._altTimer);
+        this._setAltOn(false);
+    }
+
+    /** ⌥ 角标态：容器加 `.alt-on`，底栏提示随之切换。 */
+    private _setAltOn(on: boolean) {
+        if (this._altOn === on)
+            return;
+
+        this._altOn = on;
+        this._quickRow?.classList.toggle('alt-on', on);
+        this._syncHint();
+    }
+
+    /** hover 预演：输入框为空时 placeholder 临时换成该短语（选一句看看）。 */
+    private _previewPhrase(phrase: string) {
+        this._hoveredPhrase = phrase;
+        this._syncHint();
+
+        const { _note: note } = this;
+        if (note && !note.value.trim())
+            note.placeholder = phrase;
+    }
+
+    private _clearPreview() {
+        if (!this._hoveredPhrase)
+            return;
+
+        this._hoveredPhrase = null;
+        if (this._note)
+            this._note.placeholder = this._notePlaceholder();
+        this._syncHint();
+    }
+
+    private _notePlaceholder(): string {
+        return this.muya.i18n.t('Write a note, e.g. this logic is wrong');
+    }
+
+    /** 底栏情境提示的当前态（#25）：临时覆盖 > 悬停 > ⌥ > 手写 > 默认。 */
+    private _hintState(): THintState {
+        if (this._hintOverride)
+            return 'saved';
+        if (this._hoveredPhrase)
+            return 'hover';
+        if (this._altOn && this._phrases.length)
+            return 'alt';
+
+        return this._note?.value.trim() ? 'typed' : 'default';
+    }
+
+    private _hintText(state: THintState): string {
+        const { i18n } = this.muya;
+
+        switch (state) {
+            case 'default':
+                return i18n.t('Click a phrase to annotate, or write your own');
+            case 'hover':
+                return i18n.t('Click to save with this phrase as the note');
+            case 'alt': {
+                // 只有一条时退化成「⌥1 直接标注」
+                const keys = this._phrases.length > 1 ? `⌥1–⌥${this._phrases.length}` : '⌥1';
+                return `${keys} ${i18n.t('to annotate directly')}`;
+            }
+            case 'saved':
+                // 实际序号在闪示时写进文本（`_flashHint`），这里给个安全的初值
+                return `${i18n.t('Added')} · ⌥${this._phrases.length}`;
+            case 'typed':
+                return `Esc ${i18n.t('Cancel')} · ${COMMAND_KEY}↵ ${i18n.t('Save')}`;
+        }
+    }
+
+    private _syncHint() {
+        const { _hintEl: hint } = this;
+        // 提示位让给「＋ 存为常用语」时它是 hidden 的，不用刷
+        if (!hint || hint.hidden)
+            return;
+
+        const state = this._hintState();
+        hint.querySelectorAll<HTMLElement>('[data-hint]').forEach((el) => {
+            el.classList.toggle('on', el.dataset.hint === state);
+        });
+    }
+
+    /** 底栏提示位二选一：情境提示，或「＋ 存为常用语」（§1.5）。 */
+    private _syncCollect() {
+        const phrase = collectablePhrase(
+            this._note?.value ?? '',
+            this._phrases,
+            QUICK_PHRASE_MAX_LEN,
+            QUICK_PHRASE_MAX_COUNT,
+        );
+
+        if (this._collectButton)
+            this._collectButton.hidden = !phrase;
+        if (this._hintEl)
+            this._hintEl.hidden = !!phrase;
+
+        this._syncHint();
+    }
+
+    /** 「＋ 存为常用语」：写进偏好（桌面负责落盘），提示位就地播「已加入 · ⌥N」。 */
+    private _collectPhrase() {
+        const phrase = collectablePhrase(
+            this._note?.value ?? '',
+            this._phrases,
+            QUICK_PHRASE_MAX_LEN,
+            QUICK_PHRASE_MAX_COUNT,
+        );
+        if (!phrase)
+            return;
+
+        const payload: IAnnotationPhraseAddPayload = { phrase };
+        this.muya.eventCenter.emit('muya-annotation-phrase-add', payload);
+
+        // 乐观切回提示位：桌面写盘后才会回 `annotation-quick-phrases-change`，
+        // 本地先把「＋ 存为常用语」收掉，别让提示等一个来回
+        if (this._collectButton)
+            this._collectButton.hidden = true;
+        if (this._hintEl)
+            this._hintEl.hidden = false;
+
+        this._flashHint(`⌥${this._phrases.length + 1}`);
+    }
+
+    /** 底栏提示的临时覆盖（「已加入 · ⌥N」）：1.6s 后回落到情境态。 */
+    private _flashHint(label: string) {
+        const { _hintEl: hint } = this;
+        const saved = hint?.querySelector<HTMLElement>('[data-hint="saved"]');
+        if (!hint || hint.hidden || !saved)
+            return;
+
+        saved.textContent = `${this.muya.i18n.t('Added')} · ${label}`;
+        this._hintOverride = true;
+        this._syncHint();
+        this._setTimeout(() => {
+            this._hintOverride = false;
+            // 重算提示位：桌面若没真的收下这条（写盘失败 / 去重），把「＋ 存为常用语」放回来
+            this._syncCollect();
+        }, HINT_FLASH_DURATION);
+    }
+
+    /** 常用语整表刷新（桌面偏好变化）：新增的 chip 播出生动画，提示位与键位重算。 */
+    private _applyQuickPhrases(list: string[]) {
+        const previous = this._phrases;
+        const born = list.filter(phrase => !previous.includes(phrase));
+
+        this._phrases = [...list];
+        if (this._hoveredPhrase && !this._phrases.includes(this._hoveredPhrase))
+            this._clearPreview();
+
+        if (born.length) {
+            born.forEach(phrase => this._bornPhrases.add(phrase));
+            // born 只是出生动画的触发类：摘除走裸定时器，卡片收起了也要摘
+            setTimeout(() => {
+                born.forEach(phrase => this._bornPhrases.delete(phrase));
+            }, BORN_DURATION);
+        }
+
+        // 重画整个卡片：textarea 是原地 patch（同样的 sel / 位置），内容与焦点不丢
+        this._render();
+        this._syncSaveState();
+        this._syncCollect();
     }
 
     /** 空备注不允许保存（方案 §3.6「空备注」）。 */
@@ -292,7 +866,7 @@ export class AnnotationTool extends BaseFloat {
             this._saveButton.disabled = !this._note?.value.trim();
     }
 
-    /** 文本框高度随内容增长，2 行起、10 行封顶，超出改为内部滚动。 */
+    /** 文本框高度随内容增长，3 行起、10 行封顶，超出改为内部滚动。 */
     private _autoGrow() {
         const { _note: note } = this;
         if (!note)
@@ -344,7 +918,7 @@ export class AnnotationTool extends BaseFloat {
             // （用户实测：选中一大段后点「标注」像"没反应"）。改用**选区末行**
             // 的矩形做参照——那是用户松手的位置，一定在视口里，语义也更对。
             getBoundingClientRect: () => {
-                const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+                const rects = [...range.getClientRects()].filter(r => r.width > 0);
                 return rects.length ? rects[rects.length - 1] : range.getBoundingClientRect();
             },
         };
@@ -356,7 +930,7 @@ export class AnnotationTool extends BaseFloat {
 
         this._repositionTimer = setTimeout(() => {
             this._repositionTimer = null;
-            if (!this.status || !this.floatBox)
+            if (!this.status || this._exiting || !this.floatBox)
                 return;
 
             const reference = this._reference();
@@ -372,17 +946,34 @@ export class AnnotationTool extends BaseFloat {
         }, REPOSITION_DELAY);
     }
 
-    private _quotePreview(): string {
-        const { _quote: quote } = this;
+    /** 托管式 setTimeout：hide / destroy 时统一清掉，避免卡片关了还回调。 */
+    private _setTimeout(fn: () => void, ms: number) {
+        const timer = setTimeout(() => {
+            this._timers.delete(timer);
+            fn();
+        }, ms);
 
-        return quote.length > QUOTE_PREVIEW_LENGTH
-            ? `${quote.slice(0, QUOTE_PREVIEW_LENGTH)}…`
-            : quote;
+        this._timers.add(timer);
+
+        return timer;
     }
 
-    /** 选区渲染文本（单行预览用，压掉换行）。 */
-    private _liveSelectionText(): string {
-        return document.getSelection()?.toString().replace(/\s+/g, ' ').trim() ?? '';
+    /** 撤掉一枚托管定时器（提前触发路径用）。 */
+    private _cancelTimer(timer: ReturnType<typeof setTimeout> | null) {
+        if (!timer)
+            return null;
+
+        clearTimeout(timer);
+        this._timers.delete(timer);
+
+        return null;
+    }
+
+    private _clearTimers() {
+        for (const timer of this._timers)
+            clearTimeout(timer);
+
+        this._timers.clear();
     }
 
     private _cloneLiveRange(): Range | null {

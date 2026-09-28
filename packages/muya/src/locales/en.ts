@@ -61,6 +61,12 @@ export const en = {
         'Cancel': 'Cancel',
         'Save': 'Save',
         'Write a note, e.g. this logic is wrong': 'Write a note, e.g. this logic is wrong',
+        'Manage quick phrases…': 'Manage quick phrases…',
+        'Click a phrase to annotate, or write your own': 'Click a phrase to annotate, or write your own',
+        'Click to save with this phrase as the note': 'Click to save with this phrase as the note',
+        'to annotate directly': 'to annotate directly',
+        'Added': 'Added',
+        'Save as quick phrase': 'Save as quick phrase',
         // Code block
         'Copy content': 'Copy content',
         'Input Language Identifier...': 'Input Language Identifier...',

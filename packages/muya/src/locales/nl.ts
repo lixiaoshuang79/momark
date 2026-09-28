@@ -58,6 +58,12 @@ export const nl = {
         'Cancel': 'Annuleren',
         'Save': 'Opslaan',
         'Write a note, e.g. this logic is wrong': 'Schrijf een opmerking, bijv.: deze logica klopt niet',
+        'Manage quick phrases…': 'Snelle zinnen beheren…',
+        'Click a phrase to annotate, or write your own': 'Klik op een zin om te annoteren, of schrijf er zelf een',
+        'Click to save with this phrase as the note': 'Klik om met deze zin als notitie op te slaan',
+        'to annotate directly': 'direct annoteren',
+        'Added': 'Toegevoegd',
+        'Save as quick phrase': 'Opslaan als snelle zin',
         // Code block
         'Copy content': 'Inhoud kopiëren',
         'Input Language Identifier...': 'Voer taalidentificatie in...',

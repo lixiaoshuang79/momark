@@ -25,6 +25,17 @@ export type ImageUploaderService = 'picgo' | 'tencent-cos'
 export type FileSortBy = 'created' | 'modified' | 'title'
 export type FileSortOrder = 'asc' | 'desc'
 
+/**
+ * 常用语（标注卡片 chips）的默认值与上限。三处必须一致：本文件的默认值、
+ * `main/preferences/schema.json` 的 default/maxItems/maxLength、
+ * `static/preference.json` 的种子——任一处漂移都会让「恢复默认」与首启不一致。
+ * 引擎侧同名常量（`packages/muya/src/annotation/quickPhrase.ts`）由 A 线维护，
+ * 桌面不跨包 import（两条线并行开发期间互不依赖构建产物）。
+ */
+export const DEFAULT_QUICK_PHRASES: string[] = ['看不懂，优化表达', '删掉', '写详细', '待定']
+export const QUICK_PHRASE_MAX_LEN = 24
+export const QUICK_PHRASE_MAX_COUNT = 9
+
 export interface PreferencesState {
   // ----- General -----
   autoSave: boolean
@@ -32,6 +43,9 @@ export interface PreferencesState {
   // 内容标注总开关（feat/annotations）：关 = 隐藏右栏第三 tab、工具条不出标注
   // 按钮、正文不画高亮；已落盘的标注数据保留，重新打开即原样恢复。
   annotationEnabled: boolean
+  // 标注卡片的常用语（feat/quick-phrases）：顺序即 ⌥1–⌥9 的键位顺序，
+  // 最多 9 条、每条 ≤24 字。应用级一份（不随文档存），`[]` 是合法值。
+  annotationQuickPhrases: string[]
   titleBarStyle: TitleBarStyle | string
   openFilesInNewWindow: boolean
   openFolderInNewWindow: boolean
@@ -154,6 +168,7 @@ export const usePreferencesStore = defineStore('preferences', {
     autoSave: true,
     autoSaveDelay: 5000,
     annotationEnabled: true,
+    annotationQuickPhrases: [...DEFAULT_QUICK_PHRASES],
     titleBarStyle: 'custom',
     openFilesInNewWindow: false,
     openFolderInNewWindow: false,

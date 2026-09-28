@@ -61,6 +61,12 @@ export const ja = {
         'Cancel': 'キャンセル',
         'Save': '保存',
         'Write a note, e.g. this logic is wrong': '修正内容を一言で（例：このロジックは誤り）',
+        'Manage quick phrases…': 'よく使うフレーズを管理…',
+        'Click a phrase to annotate, or write your own': 'フレーズをクリックして注釈するか、自分で書きます',
+        'Click to save with this phrase as the note': 'クリックするとこのフレーズをメモとして保存します',
+        'to annotate directly': '直接注釈',
+        'Added': '追加しました',
+        'Save as quick phrase': 'よく使うフレーズとして保存',
         // Code block
         'Copy content': '内容をコピーする',
         'Input Language Identifier...': 'プログラム言語IDを入力する...',
