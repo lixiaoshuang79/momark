@@ -397,9 +397,11 @@ export class AnnotationModule {
         if (!this._enabled)
             return NO_HIGHLIGHTS;
 
-        // 块正在销毁 / 重建时（`parent` 被置空），其 `path` getter 会抛
-        // `Cannot destructure property 'path' of 'this.parent'`（标题块 blur
-        // 重渲染路径实测崩溃）——此时该块不需要高亮，直接返回空。
+        // 块（或其祖先）正在销毁时 `parent` 链会在**中途**断开：`path` getter 抛
+        // `Cannot destructure property 'path' of 'this.parent'`。`block.parent`
+        // 只是第一环——实测崩点更深（内容块还在、它所在的容器已被置空，堆栈是
+        // `get path → get path → highlightsFor`，经 `Muya.focus → setCursor →
+        // blurHandler → update → patch` 触发）。所以除了快速检查，取值整段兜住。
         if (!block.parent)
             return NO_HIGHLIGHTS;
 
@@ -407,7 +409,13 @@ export class AnnotationModule {
         if (!this._annotations.length && !this._pendingRanges.length)
             return NO_HIGHLIGHTS;
 
-        return this._highlightMap().get(pathKey(block.path))?.highlights ?? NO_HIGHLIGHTS;
+        try {
+            return this._highlightMap().get(pathKey(block.path))?.highlights ?? NO_HIGHLIGHTS;
+        }
+        catch {
+            // 路径链断裂 = 该块正在销毁：不画高亮，也不把异常抛回渲染循环
+            return NO_HIGHLIGHTS;
+        }
     }
 
     /** 宿主销毁编辑器时释放定时器（事件订阅由 EventCenter.unsubscribeAll 清）。 */
