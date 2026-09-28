@@ -9,6 +9,12 @@ import { checkImageContentType, getImageSrc, loadImage } from '../image';
 // against the document directory. Legacy muyajs `getImageInfo(src, baseUrl =
 // window.DIRNAME)` did `'file://' + path.resolve(baseUrl, src)`; this suite
 // pins the ported behaviour.
+//
+// A-12（webSecurity 恢复）之后，本地图片不再产出 `file://`，而是
+// `momark-file://local/<逐段编码的绝对路径>`：宿主打开 webSecurity 后，dev 形态
+// （http://localhost 应用页）与沙箱帧（不透明源）都加载不了 file://，只有自定义
+// 协议在全部上下文可用。`file://` 形态的 src **原样透传**（不改写已有 file:// 的
+// markdown），这一条也由本套件钉住。
 
 const DIRNAME = '/home/user/docs';
 
@@ -136,7 +142,7 @@ describe('getImageSrc — relative local image paths anchored to window.DIRNAME'
         withDirname(DIRNAME, () => {
             expect(getImageSrc('assets/foo.png')).toEqual({
                 isUnknownType: false,
-                src: 'file:///home/user/docs/assets/foo.png',
+                src: 'momark-file://local/home/user/docs/assets/foo.png',
             });
         });
     });
@@ -144,7 +150,7 @@ describe('getImageSrc — relative local image paths anchored to window.DIRNAME'
     it('resolves a `./` relative path', () => {
         withDirname(DIRNAME, () => {
             expect(getImageSrc('./img/cat.jpg').src).toBe(
-                'file:///home/user/docs/img/cat.jpg',
+                'momark-file://local/home/user/docs/img/cat.jpg',
             );
         });
     });
@@ -152,24 +158,24 @@ describe('getImageSrc — relative local image paths anchored to window.DIRNAME'
     it('collapses `../` parent segments', () => {
         withDirname(DIRNAME, () => {
             expect(getImageSrc('../shared/logo.svg').src).toBe(
-                'file:///home/user/shared/logo.svg',
+                'momark-file://local/home/user/shared/logo.svg',
             );
         });
     });
 
-    it('does not produce a double `file://` prefix', () => {
+    it('does not produce a double `momark-file://` prefix', () => {
         withDirname(DIRNAME, () => {
             expect(getImageSrc('assets/foo.png').src).not.toContain(
-                'file://file://',
+                'momark-file://momark-file://',
             );
         });
     });
 
-    it('falls back to bare `file://` when window.DIRNAME is absent', () => {
+    it('falls back to the bare-path form when window.DIRNAME is absent', () => {
         withDirname(undefined, () => {
             expect(getImageSrc('assets/foo.png')).toEqual({
                 isUnknownType: false,
-                src: 'file://assets/foo.png',
+                src: 'momark-file://local/assets/foo.png',
             });
         });
     });
@@ -177,25 +183,25 @@ describe('getImageSrc — relative local image paths anchored to window.DIRNAME'
     it('resolves Windows-drive base dirs with forward slashes', () => {
         withDirname('C:\\Users\\me\\docs', () => {
             expect(getImageSrc('assets\\foo.png').src).toBe(
-                'file:///C:/Users/me/docs/assets/foo.png',
+                'momark-file://local/C%3A/Users/me/docs/assets/foo.png',
             );
         });
     });
 });
 
 describe('getImageSrc — non-relative sources are left unchanged', () => {
-    it('leaves an absolute POSIX local path as a single `file://`', () => {
+    it('leaves an absolute POSIX local path as a single `momark-file://`', () => {
         withDirname(DIRNAME, () => {
             expect(getImageSrc('/var/img/pic.png')).toEqual({
                 isUnknownType: false,
-                src: 'file:///var/img/pic.png',
+                src: 'momark-file://local/var/img/pic.png',
             });
         });
     });
 
-    it('leaves an absolute Windows-drive path as a single `file://`', () => {
+    it('leaves an absolute Windows-drive path as a single `momark-file://`', () => {
         withDirname(DIRNAME, () => {
-            expect(getImageSrc('C:/img/pic.png').src).toBe('file:///C:/img/pic.png');
+            expect(getImageSrc('C:/img/pic.png').src).toBe('momark-file://local/C%3A/img/pic.png');
         });
     });
 
@@ -208,7 +214,7 @@ describe('getImageSrc — non-relative sources are left unchanged', () => {
         });
     });
 
-    it('leaves an already-`file://` src untouched (no double prefix)', () => {
+    it('leaves an already-`file://` src untouched（A-12 遗留：只有裸路径会被改写）', () => {
         withDirname(DIRNAME, () => {
             expect(getImageSrc('file:///already/abs.png')).toEqual({
                 isUnknownType: false,
@@ -241,44 +247,44 @@ describe('getImageSrc — non-relative sources are left unchanged', () => {
 describe('getImageSrc — Windows drive + UNC base directories (Phase G review)', () => {
     it('preserves the drive when resolving `..`', () => {
         withDirname('C:/Users/me/docs', () => {
-            expect(getImageSrc('../img/a.png').src).toBe('file:///C:/Users/me/img/a.png');
+            expect(getImageSrc('../img/a.png').src).toBe('momark-file://local/C%3A/Users/me/img/a.png');
         });
     });
 
     it('clamps `..` at the drive root so the drive is never lost', () => {
         withDirname('C:/docs', () => {
-            expect(getImageSrc('../../../a.png').src).toBe('file:///C:/a.png');
+            expect(getImageSrc('../../../a.png').src).toBe('momark-file://local/C%3A/a.png');
         });
     });
 
     it('normalises a Windows-backslash base dir', () => {
         withDirname('C:\\docs', () => {
-            expect(getImageSrc('a.png').src).toBe('file:///C:/docs/a.png');
+            expect(getImageSrc('a.png').src).toBe('momark-file://local/C%3A/docs/a.png');
         });
     });
 
     it('resolves against a UNC share base directory', () => {
         withDirname('//server/share/docs', () => {
-            expect(getImageSrc('a.png').src).toBe('file://server/share/docs/a.png');
+            expect(getImageSrc('a.png').src).toBe('momark-file://local//server/share/docs/a.png');
         });
     });
 
     it('normalises a backslash UNC base', () => {
         withDirname('\\\\server\\share', () => {
-            expect(getImageSrc('sub/a.png').src).toBe('file://server/share/sub/a.png');
+            expect(getImageSrc('sub/a.png').src).toBe('momark-file://local//server/share/sub/a.png');
         });
     });
 
     it('clamps `..` at the UNC share root', () => {
         withDirname('//server/share/docs', () => {
-            expect(getImageSrc('../../../a.png').src).toBe('file://server/share/a.png');
+            expect(getImageSrc('../../../a.png').src).toBe('momark-file://local//server/share/a.png');
         });
     });
 
     it('keeps the UNC host when resolving relative images from WSL paths', () => {
         withDirname('\\\\wsl.localhost\\Ubuntu-24.04\\home\\me\\docs', () => {
             expect(getImageSrc('./img/my_image.png').src).toBe(
-                'file://wsl.localhost/Ubuntu-24.04/home/me/docs/img/my_image.png',
+                'momark-file://local//wsl.localhost/Ubuntu-24.04/home/me/docs/img/my_image.png',
             );
         });
     });
@@ -286,7 +292,7 @@ describe('getImageSrc — Windows drive + UNC base directories (Phase G review)'
     it('normalises an absolute UNC image path to a host-based file URL', () => {
         withDirname(DIRNAME, () => {
             expect(getImageSrc('\\\\server\\share\\img\\a.png').src).toBe(
-                'file://server/share/img/a.png',
+                'momark-file://local//server/share/img/a.png',
             );
         });
     });

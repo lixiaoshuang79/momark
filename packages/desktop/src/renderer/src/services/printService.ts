@@ -1,4 +1,4 @@
-import { resolveLocalImageSrc } from '../util/resolveImageSrc'
+import { resolveLocalImageSrcForDisplay } from '../util/resolveImageSrc'
 
 class MarkdownPrint {
   private container: HTMLElement | null = null
@@ -25,12 +25,14 @@ class MarkdownPrint {
     printContainer.innerHTML = html
 
     // Fix images when rendering for static files like PDF (GH#678).
+    // A-12：打印容器渲染在编辑器自己的文档里，本地图片走 momark-file 协议
+    // （webSecurity 打开后 dev 形态与沙箱帧都加载不了 file://）。
     if (renderStatic) {
       // Traverse through the DOM tree and fix all relative image sources.
       const images = printContainer.getElementsByTagName('img')
       for (const image of Array.from(images)) {
         const rawSrc = image.getAttribute('src') ?? ''
-        image.src = resolveLocalImageSrc(rawSrc)
+        image.src = resolveLocalImageSrcForDisplay(rawSrc)
       }
     }
 

@@ -19,7 +19,12 @@ const state = vi.hoisted(() => ({
   openPath: vi.fn(() => Promise.resolve(''))
 }))
 
+// A-12 ③：handler 现在要求来源是「自家窗口的主 frame」（senderFrame.parent ===
+// null + 一个活着的 BrowserWindow）。spec 直接调 handler，所以给一个可信事件桩。
+const TRUSTED_EVENT = { senderFrame: { parent: null }, sender: {} }
+
 vi.mock('electron', () => ({
+  BrowserWindow: { fromWebContents: () => ({ isDestroyed: () => false }) },
   ipcMain: {
     handle: (channel: string, listener: (...args: unknown[]) => unknown) => {
       state.handled.set(channel, listener)
@@ -43,7 +48,7 @@ registerShellHandlers()
 const invoke = async (channel: string, arg: unknown): Promise<unknown> => {
   const handler = state.handled.get(channel)
   if (!handler) throw new Error(`${channel} handler was not registered`)
-  return handler({}, arg)
+  return handler(TRUSTED_EVENT, arg)
 }
 
 const dirs: string[] = []
@@ -107,10 +112,10 @@ describe('F1(A-11) — openExternal scheme 白名单', () => {
     const onHandler = state.listened.get('mt::shell::open-external')
     expect(onHandler).toBeTruthy()
 
-    onHandler!({}, 'file:///etc/passwd')
+    onHandler!(TRUSTED_EVENT, 'file:///etc/passwd')
     expect(state.openExternal).not.toHaveBeenCalled()
 
-    onHandler!({}, 'https://momark.app')
+    onHandler!(TRUSTED_EVENT, 'https://momark.app')
     expect(state.openExternal).toHaveBeenCalledWith('https://momark.app')
   })
 })

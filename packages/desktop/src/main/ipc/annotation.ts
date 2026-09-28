@@ -1,6 +1,7 @@
 import path from 'path'
-import { app, ipcMain } from 'electron'
+import { app } from 'electron'
 import AnnotationStore from '../annotationStore'
+import { trustedHandle } from './guard'
 
 /**
  * 内容标注的三个 IPC 通道（feat/annotations，通道名见 shared/types/ipc.ts）。
@@ -23,13 +24,13 @@ export const getAnnotationStore = (): AnnotationStore => {
 }
 
 export const registerAnnotationHandlers = (): void => {
-  ipcMain.handle('mt::annotation::load', (_event, pathname: string) =>
+  trustedHandle('mt::annotation::load', (_event, pathname: string) =>
     getAnnotationStore().load(pathname)
   )
 
-  ipcMain.handle('mt::annotation::save', (_event, payload) => getAnnotationStore().save(payload))
+  trustedHandle('mt::annotation::save', (_event, payload) => getAnnotationStore().save(payload))
 
-  ipcMain.handle('mt::annotation::migrate-path', (_event, payload) =>
+  trustedHandle('mt::annotation::migrate-path', (_event, payload) =>
     getAnnotationStore().migratePath(payload)
   )
 }

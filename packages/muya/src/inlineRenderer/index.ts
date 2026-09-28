@@ -15,6 +15,10 @@ class InlineRenderer {
     public labels: Labels = new Map();
     public renderer: Renderer;
 
+    // `jsonState.revision` the current `labels` was built from. `-1` can never
+    // be a real revision, so the first `patch()` always collects.
+    private _labelsRevision = -1;
+
     constructor(public muya: Muya) {
         this.renderer = new Renderer(muya, this);
     }
@@ -60,7 +64,7 @@ class InlineRenderer {
     }
 
     patch(block: Format, cursor?: IRenderCursor, highlights: IHighlight[] = []) {
-        this._collectReferenceDefinitions();
+        this._syncReferenceDefinitions();
         const { domNode } = block;
         if (block.isParent())
             debug.error('Patch can only handle content block');
@@ -80,8 +84,35 @@ class InlineRenderer {
         domNode!.innerHTML = html;
     }
 
-    private _collectReferenceDefinitions() {
-        const state = this.muya.editor.jsonState.getState();
+    /**
+     * Rebuild `labels` only when the document actually changed since the last
+     * rebuild.
+     *
+     * `patch()` runs once per inline-rendered block — once per block while a
+     * document is being opened, once per keystroke afterwards — and every call
+     * used to redo this collection. `getState()` alone deep-cloned the ENTIRE
+     * document (`structuredClone`) per call, so opening an N-block document paid
+     * N full-document clones plus N whole-tree walks (the "load/render O(N²)"
+     * hotspot); typing in any paragraph paid the same clone per keystroke.
+     *
+     * Reading the live array removes the clone outright. Keying the rebuild on
+     * the state's `revision` removes the repetition: within one document version
+     * the label map is a pure function of the state, so re-deriving it per block
+     * cannot change the result. Freshness is unchanged — every `patch()` still
+     * sees the labels of the current document, because any state change bumps
+     * the revision and the next `patch()` rebuilds.
+     */
+    private _syncReferenceDefinitions() {
+        const jsonState = this.muya.editor.jsonState;
+        const { revision } = jsonState;
+        if (revision === this._labelsRevision)
+            return;
+
+        this.labels = this._collectReferenceDefinitions(jsonState.getStateRef());
+        this._labelsRevision = revision;
+    }
+
+    private _collectReferenceDefinitions(state: TState[]) {
         const labels = new Map();
 
         const travel = (sts: TState[]) => {
@@ -101,7 +132,7 @@ class InlineRenderer {
 
         travel(state);
 
-        this.labels = labels;
+        return labels;
     }
 
     getLabelInfo(blockOrState: ParagraphContent | IParagraphState) {

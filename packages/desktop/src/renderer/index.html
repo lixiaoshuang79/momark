@@ -4,12 +4,18 @@
     <meta charset="UTF-8" />
     <title>墨记 MoMark</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!--
+      img-src 里的 `momark-file:` 是本地图片自定义协议（A-12）：webSecurity 打开后
+      渲染层不再直载 file://，本地图片一律走 momark-file://local/<绝对路径>
+      （见 src/shared/types/momarkFile.ts）。`file:` 仍然保留——HTML 块的外链
+      iframe 与导出/打印的静态文件路径仍在用它。
+    -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self';
                   script-src 'self';
                   style-src 'self' 'unsafe-inline';
-                  img-src * data: file:;
+                  img-src * data: file: momark-file:;
                   font-src 'self' data:;
                   frame-src http: https: file:;
                   "

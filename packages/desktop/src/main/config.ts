@@ -5,6 +5,17 @@ export const isOsx: boolean = process.platform === 'darwin'
 export const isWindows: boolean = process.platform === 'win32'
 export const isLinux: boolean = process.platform === 'linux'
 
+// ── webSecurity（A-12）────────────────────────────────────────────────
+// 四个窗口一律 `webSecurity: true`：关掉它等于取消渲染层的同源策略，一次 XSS
+// 就能读任意本地文件（配合 `~/Library/LaunchAgents` 还能持久化）。
+//
+// 打开之后渲染层不能再直载 `file://` 图片（dev 形态一律被拒；打包形态虽能显示
+// 主文档里的 file://，但沙箱帧是不透明源、同样被拒），因此本地图片改走
+// `momark-file://local/<绝对路径>` 自定义协议，见 `@shared/types/momarkFile` 与
+// `main/ipc/momarkFileProtocol.ts`；引擎侧的 URL 生成在
+// `muya/src/utils/image.ts`。渲染层 CSP（`src/renderer/index.html`）的 `img-src`
+// 也同步放行该协议。
+
 export const editorWinOptions: Readonly<BrowserWindowConstructorOptions> = Object.freeze({
   minWidth: 550,
   minHeight: 350,
@@ -16,7 +27,7 @@ export const editorWinOptions: Readonly<BrowserWindowConstructorOptions> = Objec
     // enable it always and set the HTML spelling attribute to false.
     spellcheck: true,
     nodeIntegration: false,
-    webSecurity: false,
+    webSecurity: true,
     // 右侧浏览器面板（PHASE2-SPEC §5 / research 3.md）：webview 仅主编辑器窗口
     // 开启，设置窗口不开启。guest 的安全收紧统一在 main/browserPanel.ts 的
     // will-attach-webview / did-attach-webview 中强制注入。
@@ -42,7 +53,7 @@ export const preferencesWinOptions: Readonly<BrowserWindowConstructorOptions> = 
     // Always true to access native spellchecker.
     spellcheck: true,
     nodeIntegration: false,
-    webSecurity: false,
+    webSecurity: true,
     preload: path.join(__dirname, '../preload/index.js')
   },
   fullscreenable: false,
@@ -69,7 +80,7 @@ export const welcomeWinOptions: Readonly<BrowserWindowConstructorOptions> = Obje
     sandbox: true,
     spellcheck: false,
     nodeIntegration: false,
-    webSecurity: false,
+    webSecurity: true,
     preload: path.join(__dirname, '../preload/index.js')
   },
   useContentSize: true,
@@ -94,7 +105,7 @@ export const aboutWinOptions: Readonly<BrowserWindowConstructorOptions> = Object
     sandbox: true,
     spellcheck: false,
     nodeIntegration: false,
-    webSecurity: false,
+    webSecurity: true,
     preload: path.join(__dirname, '../preload/index.js')
   },
   useContentSize: true,

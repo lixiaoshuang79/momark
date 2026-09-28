@@ -1,7 +1,9 @@
-import { ipcMain, shell, clipboard } from 'electron'
+import { shell, clipboard } from 'electron'
 import log from 'electron-log'
 import * as plist from 'plist'
 import { isDangerousExecutableFile, isExecutableFile } from 'common/filesystem/paths'
+
+import { trustedHandle, trustedOn } from './guard'
 
 // F1(A-11)：渲染层可以给 `mt::shell::open-external` 传任意字符串，主进程原样交给
 // 系统——恶意文档里的链接（或一次 XSS）能拿它拉起任意 scheme handler。只放行
@@ -44,7 +46,7 @@ export const isBlockedOpenPath = (fullPath: unknown): boolean => {
 }
 
 export const registerShellHandlers = (): void => {
-  ipcMain.handle('mt::shell::open-external', async (_e, url: string) => {
+  trustedHandle('mt::shell::open-external', async (_e, url: string) => {
     if (!isAllowedExternalUrl(url)) {
       log.warn('shell.openExternal refused (scheme not allowed):', url)
       return false
@@ -57,21 +59,21 @@ export const registerShellHandlers = (): void => {
       return false
     }
   })
-  ipcMain.on('mt::shell::open-external', (_e, url: string) => {
+  trustedOn('mt::shell::open-external', (_e, url: string) => {
     if (!isAllowedExternalUrl(url)) {
       log.warn('shell.openExternal refused (scheme not allowed):', url)
       return
     }
     shell.openExternal(url).catch((err) => log.error('shell.openExternal failed:', err))
   })
-  ipcMain.on('mt::shell::show-item', (_e, fullPath: string) => {
+  trustedOn('mt::shell::show-item', (_e, fullPath: string) => {
     try {
       shell.showItemInFolder(fullPath)
     } catch (err) {
       log.error('shell.showItemInFolder failed:', err)
     }
   })
-  ipcMain.handle('mt::shell::open-path', async (_e, fullPath: string) => {
+  trustedHandle('mt::shell::open-path', async (_e, fullPath: string) => {
     if (isBlockedOpenPath(fullPath)) {
       log.warn('shell.openPath refused (executable path):', fullPath)
       return 'Blocked: refusing to open an executable file'
@@ -84,14 +86,14 @@ export const registerShellHandlers = (): void => {
     }
   })
 
-  ipcMain.on('mt::clipboard::write-text', (_e, text: string) => {
+  trustedOn('mt::clipboard::write-text', (_e, text: string) => {
     try {
       clipboard.writeText(text)
     } catch (err) {
       log.error('clipboard.writeText failed:', err)
     }
   })
-  ipcMain.handle('mt::clipboard::read-text', () => {
+  trustedHandle('mt::clipboard::read-text', () => {
     try {
       return clipboard.readText()
     } catch {
@@ -99,7 +101,7 @@ export const registerShellHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('mt::clipboard::guess-file-path', () => {
+  trustedHandle('mt::clipboard::guess-file-path', () => {
     try {
       if (process.platform === 'darwin') {
         if (clipboard.has('NSFilenamesPboardType')) {

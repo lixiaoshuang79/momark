@@ -18,19 +18,41 @@ import type {
   BpZoomAction,
   BootInfo
 } from '@shared/types/ipc'
+import { isEventChannel, isInvokeChannel, isSendChannel, isSyncChannel } from './channels'
 
 type RendererEventListener<K extends keyof IpcMainEventChannels> = (
   event: IpcRendererEvent,
   ...args: IpcMainEventChannels[K]
 ) => void
 
+// A-12：桥接层是页面脚本能碰到的唯一 IPC 入口，过去它把 channel 字符串原样转给
+// `ipcRenderer`（运行时没有任何校验），一次 XSS 即可调用主进程注册的全部通道。
+// 现在每个出口都先过白名单（见 ./channels）——集合与 `@shared/types/ipc` 的四个
+// 接口由编译期断言保证逐字相等，因此不存在「漏配一个通道 = 功能静默断掉」的风险。
+const refuseChannel = (kind: string, channel: unknown): void => {
+  console.warn(
+    `[preload] blocked ${kind} on unknown channel: ${String(channel)} (see src/preload/channels.ts)`
+  )
+}
+
 const invoke = <K extends keyof IpcInvokeChannels>(
   channel: K,
   ...args: IpcInvokeChannels[K]['args']
-): Promise<IpcInvokeChannels[K]['ret']> => ipcRenderer.invoke(channel, ...args)
+): Promise<IpcInvokeChannels[K]['ret']> => {
+  if (!isInvokeChannel(channel as string)) {
+    refuseChannel('invoke', channel)
+    return Promise.reject(new Error(`blocked IPC channel: ${String(channel)}`))
+  }
+  return ipcRenderer.invoke(channel, ...args)
+}
 
-const send = <K extends keyof IpcSendChannels>(channel: K, ...args: IpcSendChannels[K]): void =>
+const send = <K extends keyof IpcSendChannels>(channel: K, ...args: IpcSendChannels[K]): void => {
+  if (!isSendChannel(channel as string)) {
+    refuseChannel('send', channel)
+    return
+  }
   ipcRenderer.send(channel, ...args)
+}
 
 // One synchronous handshake at startup so the renderer can read platform/env
 // without an `await` from inside Vue computed properties etc.
@@ -41,12 +63,22 @@ const ipcWrapper = {
   sendSync: <K extends keyof IpcSyncChannels>(
     channel: K,
     ...args: IpcSyncChannels[K]['args']
-  ): IpcSyncChannels[K]['ret'] => ipcRenderer.sendSync(channel, ...args),
+  ): IpcSyncChannels[K]['ret'] => {
+    if (!isSyncChannel(channel as string)) {
+      refuseChannel('sendSync', channel)
+      return undefined as unknown as IpcSyncChannels[K]['ret']
+    }
+    return ipcRenderer.sendSync(channel, ...args) as IpcSyncChannels[K]['ret']
+  },
   invoke,
   on: <K extends keyof IpcMainEventChannels>(
     channel: K,
     listener: RendererEventListener<K>
   ): (() => void) => {
+    if (!isEventChannel(channel as string)) {
+      refuseChannel('on', channel)
+      return () => undefined
+    }
     const subscription = (event: IpcRendererEvent, ...args: unknown[]): void => {
       listener(event, ...(args as IpcMainEventChannels[K]))
     }
@@ -57,6 +89,10 @@ const ipcWrapper = {
     channel: K,
     listener: RendererEventListener<K>
   ): (() => void) => {
+    if (!isEventChannel(channel as string)) {
+      refuseChannel('once', channel)
+      return () => undefined
+    }
     const subscription = (event: IpcRendererEvent, ...args: unknown[]): void => {
       listener(event, ...(args as IpcMainEventChannels[K]))
     }
@@ -64,6 +100,11 @@ const ipcWrapper = {
     return () => ipcRenderer.removeListener(channel, subscription)
   },
   removeAllListeners: (channel: keyof IpcMainEventChannels | string): void => {
+    // 只影响订阅，不产生副作用，但仍按白名单收紧：未知通道连「摘监听」都不做。
+    if (!isEventChannel(channel as string)) {
+      refuseChannel('removeAllListeners', channel)
+      return
+    }
     ipcRenderer.removeAllListeners(channel as string)
   }
 }

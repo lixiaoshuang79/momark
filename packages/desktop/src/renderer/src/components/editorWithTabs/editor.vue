@@ -439,6 +439,8 @@ let switchLanguageCommand: SpellcheckerLanguageCommand | null = null
 let imageViewer: SimpleImageViewer | null = null
 // The engine has no `scroll` event; we listen on the scroll container directly.
 let scrollHandler: ((e: Event) => void) | null = null
+// rAF 合并句柄（见 scrollHandler）：同一帧内的多次滚动只写一次 store。
+let scrollRafHandle: number | null = null
 
 // The engine's undo/redo history (`getHistory()`) has a different shape than
 // the desktop store's `tab.history` (which drives the save/dirty tracking and
@@ -480,6 +482,18 @@ const resetSyntheticHistory = (id: string, baselineContent: string): void => {
 const makeSyntheticHistory = (id: string, content: string): IFileHistoryLike => {
   return getSyntheticHistory(id, content).build(content)
 }
+
+// P2（按键路径）：最近一次 `json-change` 里序列化出来的 markdown，按标签存一份。
+// 派生量（字数统计 / TOC）延到空闲时再算（见 `scheduleDerivedStats`），直接复用
+// 这份缓存，不再为它们各跑一次全量序列化。
+const lastEngineMarkdownByTab = new Map<string, string>()
+
+// 派生量（字数 / TOC）的空闲调度句柄与待处理标签：一次按键只挂一个回调，连续
+// 打字期间不断合并，用户停手后由 `requestIdleCallback`（无此 API 时退化为短
+// 定时器）在帧余量里补算一次。
+let derivedStatsIdle: { cancel: () => void } | null = null
+let pendingDerivedStatsTabId: string | null = null
+
 // Drop per-tab bookkeeping for tabs that no longer exist. Tab ids are unique
 // over the session, so without pruning these maps (and the content -> id map
 // each `SyntheticHistory` holds) would grow unbounded as tabs are opened and
@@ -490,6 +504,45 @@ const pruneClosedTabState = (liveTabIds: Set<string>): void => {
   }
   for (const id of syntheticHistoryByTab.keys()) {
     if (!liveTabIds.has(id)) syntheticHistoryByTab.delete(id)
+  }
+  for (const id of lastEngineMarkdownByTab.keys()) {
+    if (!liveTabIds.has(id)) lastEngineMarkdownByTab.delete(id)
+  }
+}
+
+// P2（按键路径）：字数统计与 TOC 只喂状态栏/大纲面板，不值得压在每次按键的同步
+// 路径上（各要遍历整篇文档；TOC 还要跟 store 里的目录做一次 deep-equal）。
+// 两者合流到一次空闲回调：连续打字期间只挂一个句柄（后续按键只更新待处理标签），
+// 用户停手后由 `requestIdleCallback` 在帧余量里补算一次，没有该 API（jsdom 等）
+// 时退化为 150ms 定时器。字数用 `json-change` 缓存下来的那份 markdown，不再重复
+// 序列化；TOC 现取引擎实时目录——这时标签若已切走，目录属于别的文档，就只补字数。
+const scheduleDerivedStats = (id: string): void => {
+  pendingDerivedStatsTabId = id
+  if (derivedStatsIdle) return
+  const run = (): void => {
+    derivedStatsIdle = null
+    const tabId = pendingDerivedStatsTabId
+    pendingDerivedStatsTabId = null
+    if (!tabId) return
+    const markdown = lastEngineMarkdownByTab.get(tabId)
+    if (markdown === undefined) return
+    const isStillCurrent = editorStore.currentFile?.id === tabId
+    editorStore.PUSH_TAB_DERIVED_STATS({
+      id: tabId,
+      wordCount: muyaWordCount(markdown),
+      toc: isStillCurrent ? editor.value?.getTOC?.() : undefined
+    })
+  }
+  const idleHost = window as unknown as {
+    requestIdleCallback?: (cb: () => void, opts: { timeout: number }) => number
+    cancelIdleCallback?: (handle: number) => void
+  }
+  if (typeof idleHost.requestIdleCallback === 'function') {
+    const handle = idleHost.requestIdleCallback(run, { timeout: 300 })
+    derivedStatsIdle = { cancel: () => idleHost.cancelIdleCallback?.(handle) }
+  } else {
+    const handle = window.setTimeout(run, 150)
+    derivedStatsIdle = { cancel: () => window.clearTimeout(handle) }
   }
 }
 
@@ -702,6 +755,13 @@ watch(typewriter, (value) => {
 // `getMarkdown()` 是原始输出（总带末尾换行）——直接比字符串在 opt=0/1 的文件上
 // 永不相等，于是每次按键（含左编辑器自己打字）都会 setContent 整篇：光标复位、
 // 撤销历史清空、内嵌 HTML 帧重载。两边都过一遍同一个规整函数，判等才可信。
+//
+// P2：字符串比较本身要先把引擎内容整篇序列化出来——每键一次，正好落在这条
+// watch 上（`json-change` 已经序列化过一次）。先用来源标记短路：store 里这份
+// markdown 若就是引擎自己刚写回的那份（`IS_ENGINE_OWN_WRITE`，标记由 store 在
+// 带 `fromEngine` 的写入里落下），这次变化必然由引擎自己产生，直接返回，一次
+// 序列化都省下。右栏 docMode / 源码模式 / 磁盘重载写的值不命中，仍走下面的
+// 字符串兜底比较。
 watch(
   () => {
     const id = editorStore.currentFile?.id
@@ -711,7 +771,9 @@ watch(
   (md) => {
     if (typeof md !== 'string' || !editor.value) return
     const tab = editorStore.tabs.find((t) => t.id === editorStore.currentFile?.id)
-    const opt = tab?.trimTrailingNewline ?? 2
+    if (!tab) return
+    if (editorStore.IS_ENGINE_OWN_WRITE(tab.id, md)) return
+    const opt = tab.trimTrailingNewline ?? 2
     if (
       adjustTrailingNewlines(md, opt) === adjustTrailingNewlines(editor.value.getMarkdown(), opt)
     ) {
@@ -1763,7 +1825,6 @@ interface FileChangePayload {
   history?: unknown
   scrollTop?: number
   muyaIndexCursor?: unknown
-  blocks?: unknown
   isReload?: boolean
 }
 
@@ -2166,9 +2227,14 @@ onMounted(() => {
 
   // The engine emits a low-level `json-change` ({ op, source, prevDoc, doc })
   // on every document mutation; the desktop's content-change pipeline wants the
-  // derived document snapshot (markdown / word count / cursor / history / TOC /
-  // block AST), so we compute it here — mirroring the legacy engine's
-  // `dispatchChange` payload.
+  // derived document snapshot (markdown / cursor / history / TOC / word count),
+  // so we compute it here — mirroring the legacy engine's `dispatchChange`
+  // payload.
+  //
+  // P2（按键路径瘦身）：这条路径每个按键都跑，所以只做「必须同步」的事——
+  // markdown 整篇序列化一次（哈希、引擎自写标记与 store 都复用它）、光标、合成
+  // 历史。原先还挂着两笔每键开销：`getState()`（整篇块树深拷贝，store 从不读）
+  // 与 `getTOC()` + 字数统计（面板用派生量，见 `scheduleDerivedStats` 移到空闲）。
   editor.value.on('json-change', () => {
     // There is a chance that this event is fired AFTER the tab is switched. If we purely rely on this.currentFile later on
     // it can cause invalid updates. Hence, we need the id to identify changes as part of each tab
@@ -2183,25 +2249,35 @@ onMounted(() => {
     // re-edited tab as clean (Phase G — G6).
     const engineHistory = editor.value.getHistory()
     engineHistoryByTab.set(id, engineHistory)
+    lastEngineMarkdownByTab.set(id, markdown)
     editorStore.LISTEN_FOR_CONTENT_CHANGE({
       id,
       markdown,
-      wordCount: muyaWordCount(markdown),
       cursor: serializeCursor(editor.value.getSelection()),
       // Synthetic, desktop-shaped history so the store's save/dirty tracking
       // keeps working (the engine history shape is incompatible).
       history: makeSyntheticHistory(id, markdown),
-      toc: editor.value.getTOC(),
-      blocks: editor.value.getState()
+      // 来源标记（P2）：store 据此记下「这份 markdown 是引擎自己写的」，左右双开
+      // 同步 watch 命中即跳过回灌——不跳的话每键都要再跑一次 getMarkdown() 全量
+      // 序列化去比字符串。
+      fromEngine: true
     })
+    scheduleDerivedStats(id)
   })
 
   // The engine does not emit `scroll`; listen on the scroll container directly
   // so the desktop can persist each tab's scroll position.
+  //
+  // P2：滚动事件按帧率（60Hz+）来，每次都写 store 会顺带触发一轮 Vue 响应式
+  // 更新 + `debouncedSendBufferedState()` 的定时器重置。用 rAF 合并到每帧最多一次。
   scrollHandler = () => {
-    if (currentFile.value) {
-      editorStore.updateScrollPosition(currentFile.value.id, container.scrollTop)
-    }
+    if (scrollRafHandle !== null) return
+    scrollRafHandle = requestAnimationFrame(() => {
+      scrollRafHandle = null
+      if (currentFile.value) {
+        editorStore.updateScrollPosition(currentFile.value.id, container.scrollTop)
+      }
+    })
   }
   container.addEventListener('scroll', scrollHandler, { passive: true })
 
@@ -2370,6 +2446,14 @@ onBeforeUnmount(() => {
     container?.removeEventListener('scroll', scrollHandler)
   }
   scrollHandler = null
+  // 挂起中的 rAF / 空闲回调也要撤掉，避免销毁后再写 store。
+  if (scrollRafHandle !== null) {
+    cancelAnimationFrame(scrollRafHandle)
+    scrollRafHandle = null
+  }
+  derivedStatsIdle?.cancel()
+  derivedStatsIdle = null
+  pendingDerivedStatsTabId = null
 
   resizeObserverForEditor.disconnect()
 

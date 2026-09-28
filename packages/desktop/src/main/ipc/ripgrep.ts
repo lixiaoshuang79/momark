@@ -16,6 +16,9 @@ interface ActiveSearch {
 
 const activeSearches = new Map<string, ActiveSearch>()
 
+/** 已经挂过 `destroyed` 清理监听的 sender（每个 WebContents 只挂一次）。 */
+const sendersWithDestroyCleanup = new WeakSet<WebContents>()
+
 const sendIfAlive = (
   sender: WebContents | null | undefined,
   channel: string,
@@ -28,17 +31,39 @@ const sendIfAlive = (
   }
 }
 
-const cleanupAtSenderDestroy = (sender: WebContents | null | undefined): void => {
-  if (!sender) return
-  const handler = (): void => {
-    for (const [id, entry] of activeSearches.entries()) {
-      if (entry.sender === sender) {
-        entry.cancel()
-        activeSearches.delete(id)
-      }
+/** 取消某个 sender 名下所有进行中的搜索（rg 子进程随之被杀）。 */
+const cancelSearchesFor = (sender: WebContents): void => {
+  for (const [id, entry] of activeSearches.entries()) {
+    if (entry.sender === sender) {
+      entry.cancel()
+      activeSearches.delete(id)
     }
   }
-  sender.once('destroyed', handler)
+}
+
+/**
+ * 已经挂过 `destroyed` 清理的 sender（P3 主进程热点）。
+ *
+ * `mt::rg::start` 每次搜索都会调这里，而旧实现是无条件
+ * `sender.once('destroyed', handler)`——`once` 只在事件触发时才移除监听，
+ * 于是同一 WebContents 上会随着每次搜索累积一个永不触发的监听（边打边搜的
+ * 「在文件夹中查找」几秒就能堆出上百个：EventEmitter 的 max-listeners 告警、
+ * 内存，销毁时还要把同一份 activeSearches 遍历上百遍）。用 WeakSet 记录已挂过
+ * 的 sender，每个 WebContents 只挂一个；sender 销毁时再摘掉记录。
+ *
+ * 导出供单测使用（`test/unit/specs/ripgrep-sender-cleanup.spec.ts`）。
+ */
+export const cleanupAtSenderDestroy = (sender: WebContents | null | undefined): void => {
+  if (!sender || sendersWithDestroyCleanup.has(sender)) return
+  if (sender.isDestroyed()) {
+    cancelSearchesFor(sender)
+    return
+  }
+  sendersWithDestroyCleanup.add(sender)
+  sender.once('destroyed', () => {
+    sendersWithDestroyCleanup.delete(sender)
+    cancelSearchesFor(sender)
+  })
 }
 
 interface TextInput {
@@ -238,10 +263,18 @@ const startTextSearch = (
     if (options.maxFileSize) args.push('--max-filesize', options.maxFileSize + '')
     if (options.includeHidden) args.push('--hidden')
     if (options.noIgnore) args.push('--no-ignore')
-    if (options.leadingContextLineCount) { args.push('--before-context', String(options.leadingContextLineCount)) }
-    if (options.trailingContextLineCount) { args.push('--after-context', String(options.trailingContextLineCount)) }
-    for (const inclusion of prepareGlobs(options.inclusions, directoryPath)) { args.push('--iglob', inclusion) }
-    for (const exclusion of prepareGlobs(options.exclusions, directoryPath)) { args.push('--iglob', '!' + exclusion) }
+    if (options.leadingContextLineCount) {
+      args.push('--before-context', String(options.leadingContextLineCount))
+    }
+    if (options.trailingContextLineCount) {
+      args.push('--after-context', String(options.trailingContextLineCount))
+    }
+    for (const inclusion of prepareGlobs(options.inclusions, directoryPath)) {
+      args.push('--iglob', inclusion)
+    }
+    for (const exclusion of prepareGlobs(options.exclusions, directoryPath)) {
+      args.push('--iglob', '!' + exclusion)
+    }
     args.push('--')
     if (textPattern) args.push(textPattern)
     args.push(directoryPath)
@@ -380,7 +413,9 @@ const startFileSearch = (
     if (options.followSymlinks) args.push('--follow')
     if (options.includeHidden) args.push('--hidden')
     if (options.noIgnore) args.push('--no-ignore')
-    for (const inclusion of prepareGlobs(options.inclusions, directoryPath)) { args.push('--iglob', inclusion) }
+    for (const inclusion of prepareGlobs(options.inclusions, directoryPath)) {
+      args.push('--iglob', inclusion)
+    }
     args.push('--')
     args.push(directoryPath)
 

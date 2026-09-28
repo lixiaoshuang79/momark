@@ -54,11 +54,7 @@ class AppMenu {
    * @param keybindings The keybindings instances.
    * @param userDataPath The user data path.
    */
-  constructor(
-    preferences: Preference,
-    keybindings: Keybindings,
-    userDataPath: string
-  ) {
+  constructor(preferences: Preference, keybindings: Keybindings, userDataPath: string) {
     this._preferences = preferences
     this._keybindings = keybindings
     this._userDataPath = userDataPath
@@ -474,6 +470,14 @@ class AppMenu {
       this.addRecentlyUsedDocument(pathname)
     })
     ipcMain.on('mt::update-line-ending-menu', (_e, windowId: number, lineEnding: string) => {
+      // P3：与下面几个同族 handler 保持一致。窗口刚关掉时渲染层可能还在发这条
+      // 消息（`removeWindowMenu` 已经把菜单删了），`getWindowMenuById` 会抛
+      // 「Cannot find window menu for id …」——这是一个会反复出现的异常，
+      // 在没有去重限频之前就是「弹窗风暴」的源头。宁可记日志也不要抛。
+      if (!this.has(windowId)) {
+        log.error(`UpdateApplicationMenu: Cannot find window menu for window id ${windowId}.`)
+        return
+      }
       this.updateLineEndingMenu(windowId, lineEnding)
     })
     ipcMain.on(
@@ -530,7 +534,7 @@ class AppMenu {
       this.clearRecentlyUsedDocuments()
     })
 
-    onInternalChannel('broadcast-preferences-changed', async(prefs: Partial<IUserPreferences>) => {
+    onInternalChannel('broadcast-preferences-changed', async (prefs: Partial<IUserPreferences>) => {
       if (prefs.theme !== undefined || prefs.followSystemTheme !== undefined) {
         this.updateAppMenu()
       }

@@ -1,9 +1,11 @@
 import path from 'path'
 import fs from 'fs-extra'
-import { app, ipcMain } from 'electron'
+import { app } from 'electron'
 import { rgPath } from '@vscode/ripgrep'
 import { MARKDOWN_INCLUSIONS } from 'common/filesystem/paths'
 import type { BootInfo } from '@shared/types/ipc'
+
+import { trustedHandle, trustedOn } from './guard'
 
 const ENV_ALLOWLIST = [
   'NODE_ENV',
@@ -53,11 +55,11 @@ const buildBootInfo = (): BootInfo => ({
 let cached: BootInfo | null = null
 
 export const registerBootInfo = (): void => {
-  ipcMain.on('mt::boot-info', (event) => {
+  trustedOn('mt::boot-info', (event) => {
     if (!cached) cached = buildBootInfo()
     event.returnValue = cached
   })
-  ipcMain.handle('mt::boot-info-async', () => {
+  trustedHandle('mt::boot-info-async', () => {
     if (!cached) cached = buildBootInfo()
     return cached
   })

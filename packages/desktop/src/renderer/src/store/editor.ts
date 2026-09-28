@@ -109,6 +109,15 @@ interface ContentChangePayload {
   muyaIndexCursor?: unknown
   history?: IFileState['history']
   toc?: TocItem[]
+  // P2：标明这次写入来自 WYSIWYG 引擎自己（`editor.vue` 的 `json-change`）。store
+  // 会顺手记下「这份 markdown 是引擎自己写的」，供左右双开同步 watch 做来源判定
+  // （见 `IS_ENGINE_OWN_WRITE`）。源码模式 / 右栏 docMode / 磁盘重载一律不传，
+  // 它们的写入必须让 watch 照常走 setContent 同步。
+  fromEngine?: boolean
+  // P2：内容变更不再携带块树（`getState()` 是整篇深拷贝，每键一次纯浪费——
+  // store 从不读它）。字段保留只为右栏 `docEditorPane.vue` 的调用点仍能通过
+  // 类型检查：那里也还在传 `blocks: muya.getState()`，同属本条 P2（该文件不在本
+  // 批改动范围内，见报告「遗留」）。store 侧已不再写入 `tab.blocks`。
   blocks?: unknown
 }
 
@@ -156,6 +165,15 @@ export interface EditorState {
 
 const autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
+// 每个标签最近一次由 WYSIWYG 引擎「自己写回」的内容（`LISTEN_FOR_CONTENT_CHANGE`
+// 带 `fromEngine` 时记的，就是当时写进 `tab.markdown` 的那份规整值）。editor.vue
+// 的左右双开同步 watch 用它做来源判定：store 里的 markdown 若等于引擎自己刚推上
+// 来的那份，就说明这次变化是引擎自己产生的，直接跳过——否则该 watch 每按一次键
+// 都要再跑一次 `getMarkdown()` 全量序列化来比字符串（P2 按键路径）。
+// 源码模式、右栏 docMode、磁盘重载、恢复写入的值不命中，watch 照旧走 setContent
+// 同步（右栏的编辑必须还能同步进左引擎）。
+const engineWrittenMarkdown = new Map<string, string>()
+
 export const useEditorStore = defineStore('editor', {
   state: (): EditorState => ({
     currentFile: null,
@@ -174,7 +192,16 @@ export const useEditorStore = defineStore('editor', {
     },
 
     CREATE_BUFFERED_STATE(): ReturnType<typeof createBufferedEditorState> {
-      return createBufferedEditorState(this.$state)
+      // P2：buffer 只发「未保存」的标签。这个文件是崩溃恢复用的——已落盘的标签
+      // 能从磁盘原样重开，把它们完整的 markdown 每停顿 1s 重新结构化克隆一遍再
+      // IPC 送出（多标签几十 MB）是纯开销：序列化在渲染层、结构化克隆走 IPC、
+      // 主进程还要 JSON.stringify + 原子写 + fsync（阻塞主线程）。只发脏标签后
+      // 载荷正比于「真正没落盘的内容」，语义也更贴切；主进程侧
+      // `buffer.tabs.every(t => t.isSaved)` 的清理启发式不受影响（没有脏标签时
+      // tabs 为空 → 仍判定为「全部已保存」→ 删文件）。
+      // 注意：解析侧（RESTORE_BUFFERED_STATE）必须拿到完整标签表，所以过滤只在
+      // 这一处（发送侧）打开。
+      return createBufferedEditorState(this.$state, { dirtyOnly: true })
     },
 
     RESTORE_BUFFERED_STATE(state: unknown): void {
@@ -928,8 +955,7 @@ export const useEditorStore = defineStore('editor', {
       const oldCurrentFile = this.currentFile
       let didUpdateCurrentFile = false
       if (oldCurrentFile == null || oldCurrentFile.id !== currentFile.id) {
-        const { id, markdown, cursor, history, pathname, scrollTop, blocks, muyaIndexCursor } =
-          currentFile
+        const { id, markdown, cursor, history, pathname, scrollTop, muyaIndexCursor } = currentFile
         // Must run while `currentFile` still points at the outgoing tab, so its
         // flushed edit is attributed to that tab and not lost on switch (#2938).
         if (oldCurrentFile) {
@@ -951,8 +977,7 @@ export const useEditorStore = defineStore('editor', {
           muyaIndexCursor,
           renderCursor: true,
           history,
-          scrollTop,
-          blocks
+          scrollTop
         })
 
         // 标注只认主编辑区的主文档（方案 §3.6）：换了标签就切标注上下文——
@@ -1117,6 +1142,9 @@ export const useEditorStore = defineStore('editor', {
       // 关标签 = 离开这份文档：标注立即落盘（不等 800ms debounce，见方案 §5.5）。
       if (file.pathname) useAnnotationStore().flush(file.pathname)
 
+      // 引擎自写标记按标签存活：不清理会在长会话里越攒越多（标签 id 全会话唯一）。
+      if (file.id) engineWrittenMarkdown.delete(file.id)
+
       if (index > -1) {
         tabs.splice(index, 1)
         this.updateTabIdToIndex()
@@ -1135,8 +1163,7 @@ export const useEditorStore = defineStore('editor', {
           this.tabs[index] ?? this.tabs[index - 1] ?? this.tabs[0] ?? null
         this.currentFile = fileState
         if (fileState && typeof fileState.markdown === 'string') {
-          const { id, markdown, cursor, history, pathname, scrollTop, blocks, muyaIndexCursor } =
-            fileState
+          const { id, markdown, cursor, history, pathname, scrollTop, muyaIndexCursor } = fileState
           window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
           bus.emit('file-changed', {
             id,
@@ -1145,8 +1172,7 @@ export const useEditorStore = defineStore('editor', {
             muyaIndexCursor,
             renderCursor: true,
             history,
-            scrollTop,
-            blocks
+            scrollTop
           })
           // 关掉的是当前标签 → 主文档换人，标注上下文跟着切。
           useAnnotationStore().SWITCH_DOC({ pathname, tabId: id })
@@ -1225,6 +1251,8 @@ export const useEditorStore = defineStore('editor', {
         }
 
         this.tabs.splice(index, 1)
+        // 引擎自写标记同生共死（见 FORCE_CLOSE_TAB）。
+        engineWrittenMarkdown.delete(id)
         if (this.currentFile?.id === id) {
           this.currentFile = null
           window.DIRNAME = ''
@@ -1239,7 +1267,7 @@ export const useEditorStore = defineStore('editor', {
       if (this.currentFile == null && this.tabs.length > 0) {
         this.currentFile = this.tabs[tabIndex] ?? this.tabs[tabIndex - 1] ?? this.tabs[0] ?? null
         if (this.currentFile && typeof this.currentFile.markdown === 'string') {
-          const { id, markdown, cursor, history, pathname, scrollTop, blocks, muyaIndexCursor } =
+          const { id, markdown, cursor, history, pathname, scrollTop, muyaIndexCursor } =
             this.currentFile
           window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
           bus.emit('file-changed', {
@@ -1249,8 +1277,7 @@ export const useEditorStore = defineStore('editor', {
             muyaIndexCursor,
             renderCursor: true,
             history,
-            scrollTop,
-            blocks
+            scrollTop
           })
         }
       }
@@ -1533,7 +1560,7 @@ export const useEditorStore = defineStore('editor', {
       muyaIndexCursor,
       history,
       toc,
-      blocks
+      fromEngine
     }: ContentChangePayload): void {
       const preferencesStore = usePreferencesStore()
       const { autoSave } = preferencesStore
@@ -1554,6 +1581,9 @@ export const useEditorStore = defineStore('editor', {
 
       markdown = adjustTrailingNewlines(markdown, trimTrailingNewline)
       tab.markdown = markdown
+      // 引擎自写标记（P2）：记的就是刚写进 `tab.markdown` 的这份规整值——同一个
+      // 变量、同一次规整，零漂移，也不额外多跑一遍规整。
+      if (fromEngine) engineWrittenMarkdown.set(id, markdown)
 
       if (oldMarkdown.length === 0 && markdown.length === 1 && markdown[0] === '\n') {
         debouncedSendBufferedState()
@@ -1564,7 +1594,6 @@ export const useEditorStore = defineStore('editor', {
       if (cursor) tab.cursor = cursor
       if (muyaIndexCursor) tab.muyaIndexCursor = muyaIndexCursor
       if (history) tab.history = history
-      if (blocks) tab.blocks = blocks
 
       // Only update TOC if it's the current file
       if (id === this.currentFile?.id && toc && !equal(toc, this.listToc)) {
@@ -1677,6 +1706,43 @@ export const useEditorStore = defineStore('editor', {
       if (index == null) return
       const tab = this.tabs[index]
       if (tab) tab.cursor = cursor
+    },
+
+    // 左右双开同步 watch 的来源判定：store 里的这份 markdown 是否就是引擎自己
+    // 刚写回的那份（标记在 `LISTEN_FOR_CONTENT_CHANGE` 里落，见 `fromEngine`）。
+    // 命中 → 无需再跑 `getMarkdown()` 全文序列化比字符串，直接跳过（每键省一次
+    // 全量序列化）。源码模式 / 右栏 docMode / 磁盘重载写的值不命中，watch 照旧走
+    // setContent 同步。
+    IS_ENGINE_OWN_WRITE(id: string, markdown: string): boolean {
+      return !!id && engineWrittenMarkdown.get(id) === markdown
+    },
+
+    // P2（按键路径）：派生量（字数 / TOC）由 editor.vue 防抖到空闲后单独推上来。
+    // 这两项只喂面板与状态栏，不需要跟着每个按键同步重算——原本每个
+    // `json-change` 都跑一次整篇字数统计 + 一次 TOC 遍历 + 一次 deep-equal，
+    // 在大文档上直接压在打字路径上。语义与 `LISTEN_FOR_CONTENT_CHANGE` 里的对应
+    // 分支逐条对齐（只更新存在的字段、TOC 只认当前标签且做 equal 短路）。
+    PUSH_TAB_DERIVED_STATS({
+      id,
+      wordCount,
+      toc
+    }: {
+      id: string
+      wordCount?: IFileState['wordCount']
+      toc?: TocItem[]
+    }): void {
+      if (!id) return
+      const index = this.tabIdToIndex[id]
+      if (index == null) return
+      const tab = this.tabs[index]
+      if (!tab) return
+      if (wordCount) tab.wordCount = wordCount
+      if (id === this.currentFile?.id && toc && !equal(toc, this.listToc)) {
+        this.listToc = toc
+        this.toc = listToTree<TocItem>(toc)
+      }
+      // 与内容变更一致：字数/目录进 buffer 快照（防抖已被调用方合流）。
+      debouncedSendBufferedState()
     },
 
     SELECTION_FORMATS(formats: SelectionFormat[]): void {
@@ -2236,7 +2302,10 @@ interface BufferedEditorState {
   restoreWarnings: BufferedRestoreWarning[]
 }
 
-const createBufferedEditorState = (state: unknown): BufferedEditorState | null => {
+const createBufferedEditorState = (
+  state: unknown,
+  { dirtyOnly = false }: { dirtyOnly?: boolean } = {}
+): BufferedEditorState | null => {
   const s = state as
     | {
         tabs?: unknown
@@ -2250,9 +2319,16 @@ const createBufferedEditorState = (state: unknown): BufferedEditorState | null =
     return null
   }
 
+  const tabs = (s.tabs as Array<Partial<IFileState> & { id: string }>).filter(
+    // `dirtyOnly`（发送侧）：跳过已保存的标签，省掉它们的 markdown 序列化 +
+    // IPC 结构化克隆。注意读的是 `isSaved` 本身而不是先建对象再筛——对干净标签
+    // 连 `markdown` 都不该被读一次（单测用 getter 钉住这一点）。
+    (tab) => !dirtyOnly || tab.isSaved !== true
+  )
+
   return {
     currentFileId: s.currentFileId || s.currentFile?.id || null,
-    tabs: (s.tabs as Array<Partial<IFileState> & { id: string }>).map(createBufferedTabState),
+    tabs: tabs.map(createBufferedTabState),
     restoreWarnings: Array.isArray(s.restoreWarnings)
       ? (s.restoreWarnings as RestoreWarning[])
           .map(createBufferedRestoreWarning)

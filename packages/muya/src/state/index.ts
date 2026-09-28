@@ -56,8 +56,30 @@ class JSONState {
 
     private _state: TState[] = [];
 
+    // Document version, bumped every time `_state` is replaced by a DIFFERENT
+    // array. Derived read-only data (the inline renderer's reference-label map)
+    // caches against it instead of re-deriving itself per block.
+    private _revision = 0;
+
     constructor(private _muya: Muya, stateOrMarkdown: TState[] | string) {
         this.setContent(stateOrMarkdown);
+    }
+
+    /** Document version — see `_revision`. */
+    get revision() {
+        return this._revision;
+    }
+
+    // Every write to `_state` goes through here so the revision can never drift
+    // from the document. `json1.type.apply` can hand back the very same array
+    // (an op that only picks, with no drop, leaves the document untouched), and
+    // that is not a new version.
+    private _replaceState(next: TState[]) {
+        if (next === this._state)
+            return;
+
+        this._state = next;
+        this._revision++;
     }
 
     private _apply(op: JSONOp) {
@@ -66,7 +88,7 @@ class JSONState {
         // the call site can treat `op` as definitely applied.
         if (op === null)
             return;
-        this._state = asState(json1.type.apply(asDoc(this._state), op));
+        this._replaceState(asState(json1.type.apply(asDoc(this._state), op)));
     }
 
     setContent(content: TState[] | string) {
@@ -87,11 +109,11 @@ class JSONState {
     }
 
     private _setState(state: TState[]) {
-        this._state = state;
+        this._replaceState(state);
     }
 
     private _setMarkdown(markdown: string) {
-        this._state = this.markdownToState(markdown);
+        this._replaceState(this.markdownToState(markdown));
     }
 
     // Parse markdown into a block-state array with the editor's current
@@ -210,10 +232,18 @@ class JSONState {
     }
 
     dispatch(op: JSONOp, source = 'user' /* user, api */) {
-        const prevDoc = this.getState();
+        // Hand out the live arrays, not clones. `json1.type.apply` shallow-copies
+        // every container it edits and never writes through its input, so the
+        // pre-apply array stays a valid snapshot of the previous document for
+        // good (unchanged sub-nodes are shared, never mutated in place). Cloning
+        // here cost two full-document `structuredClone`s on EVERY dispatch —
+        // that is the "load/render O(N²)" hotspot: the cost scaled with the
+        // document, not with the edit. `getState()` still clones, so callers
+        // that want a private copy are unaffected.
+        const prevDoc = this._state;
         this._apply(op);
         // TODO: remove doc in future
-        const doc = this.getState();
+        const doc = this._state;
         debug.log(JSON.stringify(op));
         this._muya.eventCenter.emit('json-change', {
             op,
@@ -225,6 +255,23 @@ class JSONState {
 
     getState(): TState[] {
         return deepClone(this._state);
+    }
+
+    /**
+     * The live state array — NOT a copy. Read-only; callers must never write
+     * through it.
+     *
+     * Because `json1.type.apply` never mutates its input (it shallow-copies the
+     * containers along the edited path), a reference obtained here stays a
+     * correct snapshot of the document at that moment even after further edits —
+     * but it is no longer the CURRENT document once `revision` moves on.
+     *
+     * Exists so hot, read-only consumers (the inline renderer's reference-label
+     * collection) can walk the document without paying a `structuredClone` of
+     * the whole thing on every block.
+     */
+    getStateRef(): TState[] {
+        return this._state;
     }
 
     getMarkdown() {
@@ -289,7 +336,10 @@ class JSONState {
 
         const { op, prevDoc } = applied;
         // TODO: remove doc in future
-        const doc = this.getState();
+        // Live reference, not a clone — see `dispatch`. The batch has already
+        // been applied, so the old array is a frozen snapshot of the document
+        // before this flush.
+        const doc = this._state;
 
         if (op === null)
             return;
@@ -321,7 +371,10 @@ class JSONState {
             const op = operations.reduce(
                 (acc, curr) => json1.type.compose(acc, curr) as JSONOpList,
             );
-            const prevDoc = this.getState();
+            // Live reference — see `dispatch`. Taken BEFORE the apply, and the
+            // apply never writes through its input, so this stays the
+            // pre-flush document for the `json-change` listener that inverts it.
+            const prevDoc = this._state;
 
             this._apply(op);
 
@@ -375,7 +428,7 @@ class JSONState {
             return;
         }
 
-        this._state = state;
+        this._replaceState(state);
     }
 }
 

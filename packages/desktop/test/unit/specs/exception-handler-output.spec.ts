@@ -9,7 +9,9 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('electron-log', () => ({
-  default: { error: vi.fn() }
+  // P3：`setupExceptionHandler` 现在会关掉 electron-log 自带的未捕获异常弹框
+  // （否则一次异常弹两个模态框），所以 errorHandler 也要在替身里出现。
+  default: { error: vi.fn(), errorHandler: { setOptions: vi.fn() } }
 }))
 
 vi.mock('../../../src/main/i18n', () => ({
@@ -30,11 +32,16 @@ describe('main process output error handling', () => {
   it('ignores revoked-pipe EIO errors without hiding unrelated output failures', () => {
     let stdoutHandler: OutputErrorHandler | undefined
 
-    vi.spyOn(process.stdout, 'on').mockImplementation(((event: string, listener: OutputErrorHandler) => {
+    vi.spyOn(process.stdout, 'on').mockImplementation(((
+      event: string,
+      listener: OutputErrorHandler
+    ) => {
       if (event === 'error') stdoutHandler = listener
       return process.stdout
     }) as typeof process.stdout.on)
-    vi.spyOn(process.stderr, 'on').mockImplementation((() => process.stderr) as typeof process.stderr.on)
+    vi.spyOn(process.stderr, 'on').mockImplementation(
+      (() => process.stderr) as typeof process.stderr.on
+    )
     vi.spyOn(process, 'on').mockImplementation((() => process) as typeof process.on)
 
     setupExceptionHandler()

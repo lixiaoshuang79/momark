@@ -23,7 +23,12 @@ vi.mock('electron', async () => {
     nodePath.join(state.dir, 'dataCenter.json'),
     JSON.stringify({ currentUploader: 'picgo', cliScript: '/usr/local/bin/upload.sh' })
   )
-  return { app: { getPath: () => state.dir }, ipcMain: { handle: state.ipcHandle } }
+  return {
+    app: { getPath: () => state.dir },
+    ipcMain: { handle: state.ipcHandle },
+    // A-12 ③：通道处理器要求来源是「自家窗口的主 frame」（见 main/ipc/guard.ts）。
+    BrowserWindow: { fromWebContents: () => ({ isDestroyed: () => false }) }
+  }
 })
 
 vi.mock('child_process', () => {
@@ -34,6 +39,10 @@ vi.mock('child_process', () => {
 vi.mock('command-exists', () => ({ default: { sync: () => true } }))
 
 const { registerUploaderHandlers } = await import('main_renderer/ipc/uploader')
+
+// A-12 ③：handler 现在先校验来源；spec 直接调用，因此给一个最小的可信事件桩
+// （senderFrame.parent === null 表示顶层 frame，BrowserWindow 由上面的 mock 兜住）。
+const TRUSTED_EVENT = { senderFrame: { parent: null }, sender: {} }
 
 type Handler = (event: unknown, req: unknown) => Promise<unknown>
 
@@ -79,7 +88,7 @@ describe('uploader IPC — no shell interpolation (A-10)', () => {
     const hostile = makeImage('shot"$(touch pwned)`id`.png')
     const upload = handler()
 
-    await upload(null, {
+    await upload(TRUSTED_EVENT, {
       pathname: path.join(imageDir, 'doc.md'),
       image: hostile,
       isPath: true,
@@ -105,7 +114,7 @@ describe('uploader IPC — settings come from the main store (A-10)', () => {
     const image = makeImage('pic.png')
     const upload = handler()
 
-    await upload(null, {
+    await upload(TRUSTED_EVENT, {
       pathname: path.join(imageDir, 'doc.md'),
       image,
       isPath: true,
@@ -122,7 +131,7 @@ describe('uploader IPC — settings come from the main store (A-10)', () => {
     const image = makeImage('pic.png')
     const upload = handler()
 
-    await upload(null, {
+    await upload(TRUSTED_EVENT, {
       pathname: path.join(imageDir, 'doc.md'),
       image,
       isPath: true,
@@ -138,7 +147,7 @@ describe('uploader IPC — settings come from the main store (A-10)', () => {
     const upload = handler()
 
     await expect(
-      upload(null, {
+      upload(TRUSTED_EVENT, {
         pathname: path.join(imageDir, 'doc.md'),
         image,
         isPath: true,
@@ -159,7 +168,7 @@ describe('uploader IPC — temp files (A-10)', () => {
       preferences: { currentUploader: 'picgo', cliScript: '' }
     }
 
-    await Promise.all([upload(null, payload), upload(null, payload)])
+    await Promise.all([upload(TRUSTED_EVENT, payload), upload(TRUSTED_EVENT, payload)])
 
     const [first, second] = state.execFile.mock.calls.map((call) => (call[1] as string[])[1])
     expect(first).not.toBe(second)

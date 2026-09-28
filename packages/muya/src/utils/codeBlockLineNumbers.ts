@@ -43,6 +43,13 @@ export function syncLineNumbersSpans(wrapper: HTMLElement, count: number): void 
 // set `top` on each span so line numbers align correctly in wrap mode (where
 // a single logical line can span multiple visual rows).
 //
+// Two passes on purpose: every measurement is taken before the first write.
+// Interleaving a `range.getBoundingClientRect()` (forced layout) with a
+// `span.style.top = …` (invalidates layout) made each of the N lines re-run
+// layout, so a long code block paid an O(lines) layout per reposition — and
+// reposition runs on every content edit and every block resize. Batching the
+// reads collapses that to a single layout.
+//
 // Must run after layout (call via requestAnimationFrame).
 export function repositionLineNumberSpans(
     wrapper: HTMLElement,
@@ -61,7 +68,9 @@ export function repositionLineNumberSpans(
             lineStarts.push(i + 1);
     }
 
-    // Walk all text nodes once, positioning each span when we cross a line start.
+    // Pass 1 (reads only): walk all text nodes once, recording the measured top
+    // of every line start.
+    const measuredTops: number[] = [];
     const walker = document.createTreeWalker(codeEl, NodeFilter.SHOW_TEXT);
     const range = document.createRange();
 
@@ -89,8 +98,7 @@ export function repositionLineNumberSpans(
             const measured = range.getBoundingClientRect().top;
             if (baseTop === null)
                 baseTop = measured;
-            if (lineIdx < spans.length)
-                spans[lineIdx].style.top = `${measured - baseTop}px`;
+            measuredTops.push(measured - baseTop);
             lineIdx++;
         }
 
@@ -105,8 +113,14 @@ export function repositionLineNumberSpans(
     if (lineIdx < spans.length) {
         const lineH = Number.parseFloat(getComputedStyle(wrapper).lineHeight) || 24;
         for (let i = lineIdx; i < spans.length; i++) {
-            const prevTop = i > 0 ? Number.parseFloat(spans[i - 1].style.top || '0') : 0;
-            spans[i].style.top = i > 0 ? `${prevTop + lineH}px` : '0px';
+            const prevTop = i > 0 ? (measuredTops[i - 1] ?? 0) : 0;
+            measuredTops.push(i > 0 ? prevTop + lineH : 0);
         }
+    }
+
+    // Pass 2 (writes only): apply the measured offsets in one batch.
+    for (let i = 0; i < spans.length; i++) {
+        if (i < measuredTops.length)
+            spans[i].style.top = `${measuredTops[i]}px`;
     }
 }

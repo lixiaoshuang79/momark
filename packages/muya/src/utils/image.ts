@@ -79,6 +79,37 @@ export function localPathToFileUrl(src: string): string {
     return `file://${normalized}`;
 }
 
+// ── 本地图片协议（A-12）────────────────────────────────────────────────
+// 宿主打开 `webSecurity` 之后，渲染层不能再直载 `file://` 图片（dev 形态一律被拒，
+// 打包形态里沙箱帧是不透明源、同样被拒）。所以引擎把**本地图片路径**解析成
+// `momark-file://local/<绝对路径>`：宿主用 electron `protocol.handle` 注册的同名
+// 协议只放行图片扩展名，把它映射回磁盘。
+//
+// 这里的常量与桌面侧 `src/shared/types/momarkFile.ts` 是一份格式的两个实现
+// （两个包互相不能 import）；两侧各有一组单测钉住 URL 形状，改一边两边都红。
+const MOMARK_FILE_SCHEME = 'momark-file';
+const MOMARK_FILE_HOST = 'local';
+
+/**
+ * 本地绝对路径 → 本地图片协议 URL。
+ * `?`/`#` 之后按原样透传（语义与 `file://` 一致：只影响 URL 身份，不影响读到的
+ * 文件），路径部分逐段编码，`/` 作为分隔符保留。
+ */
+export function localPathToMomarkUrl(src: string): string {
+    const normalized = src.replace(/\\/g, '/');
+    const cut = normalized.search(/[?#]/);
+    const pathPart = cut === -1 ? normalized : normalized.slice(0, cut);
+    const tail = cut === -1 ? '' : normalized.slice(cut);
+    const encoded = pathPart
+        .split('/')
+        .map((segment) => encodeURIComponent(segment))
+        .join('/');
+    // 盘符路径（`C:/…`）编码后不以 `/` 开头，要自己补一个，否则会和 host 粘在一起。
+    const pathname = encoded.startsWith('/') ? encoded : `/${encoded}`;
+
+    return `${MOMARK_FILE_SCHEME}://${MOMARK_FILE_HOST}${pathname}${tail}`;
+}
+
 export function getImageSrc(src: string) {
     const EXT_REG = /\.(?:jpeg|jpg|png|gif|svg|webp)(?=\?|$)/i;
     // http[s] (domain or IPv4 or localhost or IPv6) [port] /not-white-space
@@ -87,15 +118,18 @@ export function getImageSrc(src: string) {
     const DATA_URL_REG
         = /^data:image\/[\w+-]+(?:;[\w-]+=[\w-]+|;base64)*,[a-zA-Z0-9+/]+={0,2}$/;
     const imageExtension = EXT_REG.test(src);
-    // An already-`file://` src must not be re-prefixed (avoids `file://file://`).
+    // An already-`file://` src must not be re-prefixed (avoids `file://file://`);
+    // same for a src that already carries the local-image scheme — re-prefixing
+    // either one would produce a double prefix.
     const isFileUrl = /^file:\/\//i.test(src);
-    const isUrl = URL_REG.test(src) || (imageExtension && isFileUrl);
+    const isMomarkFileUrl = /^momark-file:\/\//i.test(src);
+    const isUrl = URL_REG.test(src) || (imageExtension && (isFileUrl || isMomarkFileUrl));
     if (imageExtension) {
         const isAbsoluteLocal = ABSOLUTE_LOCAL_REG.test(src);
         // Anchor a relative local path to the document directory. The
         // engine runs in the host renderer where `window.DIRNAME` tracks the
         // current document's directory; when it is absent (headless / no open
-        // file) we fall back to the `file://${src}` form.
+        // file) we fall back to the bare-path form.
         const baseUrl
             = typeof window !== 'undefined' ? window.DIRNAME : undefined;
         if (isUrl) {
@@ -107,13 +141,13 @@ export function getImageSrc(src: string) {
         else if (!isAbsoluteLocal && baseUrl) {
             return {
                 isUnknownType: false,
-                src: localPathToFileUrl(resolveRelativePath(baseUrl, src)),
+                src: localPathToMomarkUrl(resolveRelativePath(baseUrl, src)),
             };
         }
         else {
             return {
                 isUnknownType: false,
-                src: localPathToFileUrl(src),
+                src: localPathToMomarkUrl(src),
             };
         }
     }
@@ -143,6 +177,11 @@ export function getImageSrc(src: string) {
 // Resolve an `<iframe src>` inside an HTML block: remote URLs and `file://`
 // URLs pass through unchanged; a relative path is anchored to the document
 // directory (`window.DIRNAME`), mirroring `getImageSrc`'s local-path handling.
+//
+// A-12：iframe 刻意**不**改走 `momark-file://`——那个协议只放行图片扩展名
+// （`<img>` 专用），而帧目标是一份任意本地文档（.html）。打包形态下应用页本身
+// 就是 `file://`，file:// 帧照常加载；dev 形态（应用页 http://localhost）里本地
+// file:// 帧受同源策略限制，这一点与改动前不同，已在批次 4 报告里记录。
 export function getIframeSrc(src: string): string {
     // http[s] (domain or IPv4 or localhost or IPv6) [port] /not-white-space
     const URL_REG

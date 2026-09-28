@@ -46,9 +46,40 @@ const clampSize = (value: number): number =>
 const clampZoom = (value: number): number =>
   Math.min(Math.max(Number(value) || 1, MIN_ZOOM), MAX_ZOOM)
 
-/** 采样位图，判断这一帧是不是「什么都没画」（全透明或纯白）。 */
-const looksBlank = (image: Electron.NativeImage): boolean => {
-  const bitmap = image.toBitmap()
+/**
+ * 判空采样的最大边长（像素）。
+ *
+ * P3：帧最大 8000×8000，`toBitmap()` 一次要拷 256MB（BGRA）并在 JS 侧最多遍历
+ * 6400 万像素——而这段判空在等帧循环里每 100ms 就要跑一次、最长 6 秒，全部压在
+ * 主线程上（导出时界面明显卡顿）。改成先让原生侧把长边降采样到 ≤512px（几百
+ * 微秒 + 1MB 缓冲），再扫这张小图：整帧覆盖不变，判据不变（见 `looksBlank`）。
+ */
+const BLANK_SCAN_MAX_EDGE = 512
+
+/**
+ * 采样位图，判断这一帧是不是「什么都没画」（全透明或纯白）。
+ *
+ * 判据：整帧里只要有一个 alpha>8 且明显不是白色的像素就算「画了东西」。
+ * 大帧先降采样再判——空白帧降采样后仍是空白；有内容的帧只要内容不是细到
+ * 在 1/15 缩放下完全被白底抹平（实测量级：8000px 宽的一行 1px 文字线降采样后
+ * 仍落在 ~240 灰度，远低于 246 的阈值），就仍会被判为「有内容」。
+ *
+ * 导出供单测使用（`test/unit/specs/exportHtmlFrame-blank-check.spec.ts`）。
+ */
+export const looksBlank = (image: Electron.NativeImage): boolean => {
+  const { width, height } = image.getSize()
+  if (!width || !height) return true
+
+  const longest = Math.max(width, height)
+  const sample =
+    longest > BLANK_SCAN_MAX_EDGE
+      ? image.resize({
+          width: Math.max(1, Math.round((width * BLANK_SCAN_MAX_EDGE) / longest)),
+          height: Math.max(1, Math.round((height * BLANK_SCAN_MAX_EDGE) / longest))
+        })
+      : image
+
+  const bitmap = sample.toBitmap()
   for (let i = 0; i + 3 < bitmap.length; i += 4) {
     // BGRA
     const b = bitmap[i]

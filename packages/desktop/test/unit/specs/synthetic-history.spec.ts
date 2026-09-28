@@ -127,6 +127,59 @@ describe('SyntheticHistory (saved/clean indicator id allocator)', () => {
     expect(ids.size).toBe(5000)
   })
 
+  // P2：这条哈希是 **每个按键** 同步跑的（`json-change`）。原先的 BigInt FNV-1a
+  // 每字符要一次 `BigInt()` 分配 + 64 位乘法 + 掩码；现在换成两条 32 位
+  // `Math.imul` 流（`Math.imul` 的积就是低 32 位，等价 mod 2^32），键宽不变。
+  it('stays collision-free on single-character mutations (two independent 32-bit streams)', () => {
+    const h = new SyntheticHistory('')
+    const ids = new Set<number>()
+    // 500 个位置 × 100 个替换字符 = 50000 个互不相同的单字符扰动（最坏情况：
+    // 只差一个字符的文档对哈希最不友好）。
+    const base = 'a'.repeat(500)
+    for (let i = 0; i < 50000; i++) {
+      const pos = i % 500
+      const ch = String.fromCharCode(200 + Math.floor(i / 500)) // 200..299，都 ≠ 'a'
+      ids.add(h.idFor(base.slice(0, pos) + ch + base.slice(pos + 1)))
+    }
+    // 零碰撞：两条流的素数不同、互不相关，撞库要两流同时撞。
+    expect(ids.size).toBe(50000)
+  })
+
+  it('hashes a MB-scale document far faster than a BigInt FNV-1a (per-keystroke budget)', () => {
+    // 参考实现 = 改造前的 BigInt FNV-1a（同一份规整口径），用来做同机相对比较：
+    // 绝对值随机器浮动，比值稳定。512KB 文档下单次哈希的实测对比约 10 倍。
+    const stripTrailingNewlines = (content: string): string => content.replace(/[\r\n]+$/, '')
+    const bigintHash = (content: string): bigint => {
+      const normalized = stripTrailingNewlines(content)
+      let hash = 0xcbf29ce484222325n
+      for (let i = 0; i < normalized.length; i++) {
+        hash ^= BigInt(normalized.charCodeAt(i))
+        hash = (hash * 0x100000001b3n) & 0xffffffffffffffffn
+      }
+      return hash
+    }
+
+    const line = '## Heading with some **bold** text and a [link](https://example.com/a/b/c)\n\n'
+    const doc = line.repeat(Math.ceil((512 * 1024) / line.length))
+
+    const timeOf = (fn: () => void): number => {
+      let best = Number.POSITIVE_INFINITY
+      for (let run = 0; run < 3; run++) {
+        const t0 = performance.now()
+        fn()
+        best = Math.min(best, performance.now() - t0)
+      }
+      return best
+    }
+
+    const h = new SyntheticHistory('')
+    const bigintMs = timeOf(() => bigintHash(doc))
+    const imulMs = timeOf(() => h.idFor(doc))
+
+    // 取最省的一轮比，避免被调度噪声放大；阈值刻意宽松（预期 ~10 倍）。
+    expect(imulMs).toBeLessThan(bigintMs / 2)
+  })
+
   it('build() emits a desktop-shaped single-entry history', () => {
     const h = new SyntheticHistory('')
     const hist = h.build('X')

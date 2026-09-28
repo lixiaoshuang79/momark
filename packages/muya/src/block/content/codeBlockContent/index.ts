@@ -1,3 +1,4 @@
+import type { IHighlight } from '../../../inlineRenderer/types';
 import type { Muya } from '../../../muya';
 import type { IRenderCursor } from '../../../selection/types';
 import type {
@@ -78,6 +79,31 @@ const LANG_HASH = {
     'html-block': 'html',
     'math-block': 'latex',
 };
+
+// Restore the placeholder markers `getHighlightHtml(.., escape=true)` writes
+// around the syntax tags it emits. `MARKER_HASH` is a module-level constant, so
+// the four patterns derived from it are constant too — building them inside
+// `update()` allocated four `RegExp` objects on every keystroke for nothing.
+// (`String.prototype.replace` with a /g regex always starts at index 0 and
+// resets `lastIndex` afterwards, so sharing them across calls is safe.)
+const MARKER_RESTORE = [
+    [new RegExp(MARKER_HASH['<'], 'g'), '<'],
+    [new RegExp(MARKER_HASH['>'], 'g'), '>'],
+    [new RegExp(MARKER_HASH['"'], 'g'), '"'],
+    [new RegExp(MARKER_HASH['\''], 'g'), '\''],
+] as const;
+
+// Identity of a highlight list for the render memo: every field
+// `getHighlightHtml` reads off a highlight (`index` is the only one that reaches
+// the markup today) plus `copied`, whose change is meant to repaint. Compared by
+// string equality, so a new list with equal content is a cache hit.
+function highlightSignature(highlights: IHighlight[]) {
+    let signature = '';
+    for (const { start, end, active, type, data } of highlights)
+        signature += `${start}:${end}:${active ? 1 : 0}:${type ?? ''}:${data?.index ?? ''}:${data?.copied ? 1 : 0};`;
+
+    return signature;
+}
 
 function hasStateMeta(
     state: CodeContentState,
@@ -164,31 +190,56 @@ class CodeBlockContent extends Content {
             (this.outContainer?.attachments?.head as HTMLPreview).update(text);
     }
 
-    override update(_cursor?: IRenderCursor, highlights = []) {
+    // Payload of the last highlight render. `update()` re-tokenizes the WHOLE
+    // block with Prism (or rewrites the raw HTML) and replaces the block's
+    // innerHTML, and it is called far more often than the payload changes: the
+    // constructor's create pass, the gutter-seeding rAF and the language-load
+    // callback all render the same text in a row, and search / annotation /
+    // repaint passes re-render blocks whose text never moved. Skipping the
+    // render when text + resolved language + highlight set are unchanged drops
+    // those duplicates without touching the keystroke path — there the text
+    // always differs, so a real re-highlight still happens (making THAT cheap
+    // needs a frame-coalesced render, which cannot be done without also
+    // deferring the caret restore that must follow the innerHTML swap).
+    private _renderedText: string | null = null;
+    private _renderedLang: string | null = null;
+    private _renderedHighlights = '';
+
+    override update(_cursor?: IRenderCursor, highlights: IHighlight[] = []) {
         const { _lang: lang, text } = this;
         // transform alias to original language
         const fullLengthLang = transformAliasToOrigin([lang])[0];
-        const domNode = this.domNode!;
-        const code = escapeHTML(getHighlightHtml(text, highlights, true, true))
-            .replace(new RegExp(MARKER_HASH['<'], 'g'), '<')
-            .replace(new RegExp(MARKER_HASH['>'], 'g'), '>')
-            .replace(new RegExp(MARKER_HASH['"'], 'g'), '"')
-            .replace(new RegExp(MARKER_HASH['\''], 'g'), '\'');
+        const signature = highlightSignature(highlights);
 
         if (
-            fullLengthLang
-            && /\S/.test(code)
-            && loadedLanguages.has(fullLengthLang)
+            text !== this._renderedText
+            || fullLengthLang !== this._renderedLang
+            || signature !== this._renderedHighlights
         ) {
-            const wrapper = document.createElement('div');
-            wrapper.classList.add(`language-${fullLengthLang}`);
-            wrapper.innerHTML = code;
-            prism.highlightElement(wrapper, false, function (this: HTMLElement) {
-                domNode.innerHTML = this.innerHTML;
-            });
-        }
-        else {
-            domNode.innerHTML = code;
+            const domNode = this.domNode!;
+            let code = escapeHTML(getHighlightHtml(text, highlights, true, true));
+            for (const [pattern, replacement] of MARKER_RESTORE)
+                code = code.replace(pattern, replacement);
+
+            if (
+                fullLengthLang
+                && /\S/.test(code)
+                && loadedLanguages.has(fullLengthLang)
+            ) {
+                const wrapper = document.createElement('div');
+                wrapper.classList.add(`language-${fullLengthLang}`);
+                wrapper.innerHTML = code;
+                prism.highlightElement(wrapper, false, function (this: HTMLElement) {
+                    domNode.innerHTML = this.innerHTML;
+                });
+            }
+            else {
+                domNode.innerHTML = code;
+            }
+
+            this._renderedText = text;
+            this._renderedLang = fullLengthLang;
+            this._renderedHighlights = signature;
         }
 
         this._updateLineNumbers(text);

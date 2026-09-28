@@ -2,10 +2,12 @@ import path from 'path'
 import { tmpdir } from 'os'
 import { execFile } from 'child_process'
 import fs from 'fs-extra'
-import { app, ipcMain } from 'electron'
+import { app } from 'electron'
 import log from 'electron-log'
 import commandExists from 'command-exists'
 import { isImageFile } from 'common/filesystem/paths'
+
+import { trustedHandle } from './guard'
 
 // Uploader settings are read from the main-process store, never from the IPC
 // payload (see `readUploaderSettings`): the renderer could otherwise name an
@@ -246,7 +248,7 @@ interface UploadRequest {
 }
 
 export const registerUploaderHandlers = (): void => {
-  ipcMain.handle('mt::uploader::upload', async (_event, req: UploadRequest) => {
+  trustedHandle('mt::uploader::upload', async (_event, req: UploadRequest) => {
     const { pathname, image, isPath, preferences } = req
     const settings = resolveUploaderSettings(preferences)
     if (isPath) {

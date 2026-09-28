@@ -145,4 +145,41 @@ describe('repositionLineNumberSpans', () => {
         expect((wrapper.children[1] as HTMLElement).style.top).toBe('30px');
         expect((wrapper.children[2] as HTMLElement).style.top).toBe('60px');
     });
+
+    it('takes every measurement before the first write (one forced layout, not N)', () => {
+        const wrapper = document.createElement('span');
+        syncLineNumbersSpans(wrapper, 4);
+        const codeEl = document.createElement('code');
+        codeEl.appendChild(document.createTextNode('a\nb\nc\nd'));
+
+        const spans = Array.from(wrapper.children) as HTMLElement[];
+        // A `style.top` write invalidates layout, so a read that happens after a
+        // write forces the engine to re-run layout. Record how many rows were
+        // already written at the moment of each measurement: with interleaved
+        // read/write (the pre-fix shape) the k-th measurement sees k-1 written
+        // rows → O(lines) forced reflows; batched, every measurement sees 0.
+        const writtenRowsAtRead: number[] = [];
+        const rangeProto = Range.prototype as unknown as {
+            getBoundingClientRect: () => { top: number };
+        };
+        const origRangeRect = rangeProto.getBoundingClientRect;
+        rangeProto.getBoundingClientRect = () => {
+            writtenRowsAtRead.push(spans.filter(s => s.style.top !== '').length);
+
+            return { top: 100 + writtenRowsAtRead.length * 20 };
+        };
+
+        try {
+            repositionLineNumberSpans(wrapper, codeEl);
+        }
+        finally {
+            rangeProto.getBoundingClientRect = origRangeRect;
+        }
+
+        // All four lines were measured…
+        expect(writtenRowsAtRead).toHaveLength(4);
+        // …and not one of those measurements followed a write.
+        expect(writtenRowsAtRead).toEqual([0, 0, 0, 0]);
+        expect(spans.map(s => s.style.top)).toEqual(['0px', '20px', '40px', '60px']);
+    });
 });

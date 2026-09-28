@@ -1,9 +1,11 @@
 import fs from 'fs-extra'
-import { ipcMain } from 'electron'
+
 import commandExists from 'command-exists'
 
+import { trustedHandle } from './guard'
+
 export const registerCmdHandlers = (): void => {
-  ipcMain.handle('mt::cmd::exists', async(_event, name: string) => {
+  trustedHandle('mt::cmd::exists', async (_event, name: string) => {
     try {
       if (commandExists.sync(name)) return true
 

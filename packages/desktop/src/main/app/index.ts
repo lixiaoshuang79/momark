@@ -46,6 +46,12 @@ class App {
   private _openFilesTimer: ReturnType<typeof setTimeout> | null
   private _windowManager: WindowManager
   private _themeListenerRegistered: boolean
+  /**
+   * `ready` 里的一次性初始化是否已经跑过（P3）。`ready` 只在启动时跑一次；
+   * macOS 的 activate（点 dock）只建窗，不再重跑初始化——见
+   * `_initializeOnce()` / `_createStartupWindow()`。
+   */
+  private _initialized: boolean
 
   /**
    * @param accessor The application accessor for application instances.
@@ -65,6 +71,7 @@ class App {
     this._listenForIpcMain()
     // Initialize theme listener
     this._themeListenerRegistered = false
+    this._initialized = false
   }
 
   /**
@@ -129,8 +136,13 @@ class App {
       // macOS only
       // On OS X it's common to re-create a window in the app when the
       // dock icon is clicked and there are no other windows open.
+      //
+      // P3：这里以前直接调 `ready()`，而它不是幂等的——每激活一次就重复注册一遍
+      // `broadcast-preferences-changed` / `nativeTheme#updated` 监听、重复接管缩放
+      // 快捷键、重复把 `args._` 里的启动文件塞进待打开队列（`_openPathList` 会清空
+      // 队列，于是每次激活都重新打开一遍启动文件）。现在只建窗。
       if (this._windowManager.windowCount === 0) {
-        this.ready()
+        this._createStartupWindow()
       }
     })
 
@@ -226,8 +238,25 @@ class App {
   }
 
   ready = (): void => {
+    // 「一次性初始化」与「建窗」拆开（P3）：activate（macOS 点 dock 图标）只该
+    // 建窗。旧实现直接调 ready()，而它每跑一次就重复注册一遍监听、重复消费一遍
+    // 启动参数（见 init() 里 activate 的注释）。
+    this._initializeOnce()
+    this._createStartupWindow()
+  }
+
+  /**
+   * 主进程的一次性初始化：缩放快捷键接管、启动语言、启动主题、各类监听与
+   * 启动参数入队。只在第一次 `ready` 时跑，activate 不会重跑。
+   */
+  private _initializeOnce(): void {
+    if (this._initialized) {
+      return
+    }
+    this._initialized = true
+
     const { _args: args, _openFilesCache } = this
-    const { preferences, editorBufferStore, keybindings } = this._accessor
+    const { preferences, keybindings } = this._accessor
 
     // round18：网页面板优先接管缩放快捷键。Cmd +=/-/0 在墨记里本是「段落标题
     // 升降级」，面板展示网页时若不接管，用户按「网页放大」会改掉左侧文档的
@@ -235,9 +264,8 @@ class App {
     installPanelZoomKeyRouting(keybindings)
 
     // Initialize language settings
-    const { startUpAction, defaultDirectoryToOpen, theme, language } = preferences.getAll()
+    const { theme, language } = preferences.getAll()
     const followSystemTheme = preferences.getItem<boolean>('followSystemTheme')
-    const lastOpenedFolder = preferences.getItem<string>('lastOpenedFolder')
     const lightModeTheme = preferences.getItem<string>('lightModeTheme')
     const darkModeTheme = preferences.getItem<string>('darkModeTheme')
 
@@ -245,6 +273,9 @@ class App {
       setLanguage(language)
     }
 
+    // 启动参数（CLI 里的文件/目录）只消费一次：`_openPathList` 会把待打开队列
+    // 清空，而 `args._` 本身不会变——旧实现在每次 activate 里重跑，于是每次点
+    // dock 都会把启动文件重新打开一遍。
     if (args._.length) {
       for (const pathname of args._) {
         // Ignore all unknown flags
@@ -255,27 +286,6 @@ class App {
         const info = normalizeMarkdownPath(pathname)
         if (info) {
           _openFilesCache.push(info as PathInfo)
-        }
-      }
-    }
-
-    // We should NOT restore the previous buffer or open a folder if the user just wants to double click to open a file
-    if (_openFilesCache.length === 0) {
-      // MoMark：冷启动固定进欢迎页——「恢复上次会话」分支**已彻底移除**
-      // （F1/P0-1：`restoreAll` 同时从 schema enum 与默认值中清理，老用户磁盘上
-      // 已存的值在 preferences 侧迁移为 'blank'，否则 enum 校验会抛
-      // Config schema violation）。残留缓冲永远不会被打开，未被保存的内容只留在
-      // buffer JSON 里，因此渲染层的关窗确认不再有 restoreAll 豁免
-      // （见 renderer store/editor.ts 的 LISTEN_FOR_CLOSE）。
-      if (startUpAction === 'folder' && defaultDirectoryToOpen) {
-        const info = normalizeMarkdownPath(defaultDirectoryToOpen)
-        if (info) {
-          _openFilesCache.unshift(info as PathInfo)
-        }
-      } else if (startUpAction === 'openLastFolder' && lastOpenedFolder) {
-        const info = normalizeMarkdownPath(lastOpenedFolder)
-        if (info) {
-          _openFilesCache.unshift(info as PathInfo)
         }
       }
     }
@@ -388,6 +398,38 @@ class App {
           ]
         }
       ])
+    }
+  }
+
+  /**
+   * 建出启动窗口：待打开队列（启动参数 / open-file 事件 / 上次打开的目录）非空
+   * 就开编辑器窗口，否则开欢迎页。macOS 的 activate（点 dock）也只走到这里。
+   */
+  private _createStartupWindow(): void {
+    const { preferences, editorBufferStore } = this._accessor
+    const { _openFilesCache } = this
+
+    // We should NOT restore the previous buffer or open a folder if the user just wants to double click to open a file
+    if (_openFilesCache.length === 0) {
+      const { startUpAction, defaultDirectoryToOpen } = preferences.getAll()
+      const lastOpenedFolder = preferences.getItem<string>('lastOpenedFolder')
+      // MoMark：冷启动固定进欢迎页——「恢复上次会话」分支**已彻底移除**
+      // （F1/P0-1：`restoreAll` 同时从 schema enum 与默认值中清理，老用户磁盘上
+      // 已存的值在 preferences 侧迁移为 'blank'，否则 enum 校验会抛
+      // Config schema violation）。残留缓冲永远不会被打开，未被保存的内容只留在
+      // buffer JSON 里，因此渲染层的关窗确认不再有 restoreAll 豁免
+      // （见 renderer store/editor.ts 的 LISTEN_FOR_CLOSE）。
+      if (startUpAction === 'folder' && defaultDirectoryToOpen) {
+        const info = normalizeMarkdownPath(defaultDirectoryToOpen)
+        if (info) {
+          _openFilesCache.unshift(info as PathInfo)
+        }
+      } else if (startUpAction === 'openLastFolder' && lastOpenedFolder) {
+        const info = normalizeMarkdownPath(lastOpenedFolder)
+        if (info) {
+          _openFilesCache.unshift(info as PathInfo)
+        }
+      }
     }
 
     const createWindow = (): void => {
