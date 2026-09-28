@@ -72,11 +72,6 @@ export class AnnotationTool extends BaseFloat {
      * 就跑到卡片里去了。
      */
     private _range: Range | null = null;
-    /**
-     * 面板入口（「新标注」按钮）兜底：点击时焦点在面板上，正文没有原生选区，
-     * 位置退化为「快照锚点块的 DOM 矩形」——语义上正是「贴住要标注的那一段」。
-     */
-    private _fallbackRect: (() => DOMRect) | null = null;
     private _note: HTMLTextAreaElement | null = null;
     private _saveButton: HTMLButtonElement | null = null;
     private _repositionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -111,7 +106,6 @@ export class AnnotationTool extends BaseFloat {
         this._editing = null;
         this._quote = '';
         this._range = null;
-        this._fallbackRect = null;
 
         if (this._note)
             this._note.value = '';
@@ -151,18 +145,6 @@ export class AnnotationTool extends BaseFloat {
         this._editing = editing;
         this._quote = editing ? editing.anchor.quote : this._liveSelectionText();
         this._range = this._cloneLiveRange();
-
-        // 面板入口兜底：点面板按钮时焦点在面板上，正文没有原生选区，引文与
-        // 贴边矩形都取不到——退化为「快照锚点块的整段文本 / 块 DOM 矩形」。
-        const anchorBlock = snapshot.anchorBlock as
-            | { text?: string; domNode?: HTMLElement }
-            | undefined;
-        if (!this._quote && anchorBlock?.text)
-            this._quote = anchorBlock.text.replace(/\s+/g, ' ').trim();
-        if (!this._range && anchorBlock?.domNode) {
-            const node = anchorBlock.domNode;
-            this._fallbackRect = () => node.getBoundingClientRect();
-        }
 
         this._render();
 
@@ -321,15 +303,8 @@ export class AnnotationTool extends BaseFloat {
     private _reference(): ReferenceElement | null {
         const { _range: range } = this;
 
-        if (!range) {
-            const cursor = getCursorReference();
-            if (cursor)
-                return cursor;
-            // 面板入口：无原生选区时贴快照锚点块。
-            if (this._fallbackRect)
-                return { getBoundingClientRect: this._fallbackRect };
-            return null;
-        }
+        if (!range)
+            return getCursorReference();
 
         return {
             getBoundingClientRect: () => range.getBoundingClientRect(),

@@ -123,49 +123,42 @@ export class AnnotationModule {
     }
 
     /**
-     * 面板「新标注」按钮入口（方案 §3.2）：有非折叠选区时等价于工具条按钮
-     * （用选区本身）；折叠光标时取光标所在**整块**（quote 取整段）——不要求
-     * 用户先在正文里选中。空块或没有光标时返回 false（调用方提示用户）。
-     * 构造出快照后走与工具条相同的事件（`muya-annotation-request` → 卡片）。
+     * 新一条**全局备注**：不锚定正文内容（`ranges` 为空，正文不画高亮、不参与
+     * 重定位），用于「对整篇文档」的总体意见——复制文本里它显示为「全局备注」。
+     * 备注 trim 后为空返回 null（空备注不允许保存）。
      */
-    annotateCurrentParagraph(): boolean {
-        const sel = this._muya.editor.selection;
-        const anchor = sel.anchor;
-        const focus = sel.focus;
-        const anchorBlock = sel.anchorBlock;
-        const focusBlock = sel.focusBlock;
-        if (!anchor || !focus || !anchorBlock || !focusBlock)
-            return false;
+    addGlobal(note: string): IAnnotation | null {
+        const text = (note ?? '').trim();
+        if (!text)
+            return null;
 
-        let selAnchor = { offset: anchor.offset, block: anchorBlock, path: sel.anchorPath };
-        let selFocus = { offset: focus.offset, block: focusBlock, path: sel.focusPath };
-
-        const snap: TSelectionSnapshot = {
-            anchor: selAnchor,
-            focus: selFocus,
-            anchorBlock,
-            focusBlock,
-            anchorPath: sel.anchorPath,
-            focusPath: sel.focusPath,
+        const now = Date.now();
+        const annotation: IAnnotation = {
+            id: getLongUniqueId(),
+            anchor: {
+                ranges: [],
+                quote: '',
+                prefix: '',
+                suffix: '',
+                blockText: '',
+                beforeBlockText: '',
+                afterBlockText: '',
+                blockPath: [],
+                headingPath: [],
+            },
+            note: text,
+            global: true,
+            copied: false,
+            archived: false,
+            anchorState: 'anchored',
+            createdAt: now,
+            updatedAt: now,
         };
 
-        if (anchorBlock === focusBlock && anchor.offset === focus.offset) {
-            // 折叠光标：把范围扩到整块。
-            const length = (anchorBlock.text ?? '').length;
-            if (!length)
-                return false;
-            selAnchor = { offset: 0, block: anchorBlock, path: sel.anchorPath };
-            selFocus = { offset: length, block: anchorBlock, path: sel.focusPath };
-            snap.anchor = selAnchor;
-            snap.focus = selFocus;
-            snap.focusBlock = anchorBlock;
-        }
-
-        // 与工具条早返回同一手法：点面板按钮会让正文丢 DOM 选区，先把选区还原。
-        sel.setSelection(selAnchor, selFocus);
-
-        this._muya.eventCenter.emit('muya-annotation-request', snap);
-        return true;
+        this._annotations.push(annotation);
+        this._invalidate();
+        this._emitChange('add', annotation.id);
+        return annotation;
     }
 
     /**
@@ -318,6 +311,7 @@ export class AnnotationModule {
                 note: annotation.note,
                 orphaned: annotation.anchorState === 'orphaned',
                 fragment: isFragmentQuote(annotation, this._muya),
+                global: !!annotation.global,
             };
         });
     }
@@ -505,7 +499,7 @@ export class AnnotationModule {
         let changed = false;
 
         for (const annotation of this._annotations) {
-            if (annotation.archived)
+            if (annotation.archived || annotation.global)
                 continue;
             if (caretKey && this._touchesPath(annotation, caretKey)) {
                 this._deferred.add(annotation.id);
@@ -549,8 +543,12 @@ export class AnnotationModule {
     private _relocateAll(): boolean {
         let changed = false;
 
-        for (const annotation of this._annotations)
+        for (const annotation of this._annotations) {
+            // 全局备注没有正文锚点，重定位无意义（也不该被标成 orphaned）。
+            if (annotation.global)
+                continue;
             changed = this._relocateOne(annotation) || changed;
+        }
 
         return changed;
     }

@@ -1117,8 +1117,8 @@
       "save": "Save",
       "close": "Close",
       "clear": "Clear",
-      "newAnnotation": "New",
-      "newAnnotationTitle": "Annotate the paragraph at the cursor without selecting text"
+      "newAnnotation": "Global note",
+      "newAnnotationTitle": "Add a note about the whole document"
     },
     "empty": {
       "current": "Select text in the document,",
@@ -1161,7 +1161,9 @@
       "archiveCount": "Archived {n} annotation(s); find them in History",
       "clearHistory": "History cleared, {n} annotation(s) removed",
       "deleteRound": "Deleted {n} annotation(s) of round {round}"
-    }
+    },
+    "globalNotePlaceholder": "Write a note about the whole document…",
+    "globalNoteTag": "Global note"
   },
   "welcome": {
     "windowTitle": "Welcome to MoMark",

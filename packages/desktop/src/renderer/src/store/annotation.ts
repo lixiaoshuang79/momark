@@ -78,7 +78,12 @@ const truncateBlock = (blockText: string): string => {
 
 /** `[1] 第三章 需求说明 › 3.2 权限模型 ｜ L128–L130` 的抬头一行。 */
 const headline = (item: IAnnotationExportItem, order: number): string => {
-  const section = item.headingPath.length ? item.headingPath.join(' › ') : '（未记录章节）'
+  // 全局备注：没有正文位置——抬头直接写语义标签，不写章节/行号（用户拍板：
+  // 这类条目不出现「（未记录章节）」式的机器占位）。
+  if (item.global) {
+    return `[${order}] 全局备注`
+  }
+  const section = item.headingPath.length ? item.headingPath.join(' › ') : '（无章节）'
   let line = ''
   if (typeof item.lineStart === 'number' && typeof item.lineEnd === 'number') {
     // 单行时不写「L3–L3」这种原地往返（用户拍板：文本要精简）。
@@ -118,11 +123,16 @@ export const buildCopyText = (items: IAnnotationExportItem[], pathname: string):
   out.push('定位以「原文」为准；行号基于复制时的版本，可能已偏移。')
 
   main.forEach((item, index) => {
-    const quote = truncateQuote(item.quote)
-    const fence = fenceFor(quote.text)
     out.push('')
     out.push(SEPARATOR)
     out.push(headline(item, index + 1))
+    if (item.global) {
+      // 全局备注：无正文位置——只写要求（没有原文/段落可引用）。
+      out.push(`修改要求：${item.note}`)
+      return
+    }
+    const quote = truncateQuote(item.quote)
+    const fence = fenceFor(quote.text)
     out.push('原文：')
     out.push(`${fence}text`)
     out.push(quote.text)
@@ -579,17 +589,15 @@ export const useAnnotationStore = defineStore('annotation', () => {
     syncFromEngine()
   }
 
-  /** 面板「新标注」：有选区用选区；无选区取光标所在整块（引擎侧入口）。 */
-  function annotateCurrentParagraph(): void {
-    const module = annotationModule() as { annotateCurrentParagraph?: () => boolean } | undefined
-    const ok = module?.annotateCurrentParagraph?.() ?? false
-    if (!ok) {
-      notice.notify({
-        message: t('annotation.hint.cursorNeeded'),
-        type: 'info',
-        time: 2500
-      })
+  /** 面板「＋ 全局备注」：不锚定正文的整篇意见（引擎 addGlobal）。 */
+  function addGlobalNote(note: string): boolean {
+    const module = annotationModule() as { addGlobal?: (n: string) => unknown } | undefined
+    const created = module?.addGlobal?.(note)
+    if (!created) {
+      return false
     }
+    syncFromEngine()
+    return true
   }
 
   function remove(id: string): void {
@@ -752,6 +760,8 @@ export const useAnnotationStore = defineStore('annotation', () => {
       notice.notify({ message: t('annotation.toast.archived'), type: 'info', time: 2500 })
       return
     }
+    // 全局备注没有正文位置，点击不做定位。
+    if (target.global) return
     if (isOrphan(target)) {
       notice.notify({ message: t('annotation.toast.orphan'), type: 'info', time: 2500 })
       return
@@ -854,7 +864,7 @@ export const useAnnotationStore = defineStore('annotation', () => {
     loadFor,
     persist,
     flush,
-    annotateCurrentParagraph,
+    addGlobalNote,
     MIGRATE_PATH,
     SWITCH_DOC,
     ADOPT_PATH,

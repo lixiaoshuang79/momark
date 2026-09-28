@@ -9,8 +9,12 @@
   >
     <span class="ac-idx" :class="statusClass">{{ order }}</span>
     <div class="ac-body">
-      <div class="ac-quote" :title="quote">
-        {{ quote }}
+      <div
+        class="ac-quote"
+        :class="{ 'is-global': isGlobal }"
+        :title="isGlobal ? t('annotation.globalNoteTag') : quote"
+      >
+        {{ isGlobal ? t('annotation.globalNoteTag') : quote }}
       </div>
 
       <template v-if="editing">
@@ -166,6 +170,8 @@ const store = useAnnotationStore()
 const { annotation } = props
 
 const quote = computed(() => annotation.anchor.quote.replace(/\s+/g, ' ').trim())
+/** 全局备注：引文区显示语义标签而非引文（引擎侧 `anchor.ranges` 为空）。 */
+const isGlobal = computed(() => !!annotation.global)
 const active = computed(() => store.activeId === annotation.id)
 
 const status = computed<'pending' | 'copied' | 'orphan'>(() => {
@@ -290,6 +296,10 @@ const locate = (): void => store.locate(annotation.id)
   overflow: hidden;
   text-overflow: ellipsis;
   margin-bottom: 5px;
+}
+.ac-quote.is-global {
+  font-family: inherit;
+  color: var(--muted);
 }
 .ann-card:hover .ac-quote {
   color: var(--muted);

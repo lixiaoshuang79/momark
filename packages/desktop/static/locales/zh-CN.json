@@ -1119,8 +1119,8 @@
       "save": "保存",
       "close": "关闭",
       "clear": "清空",
-      "newAnnotation": "新标注",
-      "newAnnotationTitle": "不选中文字，直接标注光标所在的段落"
+      "newAnnotation": "全局备注",
+      "newAnnotationTitle": "添加一条针对整篇文档的全局备注"
     },
     "empty": {
       "current": "选中正文中的内容，",
@@ -1163,7 +1163,9 @@
       "archiveCount": "已归档 {n} 条，可在「历史」里找到",
       "clearHistory": "已清空历史，共 {n} 条",
       "deleteRound": "已删除第 {round} 轮共 {n} 条"
-    }
+    },
+    "globalNotePlaceholder": "写一条对整篇文档的意见…",
+    "globalNoteTag": "全局备注"
   },
   "welcome": {
     "windowTitle": "欢迎使用墨记",

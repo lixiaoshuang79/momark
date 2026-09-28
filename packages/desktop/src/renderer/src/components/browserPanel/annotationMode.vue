@@ -165,13 +165,32 @@
       </template>
     </div>
 
+    <!-- 全局备注输入区：就地展开在底条上方（不弹文档内卡片） -->
+    <div v-if="composerOpen" class="ann-composer">
+      <textarea
+        ref="composerRef"
+        v-model="composerNote"
+        class="ann-composer-note"
+        :placeholder="t('annotation.globalNotePlaceholder')"
+        @keydown="onComposerKeydown"
+      />
+      <div class="ann-composer-foot">
+        <button class="mini" @click="closeComposer">
+          {{ t('annotation.action.cancel') }}
+        </button>
+        <button class="btn-primary mini" :disabled="!composerNote.trim()" @click="saveGlobalNote">
+          {{ t('annotation.action.save') }}
+        </button>
+      </div>
+    </div>
+
     <!-- ── 底条（面板自带；url/doc 的底条由 index.vue 按 tab 分配）── -->
     <div class="ann-foot">
       <template v-if="view === 'current'">
         <button
           class="btn-ghost"
           :title="t('annotation.action.newAnnotationTitle')"
-          @click.stop="store.annotateCurrentParagraph()"
+          @click.stop="openComposer()"
         >
           ＋ {{ t('annotation.action.newAnnotation') }}
         </button>
@@ -267,7 +286,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import notice from '@/services/notification'
 import { t } from '../../i18n'
 import AnnotationCard from './annotationCard.vue'
@@ -424,6 +443,42 @@ const doArchiveHint = (): void => {
 
 const openDrawer = (): void => {
   drawerOpen.value = true
+}
+
+// ── 全局备注输入区：就地展开在底条上方（不弹文档内卡片）。 ──
+const composerOpen = ref(false)
+const composerNote = ref('')
+const composerRef = ref<HTMLTextAreaElement | null>(null)
+
+const openComposer = (): void => {
+  composerOpen.value = true
+  nextTick(() => composerRef.value?.focus())
+}
+
+const closeComposer = (): void => {
+  composerOpen.value = false
+  composerNote.value = ''
+}
+
+const saveGlobalNote = (): void => {
+  if (!composerNote.value.trim()) {
+    return
+  }
+  if (store.addGlobalNote(composerNote.value)) {
+    closeComposer()
+  }
+}
+
+const onComposerKeydown = (event: KeyboardEvent): void => {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeComposer()
+    return
+  }
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault()
+    saveGlobalNote()
+  }
 }
 
 const copyAll = async (): Promise<void> => {
@@ -691,6 +746,35 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 /* ── 底条 ── */
+/* 全局备注输入区：就地展开在底条上方，样式贴合面板。 */
+.ann-composer {
+  border-top: 1px solid var(--line);
+  padding: 8px 10px;
+  background: var(--surface-2);
+}
+.ann-composer-note {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 54px;
+  max-height: 140px;
+  resize: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 12.5px/1.6 inherit;
+  padding: 6px 8px;
+  outline: none;
+}
+.ann-composer-note:focus {
+  border-color: var(--accent);
+}
+.ann-composer-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
 .ann-foot {
   flex: none;
   display: flex;

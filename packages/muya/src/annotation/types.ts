@@ -50,6 +50,11 @@ export interface IAnnotation {
     id: string;
     anchor: IAnnotationAnchor;
     note: string;
+    /**
+     * 全局备注：不锚定正文内容（`anchor.ranges` 为空）、正文不画高亮、
+     * 不参与重定位；复制文本里这类条目抬头写「全局备注」。
+     */
+    global?: boolean;
 
     // ── 用户可见状态：只有"未复制 / 已复制" ──
     copied: boolean;
@@ -80,6 +85,8 @@ export interface IAnnotationExportItem {
     note: string;
     orphaned: boolean;
     fragment: boolean;
+    /** 全局备注（见 `IAnnotation.global`）：无章节/行号可写。 */
+    global?: boolean;
 }
 
 /**
