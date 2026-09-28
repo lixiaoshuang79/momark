@@ -280,7 +280,10 @@ body {
 .mu-annotation-active[data-index]::after {
     position: absolute;
     top: -6px;
-    right: -6px;
+    /* 角标标在整条标注的**起点**（第一个字）左上角——跨内联格式时高亮被切成
+       多段，首段可能是"学校就"这样的短段，用户预期角标落在整个高亮的开头
+       （「学」的左上角），而不是首段的右上角。 */
+    left: -6px;
 
     display: flex;
     align-items: center;
