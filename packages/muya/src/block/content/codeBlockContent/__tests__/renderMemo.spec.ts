@@ -100,4 +100,34 @@ describe('code block highlight render memo', () => {
         expect(domNode.querySelector('img')).toBeNull();
         expect(domNode.textContent).toContain('<img src=x onerror="alert(1)">');
     });
+
+    // Regression the memo itself introduced: language components load
+    // ASYNCHRONOUSLY, so the first render has no choice but to emit plain text —
+    // while still recording the resolved language name. When the dynamic import
+    // lands, `commonMark/codeBlock`'s `setLang` callback calls `update()` again
+    // with text + language + highlights all unchanged, so a memo keyed on those
+    // three alone hits and the highlight never appears (editing the text is the
+    // only way out). Preloaded languages (js/css/html) are unaffected — which is
+    // exactly why the cases above, all built on a fence with no info string,
+    // never caught it.
+    it('async language: the Prism highlight appears once the language component has loaded', async () => {
+        const muya = boot('```python\nconst a = 1\n```\n');
+        const codeBlock = muya.editor.scrollPage!.queryBlock([0]) as unknown as {
+            lang: string;
+            lastContentInDescendant: () => { domNode: HTMLElement | null };
+        };
+        // Same channel `CodeBlock.create` uses (its rAF assigns the info string):
+        // it starts the dynamic Prism import and, once it resolves, calls
+        // `lastContentInDescendant().update()`.
+        codeBlock.lang = 'python';
+
+        const domNode = codeBlock.lastContentInDescendant().domNode!;
+        // Deliberately no manual `update()` here — the language-load callback
+        // must be enough on its own.
+        for (let i = 0; i < 60 && !domNode.innerHTML.includes('class="token'); i++)
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+        expect(domNode.innerHTML).toContain('class="token');
+        expect(domNode.textContent).toContain('const a = 1');
+    });
 });

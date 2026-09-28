@@ -61,19 +61,32 @@ describe('buildCopyText — 抬头', () => {
     expect(lines[2]).toBe('共 2 条')
   })
 
+  it('未保存文档：不写内部 key，改一句明确标注', () => {
+    // 未保存文档在 store 里的 key 是 `untitled:<tabId>`——那是内部标识，既不是
+    // 真实路径、agent 也读不到。文案里绝不能出现它。
+    const text = buildCopyText([item()], '')
+    const lines = text.split('\n')
+
+    expect(lines[1]).toBe('文件：（未保存文档，尚未落盘）')
+    expect(text).not.toContain('untitled:')
+  })
+
   it('抬头句声明「行号基于复制时的版本」，抑制 agent 盲信行号', () => {
     const text = buildCopyText([item()], DOC_PATH)
     expect(text).toContain('行号基于复制时的版本')
     // 精简：指令句式一律不出现（用户拍板），只留信息性声明。
     expect(text).not.toContain('只改被标注的位置')
-    expect(text).not.toContain('请按下述')
     expect(text).toContain('定位以「原文」为准')
+    // 「请」是指令句式的指纹：整份文本（含片段提示与失效附录）一个都不许有。
+    // 回归防线从「钉住某一句」升级为「钉住这一个字」——漏改任意一处都会红。
+    expect(text).not.toContain('请')
   })
 
   it('条目数只算正文条目，失效条目由附录那句单独交代', () => {
     const text = buildCopyText([item(), item({ index: 2, orphaned: true })], DOC_PATH)
     expect(text).toContain('共 1 条')
-    expect(text).toContain('（另有 1 条标注的原文已不存在，见文末附录，请判断是否已被你处理）')
+    expect(text).toContain('（另有 1 条标注的原文已不存在，见文末附录）')
+    expect(text).not.toContain('请')
   })
 })
 
@@ -88,6 +101,8 @@ describe('buildCopyText — 全文不含「轮」字样', () => {
       DOC_PATH
     )
     expect(text).not.toContain('轮')
+    // 同一条多条目文本上也钉一次「无指令口气」，避免只在单条目路径上把关。
+    expect(text).not.toContain('请')
   })
 
   it('也不出现标注 id、时间戳与应用名（方案 §4.4.6）', () => {
@@ -151,12 +166,14 @@ describe('buildCopyText — 失效附录（方案 §4.1）', () => {
       [item(), item({ index: 2, orphaned: true }), item({ index: 3, orphaned: true })],
       DOC_PATH
     )
-    expect(text).toContain('附录：原文已删除的标注（请判断是否已处理，若已处理请忽略）')
+    expect(text).toContain('附录：原文已删除的标注')
     expect(text).toContain('[A] 第三章 需求说明 › 3.2 权限模型 ｜ 原引文：')
     expect(text).toContain('[B] 第三章 需求说明 › 3.2 权限模型 ｜ 原引文：')
     // 附录条目不再出现「所在段落」
     const appendix = text.slice(text.indexOf('附录：'))
     expect(appendix).not.toContain('所在段落：')
+    // 附录是「请判断是否已处理」的最后藏身处——整段仍不许出现指令口气。
+    expect(text).not.toContain('请')
   })
 
   it('没有失效条目时整段附录不出现', () => {
@@ -170,6 +187,12 @@ describe('buildCopyText — 章节 / 行号 / 所在段落', () => {
   it('章节路径用 › 连接，行号跟在后面', () => {
     const text = buildCopyText([item()], DOC_PATH)
     expect(text).toContain('[1] 第三章 需求说明 › 3.2 权限模型 ｜ L128–L130')
+  })
+
+  it('单行引文只写 L128，不写「L128–L128」', () => {
+    const text = buildCopyText([item({ lineStart: 128, lineEnd: 128 })], DOC_PATH)
+    expect(text).toContain('[1] 第三章 需求说明 › 3.2 权限模型 ｜ L128')
+    expect(text).not.toContain('L128–L128')
   })
 
   it('缺章节时退化为「（未记录章节）」，缺行号时整段省略', () => {
@@ -189,7 +212,8 @@ describe('buildCopyText — 章节 / 行号 / 所在段落', () => {
 
   it('引文切断行内标记时补一行「引文为片段」', () => {
     const text = buildCopyText([item({ fragment: true })], DOC_PATH)
-    expect(text).toContain('引文为片段，请以所在段落定位。')
+    expect(text).toContain('引文为片段，以所在段落为准。')
+    expect(text).not.toContain('请')
   })
 
   it('多行备注原样保留，不做任何加工（方案 §4.4.5）', () => {

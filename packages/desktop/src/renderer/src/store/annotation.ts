@@ -81,7 +81,11 @@ const headline = (item: IAnnotationExportItem, order: number): string => {
   const section = item.headingPath.length ? item.headingPath.join(' › ') : '（未记录章节）'
   let line = ''
   if (typeof item.lineStart === 'number' && typeof item.lineEnd === 'number') {
-    line = ` ｜ L${item.lineStart}–L${item.lineEnd}`
+    // 单行时不写「L3–L3」这种原地往返（用户拍板：文本要精简）。
+    line =
+      item.lineStart === item.lineEnd
+        ? ` ｜ L${item.lineStart}`
+        : ` ｜ L${item.lineStart}–L${item.lineEnd}`
   } else if (typeof item.lineStart === 'number') {
     line = ` ｜ L${item.lineStart}`
   }
@@ -104,7 +108,10 @@ export const buildCopyText = (items: IAnnotationExportItem[], pathname: string):
   const out: string[] = []
 
   out.push('【文档标注】')
-  out.push(`文件：${pathname}`)
+  // 未保存文档没有可交给 agent 的路径：不能把内部 key（`untitled:<tabId>`）写出去
+  // ——那既是**不存在的路径**、又把内部标识泄漏给外部模型——改为一句明确的标注。
+  // 调用方负责把「非真实路径」归一成空串（见 `copyAll`）。
+  out.push(pathname ? `文件：${pathname}` : '文件：（未保存文档，尚未落盘）')
   out.push(`共 ${main.length} 条`)
   // 只留信息性声明（定位依据 + 行号时效）。不写「请逐条修改」「只改被标注的位置」
   // 这类指令句——用户拍板：文本要精简，教 agent 做事的表述不要出现。
@@ -137,18 +144,19 @@ export const buildCopyText = (items: IAnnotationExportItem[], pathname: string):
       out.push(blockFence)
     }
     if (item.fragment) {
-      // 引文切断了行内标记（加粗/链接/行内代码），单独提示以段落定位（§3.6）。
-      out.push('引文为片段，请以所在段落定位。')
+      // 引文切断了行内标记（加粗/链接/行内代码），单独交代一句定位依据（§3.6）。
+      // 只陈述事实、不给 agent 下指令（用户拍板「指令句不要」）。
+      out.push('引文为片段，以所在段落为准。')
     }
     out.push(`修改要求：${item.note}`)
   })
 
   if (orphaned.length) {
     out.push('')
-    out.push(`（另有 ${orphaned.length} 条标注的原文已不存在，见文末附录，请判断是否已被你处理）`)
+    out.push(`（另有 ${orphaned.length} 条标注的原文已不存在，见文末附录）`)
     out.push('')
     out.push(SEPARATOR)
-    out.push('附录：原文已删除的标注（请判断是否已处理，若已处理请忽略）')
+    out.push('附录：原文已删除的标注')
     orphaned.forEach((item, index) => {
       const quote = truncateQuote(item.quote)
       const fence = fenceFor(quote.text)
@@ -298,33 +306,66 @@ export const useAnnotationStore = defineStore('annotation', () => {
   }
 
   /**
-   * 刷新 id → 文档序号映射（面板序号用）。只在条目集合变化时才问引擎要导出
-   * （getExport 会算一遍行号，别每次同步都跑）。
+   * 刷新 id → 文档序号映射（面板序号 / `locate()` 定位都用它）。只在条目集合或
+   * 「归档 / 锚点健康度」变化时才问引擎要导出（getExport 会算一遍行号，别每次
+   * 同步都跑）。
    *
-   * 映射靠位置：`getExport()` 不带 ids 时按引擎内部表顺序返回，而这张表就是
-   * `list()` 给我们的那张——长度对不上（引擎实现不同）就整表放弃，面板退回
-   * 创建顺序编号（纯显示问题，不影响复制文本，后者的 [n] 由模板重新编号）。
+   * 对齐基准是**过滤掉归档后的那份表**，不是整表：`list()`（= `annotations`）
+   * 含归档条目，而 `getExport()` 只给未归档条目编号（正文角标走引擎 `_indexMap()`，
+   * 同一口径）。拿整表对齐会「只要归档过一条就长度不符」，映射整表作废、面板退回
+   * 创建顺序编号——正文角标 ③ 配面板 ② 就是这么来的。
+   *
+   * 两表位置一一对应成立的前提：`list()` 与 `getExport()` 都是
+   * `orderAnnotationsByDocument()` 的结果，排序键（块序号 / 块内偏移 / 原序）与
+   * `archived` 无关，所以从 `list()` 里滤掉归档条目后，剩下的相对顺序与
+   * `getExport()` 完全相同。
    */
   let lastIndexSignature = ''
   function refreshIndexById(): void {
     const module = annotationModule()
     if (!module) return
-    const signature = annotations.value.map((a) => a.id).join(',')
+    // 签名里必须带归档标志与 anchorState：正文角标只给未归档条目编号，归档 /
+    // 恢复 / 转失效都会让后面条目的序号整体前移，光看 id 列表发现不了。
+    const signature = annotations.value
+      .map((a) => `${a.id}:${a.archived ? 1 : 0}:${a.anchorState}`)
+      .join(',')
     if (signature === lastIndexSignature) return
     lastIndexSignature = signature
 
+    const visible = annotations.value.filter((a) => !a.archived)
     const items = (module.getExport?.() as IAnnotationExportItem[] | undefined) ?? []
-    if (items.length !== annotations.value.length) {
+    if (items.length !== visible.length) {
       indexById.value = {}
       return
     }
     const next: Record<string, number> = {}
     items.forEach((item, position) => {
-      const annotation = annotations.value[position]
+      const annotation = visible[position]
       if (!annotation || typeof item?.index !== 'number') return
       next[annotation.id] = item.index
     })
     indexById.value = next
+  }
+
+  /** 从盘上读一个路径的标注文件（不存在 / 读失败 → null；`round` 已归一）。 */
+  async function readFromDisk(
+    pathname: string
+  ): Promise<Pick<AnnotationDocCache, 'round' | 'annotations' | 'docHash'> | null> {
+    try {
+      const document = (await window.electron.ipcRenderer.invoke(
+        'mt::annotation::load',
+        pathname
+      )) as AnnotationDocument | null
+      if (!document) return null
+      return {
+        round: normalizeRound(document.round),
+        annotations: document.annotations ?? [],
+        docHash: document.docHash
+      }
+    } catch (error) {
+      console.error('[annotation] Failed to load annotations.', error)
+      return null
+    }
   }
 
   /** 读一个文档的标注（已读过则跳过）。 */
@@ -333,17 +374,11 @@ export const useAnnotationStore = defineStore('annotation', () => {
     if (!isRealPath(key)) return
     if (docs.value[key]?.loaded) return
 
-    let document: AnnotationDocument | null = null
-    try {
-      document = await window.electron.ipcRenderer.invoke('mt::annotation::load', key)
-    } catch (error) {
-      console.error('[annotation] Failed to load annotations.', error)
-    }
-
+    const disk = await readFromDisk(key)
     docs.value[key] = {
-      round: normalizeRound(document?.round),
-      annotations: document?.annotations ?? [],
-      docHash: document?.docHash,
+      round: disk?.round ?? 1,
+      annotations: disk?.annotations ?? [],
+      docHash: disk?.docHash,
       loaded: true
     }
     if (key === activeKey.value) pushToEngine()
@@ -351,6 +386,36 @@ export const useAnnotationStore = defineStore('annotation', () => {
 
   const normalizeRound = (round: number | undefined): number =>
     typeof round === 'number' && Number.isFinite(round) && round >= 1 ? round : 1
+
+  /**
+   * 并集合并——**只用于路径迁移**（与主进程 `annotationStore.mergeUnion` 同一规则，
+   * 两边不能只有一边改）：目标路径已有的标注保留在前面，被移入的条目追加到后面，
+   * 同 id 冲突取 `updatedAt` 新的。
+   *
+   * 不能沿用 `save` 的「传入版本为准」规则：那条规则的前提是「渲染层是这份文档的
+   * 唯一写方」，而迁移时两份数据来自**两个不同文件**，谁都不该被对方整份顶掉。
+   */
+  const unionAnnotations = (source: IAnnotation[], target: IAnnotation[]): IAnnotation[] => {
+    const byId = new Map<string, IAnnotation>()
+    const order: string[] = []
+    const put = (entry: IAnnotation): void => {
+      if (!entry || typeof entry.id !== 'string') return
+      const existing = byId.get(entry.id)
+      if (!existing) {
+        byId.set(entry.id, entry)
+        order.push(entry.id)
+        return
+      }
+      const previousAt = typeof existing.updatedAt === 'number' ? existing.updatedAt : 0
+      const incomingAt = typeof entry.updatedAt === 'number' ? entry.updatedAt : 0
+      if (incomingAt > previousAt) byId.set(entry.id, entry)
+    }
+
+    for (const entry of target) put(entry)
+    for (const entry of source) put(entry)
+
+    return order.map((id) => byId.get(id)!)
+  }
 
   let persistTimer: ReturnType<typeof setTimeout> | null = null
   const PERSIST_DEBOUNCE_MS = 800
@@ -391,24 +456,42 @@ export const useAnnotationStore = defineStore('annotation', () => {
     }
   }
 
-  /** 改名 / 另存为：把标注搬到新路径的 key 下（内存 + 主进程两侧）。 */
+  /**
+   * 改名 / 另存为：把标注搬到新路径的 key 下（内存 + 主进程两侧）。
+   *
+   * 目标路径可能已经有自己的标注（另存为覆盖一个已标注的文件）：主进程侧的迁移是
+   * **并集**（目标原有条目保留、源条目追加），所以搬完之后不能沿用源那份内存表——
+   * 必须以盘上那份并集为准（`loadFor`），否则下一次 `flush` 会按「传入版本为准」
+   * 的保存规则把目标原有的标注从盘上抹掉。
+   */
   async function MIGRATE_PATH({ from, to }: { from: string; to: string }): Promise<void> {
     if (!from || !to || from === to) return
     if (!isRealPath(from) || !isRealPath(to)) return
 
     await flush(from)
     const moved = docs.value[from]
-    if (moved) {
-      delete docs.value[from]
-      docs.value[to] = moved
-    }
+    delete docs.value[from]
     if (activeKey.value === from) activeKey.value = to
 
+    let migrated = false
     try {
-      await window.electron.ipcRenderer.invoke('mt::annotation::migrate-path', { from, to })
+      const result = (await window.electron.ipcRenderer.invoke('mt::annotation::migrate-path', {
+        from,
+        to
+      })) as { ok?: boolean } | undefined
+      migrated = result?.ok !== false
     } catch (error) {
       console.error('[annotation] Failed to migrate annotation file.', error)
     }
+
+    if (!migrated) {
+      // 迁移失败：退回「内存搬家」，先保住这份表（下次 flush 会写进新路径）。
+      if (moved) docs.value[to] = moved
+      return
+    }
+
+    delete docs.value[to]
+    await loadFor(to)
   }
 
   /** 主编辑区换标签：flush 旧文档、装载新文档、把新表推给引擎。 */
@@ -438,7 +521,12 @@ export const useAnnotationStore = defineStore('annotation', () => {
     pushToEngine()
   }
 
-  /** tab-saved：未保存文档落盘 → 把标注从 `untitled:<tabId>` 迁到路径 key。 */
+  /**
+   * tab-saved：未保存文档落盘 → 把标注从 `untitled:<tabId>` 迁到路径 key。
+   *
+   * 目标路径可能**已经有标注文件**（另存为覆盖一个已标注的文件，`save` 的合并规则
+   * 是「传入版本为准」——直接写会把对方整份抹掉）：先把盘上那份读回来做并集，再落盘。
+   */
   async function ADOPT_PATH({
     tabId,
     pathname
@@ -452,9 +540,18 @@ export const useAnnotationStore = defineStore('annotation', () => {
     if (!moved) return
 
     delete docs.value[from]
-    docs.value[pathname] = moved
     if (activeKey.value === from) activeKey.value = pathname
+
+    const disk = await readFromDisk(pathname)
+    docs.value[pathname] = {
+      // 轮次取两者较大值：两边历史条目共用一套编号，取小会让新轮次与已有历史撞号。
+      round: Math.max(moved.round, disk?.round ?? 1),
+      annotations: unionAnnotations(moved.annotations, disk?.annotations ?? []),
+      docHash: disk?.docHash ?? moved.docHash,
+      loaded: true
+    }
     await flush(pathname)
+    if (activeKey.value === pathname) pushToEngine()
   }
 
   // ── 标注动作（引擎侧） ────────────────────────────────────────────
@@ -498,6 +595,9 @@ export const useAnnotationStore = defineStore('annotation', () => {
     if (!target) return
     target.copied = false
     target.updatedAt = Date.now()
+    // 回退也要重画：正文的「已复制」灰底是从引擎高亮缓存取的 `data-copied`，
+    // 不推回去就停在灰色，与面板刚显示的「未复制」长期不一致（理由同 copyAll）。
+    pushToEngine()
     persist(activeKey.value)
   }
 
@@ -572,11 +672,18 @@ export const useAnnotationStore = defineStore('annotation', () => {
       return false
     }
 
-    const items =
-      (module.getExport?.(ids) as IAnnotationExportItem[] | undefined) ??
-      (module.getExport?.() as IAnnotationExportItem[] | undefined) ??
-      []
-    const text = buildCopyText(items, activeKey.value ?? '')
+    const items = (module.getExport?.(ids) as IAnnotationExportItem[] | undefined) ?? []
+    // 导出条目数与要复制的 id 数不符 = 引擎表与面板表不同步（典型：切标签后
+    // `load` 还没回来就点了复制，引擎表里还是上一个文档的 id）。这时**不能**照样
+    // 往下走：剪贴板里会是「共 0 条」的空壳文本，而条目被静默标成「已复制」、
+    // 轮次自增——用户以为发出去了，实际什么都没发。
+    if (items.length !== ids.length) {
+      notice.notify({ message: t('annotation.toast.engineMissing'), type: 'error', time: 3000 })
+      return false
+    }
+    // 未保存文档的 key 是内部标识（`untitled:<tabId>`），不能当路径写进交付文本，
+    // 传空串让 `buildCopyText` 出「（未保存文档，尚未落盘）」那一行。
+    const text = buildCopyText(items, isRealPath(activeKey.value) ? activeKey.value : '')
     window.electron.clipboard.writeText(text)
 
     const round = doc.round
@@ -589,6 +696,12 @@ export const useAnnotationStore = defineStore('annotation', () => {
     }
     doc.round = round + 1
     copiedText.value = text
+    // 正文高亮的「已复制」态从引擎的高亮缓存里取（`data-copied`），而缓存只在
+    // `_invalidate()` + 重画时才重建——所以这里必须把整表推回引擎重画一次，
+    // 否则刚复制完的条目在正文里仍是「未复制」配色（面板已说「第 N 轮 · 已复制」，
+    // 两处打架，且要等到该块因别的原因重渲染才自愈）。归档 / 恢复 / 删除走的是
+    // 同一条路（`pushToEngine()`）。
+    pushToEngine()
     persist(activeKey.value)
     return true
   }
@@ -609,10 +722,15 @@ export const useAnnotationStore = defineStore('annotation', () => {
   /**
    * 定位到正文：滚动到该条高亮处并脉冲 1.2s，**不移动光标**（方案 §3.4）。
    *
-   * 序号走单条 `getExport([id])`——引擎对这条精确回答它的文档序号，再去 DOM
-   * 里找 `<span class="mu-annotation" data-index="n">`（方案 §5.3 的冻结契约：
-   * annotation 高亮输出 data-index）。不拿「创建顺序」凑数：序号错了会滚到
-   * 别的标注上，比不定位更糟。
+   * 序号走 `indexById`（由全量 `getExport()` 建立、与引擎给正文角标编号的
+   * `_indexMap()` 同源），再去 DOM 里找 `<span class="mu-annotation" data-index="n">`
+   * （方案 §5.3 的冻结契约：annotation 高亮输出 data-index）。序号错了会滚到别的
+   * 标注上，比不定位更糟。
+   *
+   * **不能**用单条 `getExport([id]).index` 取序号：那个 `index` 是「返回数组内」
+   * 的 1-based 序号（引擎 `getExport` 的既定语义，`anchor.spec.ts` 有断言），只传
+   * 一个 id 时恒等于 1——每次定位都会跳到文档顺序第 1 条标注上，并给它的高亮加
+   * 脉冲，而面板把**目标**卡片标成 active（面板与正文各指一条）。
    */
   function locate(id: string): void {
     const target = findById(id)
@@ -627,15 +745,14 @@ export const useAnnotationStore = defineStore('annotation', () => {
     }
 
     const module = annotationModule()
-    const exported = (module?.getExport?.([id]) as IAnnotationExportItem[] | undefined) ?? []
-    const order = exported[0]?.index
+    const order = indexById.value[id]
     const spans =
-      typeof order === 'number'
+      typeof order === 'number' && order > 0
         ? document.querySelectorAll(`.mu-annotation[data-index="${order}"]`)
         : null
 
     if (!spans || !spans.length) {
-      // 引擎可能还没画（块未渲染 / 该块类型一期不高亮），或引擎自带定位接口。
+      // 序号拿不到（引擎未挂载 / 表还没同步）或该块一期不画高亮（代码块、数学块…）。
       const native = module?.locate?.(id)
       if (!native) {
         notice.notify({ message: t('annotation.toast.orphan'), type: 'info', time: 2500 })

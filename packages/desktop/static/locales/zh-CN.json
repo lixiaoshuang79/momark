@@ -1115,7 +1115,9 @@
       "delete": "删除",
       "restore": "恢复",
       "cancel": "取消",
-      "save": "保存"
+      "save": "保存",
+      "close": "关闭",
+      "clear": "清空"
     },
     "empty": {
       "current": "选中正文中的内容，",
@@ -1135,10 +1137,10 @@
     "archiveCopied": "归档已复制（{n} 条）",
     "archiveOrphan": "归档已失效（{n} 条）",
     "archiveAll": "归档全部",
-    "archiveHint": "上一轮的 {n} 条已复制标注可以归档了",
+    "archiveHint": "上一轮的 {n} 条可归档",
     "archiveHintAction": "归档",
     "historyRound": "第 {round} 轮",
-    "historyUntitledRound": "未复制",
+    "historyUntitledRound": "早期标注",
     "historyCount": "{n} 条",
     "deleteRound": "整组删除",
     "retention": "历史保留最近 20 轮 / 500 条，超出的自动清理",

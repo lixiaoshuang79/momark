@@ -40,7 +40,7 @@
       </button>
       <button
         class="hint-close"
-        :title="t('annotation.action.cancel')"
+        :title="t('annotation.action.close')"
         @click="archiveHintOpen = false"
       >
         <svg
@@ -231,7 +231,7 @@
             <span class="s-sub">{{ t('annotation.copiedTextLines', { n: copiedLineCount }) }}</span>
             <button
               class="icon-btn"
-              :title="t('annotation.action.cancel')"
+              :title="t('annotation.action.close')"
               @click="drawerOpen = false"
             >
               <svg
@@ -250,7 +250,7 @@
           <pre>{{ store.copiedText }}</pre>
           <footer>
             <button class="mini" @click="drawerOpen = false">
-              {{ t('annotation.action.cancel') }}
+              {{ t('annotation.action.close') }}
             </button>
           </footer>
         </div>
@@ -321,10 +321,27 @@ const toggleHistory = (round: number): void => {
   openRounds.value = { ...openRounds.value, [round]: !isHistoryOpen(round) }
 }
 
-/** 归档 / 清空这类不可撤销的动作走一次确认（方案 §3.4）。 */
-const confirmDialog = async (title: string, message: string): Promise<boolean> => {
+/**
+ * 归档 / 清空这类不可撤销的动作走一次确认（方案 §3.4）。
+ *
+ * `confirmText` 是**必填**：确认 toast 的默认按钮文案是「了解详情」（引导类
+ * 通知用的），套在删数据的动作上会变成「点『了解详情』= 真的删掉」——按钮必须
+ * 自己写清动作（报告-R2 · A1）。取消路径 = 卡片右上角的 X（title 为「取消」）。
+ */
+const confirmDialog = async (
+  title: string,
+  message: string,
+  confirmText: string
+): Promise<boolean> => {
   try {
-    await notice.notify({ title, message, type: 'warning', time: 0, showConfirm: true })
+    await notice.notify({
+      title,
+      message,
+      type: 'warning',
+      time: 0,
+      showConfirm: true,
+      confirmText
+    })
     return true
   } catch {
     return false
@@ -334,7 +351,8 @@ const confirmDialog = async (title: string, message: string): Promise<boolean> =
 const deleteRound = async (group: { round: number; items: { id: string }[] }): Promise<void> => {
   const ok = await confirmDialog(
     t('annotation.confirm.deleteRoundTitle'),
-    t('annotation.confirm.deleteRound', { round: group.round, n: group.items.length })
+    t('annotation.confirm.deleteRound', { round: group.round, n: group.items.length }),
+    t('annotation.action.delete')
   )
   if (!ok) return
   store.deleteArchived(group.items.map((item) => item.id))
@@ -350,7 +368,8 @@ const clearHistory = async (): Promise<void> => {
   if (!total) return
   const ok = await confirmDialog(
     t('annotation.confirm.clearHistoryTitle'),
-    t('annotation.confirm.clearHistory', { n: total })
+    t('annotation.confirm.clearHistory', { n: total }),
+    t('annotation.action.clear')
   )
   if (!ok) return
   store.clearHistory()

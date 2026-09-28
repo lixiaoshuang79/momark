@@ -79,6 +79,44 @@ export const mergeAnnotations = (disk: IAnnotation[], incoming: IAnnotation[]): 
 }
 
 /**
+ * 并集合并（**只用于路径迁移**）：目标文件里已有的标注全部保留，源的条目追加进来；
+ * 同 id 冲突取 `updatedAt` 新的那份（相等时保留目标原有的对象）。
+ *
+ * 与 `mergeAnnotations` 的分工，两者不能互换：
+ * - `mergeAnnotations` 是**普通保存**的规则——渲染层是这份文档的唯一写方，删除必须
+ *   生效，所以传入版本为准（并集会让渲染层删掉的条目在下次保存时复活）；
+ * - 本函数只在 `migratePath`（改名 / 另存为）里用，那里的两份数据来自**两个不同
+ *   文件**，谁都不该被对方整份顶掉（否则「另存为到一个已有标注的文件」会把目标
+ *   的标注从盘上抹掉，且不可恢复）。
+ */
+export const mergeUnion = (source: IAnnotation[], target: IAnnotation[]): IAnnotation[] => {
+  const byId = new Map<string, IAnnotation>()
+  const order: string[] = []
+  const put = (entry: IAnnotation): void => {
+    if (!entry || typeof entry.id !== 'string') return
+    const existing = byId.get(entry.id)
+    if (!existing) {
+      byId.set(entry.id, entry)
+      order.push(entry.id)
+      return
+    }
+    const previousAt = typeof existing.updatedAt === 'number' ? existing.updatedAt : 0
+    const incomingAt = typeof entry.updatedAt === 'number' ? entry.updatedAt : 0
+    if (incomingAt > previousAt) byId.set(entry.id, entry)
+  }
+
+  // 目标在前、源在后：并集结果里目标原有条目保持原位置，移入的条目标追加到末尾。
+  for (const entry of target) put(entry)
+  for (const entry of source) put(entry)
+
+  return order.map((id) => byId.get(id)!)
+}
+
+/** 轮次计数器的容错取值（缺省 / 非法值 → 0）。 */
+const roundOf = (round: unknown): number =>
+  typeof round === 'number' && Number.isFinite(round) ? round : 0
+
+/**
  * 历史容量修剪：只修剪**已归档**条目（当前列表永不自动丢弃）。
  *
  * 先按轮次：归档条目按 `round` 分组，超过 `MAX_HISTORY_ROUNDS` 个轮次时，
@@ -194,6 +232,11 @@ export default class AnnotationStore {
   /**
    * 改名 / 另存为：把旧路径的标注文件挪到新路径的 key 下（同时改写文件内的
    * pathname）。源文件不存在或 from==to 时视为已完成（幂等，返回 ok:true）。
+   *
+   * 目标路径**可能已经有自己的标注文件**（另存为覆盖一个已标注的文件、重命名到
+   * 已存在的同名路径）。这时必须做**并集**：目标原有条目保留、源条目追加，而不是
+   * 让源整份顶掉目标——后者会把目标文件积累的标注从盘上直接抹掉（不可恢复）。
+   * 轮次计数器取两者较大值，避免移入的历史条目与目标已有历史撞号。
    */
   migratePath({ from, to }: AnnotationMigratePayload): { ok: boolean } {
     const fromPath = this.fileForPath(from)
@@ -203,9 +246,18 @@ export default class AnnotationStore {
     if (fromPath === toPath) return { ok: true }
 
     try {
-      const document = this.load(from)
-      document.pathname = to
-      document.updatedAt = Date.now()
+      const source = this.load(from)
+      const target = fs.existsSync(toPath) ? this.load(to) : emptyDocument(to)
+      const document: AnnotationDocument = {
+        version: ANNOTATION_FILE_VERSION,
+        pathname: to,
+        // docHash 描述的是「文件内容」，目标文件此刻被另存为的内容顶掉，但该字段
+        // 目前只透传、不参与任何判断，保留目标那份更省事。
+        docHash: target.docHash ?? source.docHash,
+        round: Math.max(roundOf(source.round), roundOf(target.round)),
+        updatedAt: Date.now(),
+        annotations: pruneAnnotations(mergeUnion(source.annotations, target.annotations))
+      }
       writeFileAtomic.sync(toPath, JSON.stringify(document), 'utf8')
       fs.unlinkSync(fromPath)
       return { ok: true }

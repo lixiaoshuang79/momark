@@ -7,6 +7,7 @@ import AnnotationStore, {
   MAX_HISTORY_ROUNDS,
   docKey,
   mergeAnnotations,
+  mergeUnion,
   pruneAnnotations
 } from 'main_renderer/annotationStore'
 import type { IAnnotation, IAnnotationAnchor } from '@shared/types/ipc'
@@ -145,6 +146,33 @@ describe('AnnotationStore — 条目级合并', () => {
   })
 })
 
+describe('AnnotationStore — 迁移用并集合并', () => {
+  it('目标原有条目保留、源条目追加（源不整份顶掉目标）', () => {
+    const merged = mergeUnion(
+      [annotation({ id: 'src', note: '被移入' })],
+      [annotation({ id: 'dst', note: '目标原有' })]
+    )
+    expect(merged.map((a) => a.id)).toEqual(['dst', 'src'])
+    expect(merged.map((a) => a.note)).toEqual(['目标原有', '被移入'])
+  })
+
+  it('同 id 冲突取 updatedAt 新的', () => {
+    const sourceNewer = mergeUnion(
+      [annotation({ id: 'a1', note: '源较新', updatedAt: 20 })],
+      [annotation({ id: 'a1', note: '目标较旧', updatedAt: 10 })]
+    )
+    expect(sourceNewer).toHaveLength(1)
+    expect(sourceNewer[0].note).toBe('源较新')
+
+    const targetNewer = mergeUnion(
+      [annotation({ id: 'a1', note: '源较旧', updatedAt: 10 })],
+      [annotation({ id: 'a1', note: '目标较新', updatedAt: 20 })]
+    )
+    expect(targetNewer).toHaveLength(1)
+    expect(targetNewer[0].note).toBe('目标较新')
+  })
+})
+
 describe('AnnotationStore — 历史容量修剪', () => {
   it('超过轮数上限：按 round 最旧的整轮丢弃（当前列表永不丢）', () => {
     const live = annotation({ id: 'live' })
@@ -204,5 +232,54 @@ describe('AnnotationStore — 改名迁移', () => {
     store.save({ pathname: to, round: 2, annotations: [annotation({ note: '新' })] })
 
     expect(store.load(to).annotations[0].note).toBe('新')
+  })
+
+  // 另存为 / 重命名到一个**已有标注**的路径：目标文件里积累的标注必须留下。
+  // 修复前是「源整份顶掉目标」+「目标文件被 unlink 源之后的写入覆盖」，目标标注
+  // 从盘上消失且不可恢复。
+  it('目标路径已有标注：并集保留两侧，轮次取较大值', () => {
+    const dir = tempDir()
+    const store = new AnnotationStore({ annotationStorePath: dir })
+    const to = '/tmp/docs/PRD-existing.md'
+
+    store.save({
+      pathname: DOC,
+      round: 2,
+      annotations: [annotation({ id: 'src', note: '被移入' })]
+    })
+    store.save({
+      pathname: to,
+      round: 5,
+      annotations: [annotation({ id: 'dst', note: '目标原有' })]
+    })
+
+    expect(store.migratePath({ from: DOC, to })).toEqual({ ok: true })
+
+    const moved = store.load(to)
+    expect(moved.pathname).toBe(to)
+    expect(moved.annotations.map((a) => a.id)).toEqual(['dst', 'src'])
+    expect(moved.annotations.map((a) => a.note)).toEqual(['目标原有', '被移入'])
+    // 轮次取两者较大值：两边的历史条目共用一套编号，取小会让新轮次与已有历史撞号
+    expect(moved.round).toBe(5)
+    // 源文件已删除，目录里只剩目标那一份
+    expect(readdirSync(dir)).toEqual([`${docKey(to)}.json`])
+    expect(store.load(DOC).annotations).toEqual([])
+  })
+
+  it('迁移后的保存不会把目标原有的标注抹掉（内存表若只带源条目就会）', () => {
+    const dir = tempDir()
+    const store = new AnnotationStore({ annotationStorePath: dir })
+    const to = '/tmp/docs/PRD-existing-2.md'
+
+    store.save({ pathname: DOC, round: 1, annotations: [annotation({ id: 'src' })] })
+    store.save({ pathname: to, round: 1, annotations: [annotation({ id: 'dst' })] })
+    store.migratePath({ from: DOC, to })
+
+    // 渲染层迁移后会把盘上那份并集读回内存再落盘（见 store 的 MIGRATE_PATH）；
+    // 这里模拟「拿并集落盘」这一步，断言目标条目仍在。
+    const merged = store.load(to)
+    store.save({ pathname: to, round: merged.round, annotations: merged.annotations })
+
+    expect(store.load(to).annotations.map((a) => a.id)).toEqual(['dst', 'src'])
   })
 })

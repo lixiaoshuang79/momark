@@ -147,6 +147,12 @@
   text-align: right;
 }
 
+/* 确认型通知里「取消」是半条出路，不能藏在 hover 后面——它必须一直看得见，
+   否则用户只看到「删除」一个按钮，会以为没有退路（报告-R2 · A1）。 */
+.mt-notification.mt-confirm .close {
+  opacity: 1;
+}
+
 .mt-notification.mt-confirm .confirm {
   display: inline-block;
   font-size: 12.5px;

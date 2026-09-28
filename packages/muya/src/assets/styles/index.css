@@ -294,7 +294,7 @@ body {
     height: 12px;
     padding: 0 2px;
 
-    color: #fff;
+    color: var(--accent-on, #fff);
     font-weight: 600;
     font-size: 9px;
     line-height: 1;
@@ -305,6 +305,16 @@ body {
     content: attr(data-index);
     pointer-events: none;
     font-variant-numeric: tabular-nums;
+}
+
+/* 已复制：与面板圆点同取向——淡墨蓝底 + 墨蓝字，不再用实心白字。
+   角标是伪元素、只有 `::after`，所以前景色必须自己给：不能沿用上面那套
+   `--accent-on`（深色下它是深墨色，压到淡蓝底上会糊）。`data-copied` 与
+   `data-index` 是同一份 vnode data 落的，激活态也带，两个类名都要覆盖。 */
+.mu-annotation[data-copied][data-index]::after,
+.mu-annotation-active[data-copied][data-index]::after {
+    color: var(--accent, #3d5a80);
+    background: color-mix(in srgb, var(--accent, #3d5a80) 18%, transparent);
 }
 
 /* 当前激活标注（卡片编辑中 / 面板定位）：焦点环族 + 底色加深。 */

@@ -23,13 +23,15 @@ const fillTemplate = (
   type: NotificationType,
   title: string,
   message: string,
-  confirmText: string
+  confirmText: string,
+  closeTitle: string
 ): string => {
   return template
     .replace(/\{\{icon\}\}/, INON_HASH[type])
     .replace(/\{\{title\}\}/, sanitize(title, EXPORT_DOMPURIFY_CONFIG))
     .replace(/\{\{message\}\}/, sanitize(message, EXPORT_DOMPURIFY_CONFIG))
     .replace(/\{\{confirmText\}\}/, sanitize(confirmText, EXPORT_DOMPURIFY_CONFIG))
+    .replace(/\{\{closeTitle\}\}/, sanitize(closeTitle, EXPORT_DOMPURIFY_CONFIG))
 }
 
 export interface NotifyOptions {
@@ -38,6 +40,12 @@ export interface NotifyOptions {
   message?: string
   type?: NotificationType
   showConfirm?: boolean
+  /**
+   * 确认按钮文案（仅 `showConfirm` 时可见）。默认「了解详情」是给「引导类」
+   * 通知用的；**破坏性动作必须自己传**（「删除」「清空」…）——按钮写不清
+   * 动作、点下去却真的删数据，是验收里被抓到的实伤（报告-R2 · A1）。
+   */
+  confirmText?: string
 }
 
 interface NoticeCacheEntry {
@@ -64,7 +72,8 @@ const notification: NotificationService = {
     title = '',
     message = '',
     type = 'primary', // primary, error, warning or info
-    showConfirm = false
+    showConfirm = false,
+    confirmText
   }: NotifyOptions): Promise<void> {
     let rs: (() => void) | undefined
     let rj: (() => void) | undefined
@@ -72,7 +81,13 @@ const notification: NotificationService = {
     const id = getUniqueId()
 
     const fragment = document.createElement('div')
-    fragment.innerHTML = fillTemplate(type, title, message, t('notifications.confirm'))
+    fragment.innerHTML = fillTemplate(
+      type,
+      title,
+      message,
+      confirmText ?? t('notifications.confirm'),
+      t('common.cancel')
+    )
 
     const noticeContainer = fragment.querySelector('.mt-notification') as HTMLElement
     const confirm = noticeContainer.querySelector('.confirm') as HTMLElement

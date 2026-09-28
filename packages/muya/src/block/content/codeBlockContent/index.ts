@@ -204,17 +204,35 @@ class CodeBlockContent extends Content {
     private _renderedText: string | null = null;
     private _renderedLang: string | null = null;
     private _renderedHighlights = '';
+    /**
+     * Whether the last render could actually run Prism (`lang` resolved AND its
+     * component already loaded).
+     *
+     * Languages are loaded **asynchronously**: the first render (the create pass,
+     * and `setLang` before its dynamic import resolves) has no choice but to emit
+     * plain text while still recording `_renderedLang = 'python'`. When the import
+     * lands, `commonMark/codeBlock`'s `setLang` callback calls `update()` again —
+     * with text, language and highlights all unchanged, so a memo keyed on those
+     * three alone hits and the Prism highlight **never appears** (it only shows up
+     * once the block's text is edited). js/css/html are preloaded, which is why the
+     * bug only bites the async languages (python, yaml, …).
+     */
+    private _renderedHighlighted = false;
 
     override update(_cursor?: IRenderCursor, highlights: IHighlight[] = []) {
         const { _lang: lang, text } = this;
         // transform alias to original language
         const fullLengthLang = transformAliasToOrigin([lang])[0];
         const signature = highlightSignature(highlights);
+        const languageReady = !!fullLengthLang && loadedLanguages.has(fullLengthLang);
 
         if (
             text !== this._renderedText
             || fullLengthLang !== this._renderedLang
             || signature !== this._renderedHighlights
+            // The language component finished loading after the last render: the
+            // payload did not change but the render now can — and must — highlight.
+            || (languageReady && !this._renderedHighlighted)
         ) {
             const domNode = this.domNode!;
             let code = escapeHTML(getHighlightHtml(text, highlights, true, true));
@@ -222,9 +240,8 @@ class CodeBlockContent extends Content {
                 code = code.replace(pattern, replacement);
 
             if (
-                fullLengthLang
+                languageReady
                 && /\S/.test(code)
-                && loadedLanguages.has(fullLengthLang)
             ) {
                 const wrapper = document.createElement('div');
                 wrapper.classList.add(`language-${fullLengthLang}`);
@@ -240,6 +257,7 @@ class CodeBlockContent extends Content {
             this._renderedText = text;
             this._renderedLang = fullLengthLang;
             this._renderedHighlights = signature;
+            this._renderedHighlighted = languageReady;
         }
 
         this._updateLineNumbers(text);

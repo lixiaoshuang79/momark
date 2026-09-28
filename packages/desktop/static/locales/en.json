@@ -1113,7 +1113,9 @@
       "delete": "Delete",
       "restore": "Restore",
       "cancel": "Cancel",
-      "save": "Save"
+      "save": "Save",
+      "close": "Close",
+      "clear": "Clear"
     },
     "empty": {
       "current": "Select text in the document,",
@@ -1133,10 +1135,10 @@
     "archiveCopied": "Archive sent ({n})",
     "archiveOrphan": "Archive lost ({n})",
     "archiveAll": "Archive all",
-    "archiveHint": "{n} annotation(s) from the previous round can be archived",
+    "archiveHint": "{n} from the previous round can be archived",
     "archiveHintAction": "Archive",
     "historyRound": "Round {round}",
-    "historyUntitledRound": "Not sent",
+    "historyUntitledRound": "Early notes",
     "historyCount": "{n} items",
     "deleteRound": "Delete round",
     "retention": "History keeps the latest 20 rounds / 500 items; older ones are cleaned up automatically.",
