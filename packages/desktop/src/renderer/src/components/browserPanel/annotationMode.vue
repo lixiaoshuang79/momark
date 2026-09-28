@@ -204,31 +204,23 @@
             copyDone ? t('annotation.copiedDone') : t('annotation.copyAll', { n: counts.pending })
           }}
         </button>
-        <button
-          v-if="store.copiedText"
-          class="btn-ghost"
-          :title="t('annotation.copiedTextTitle')"
-          @click="openDrawer"
-        >
-          {{ t('annotation.copiedText') }}
-        </button>
         <div class="menu-wrap">
-          <button class="btn-ghost" @click.stop="archiveMenuOpen = !archiveMenuOpen">
-            {{ t('annotation.archiveMenu') }}
-            <svg
-              width="8"
-              height="8"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M4 6.5l4 4 4-4" />
+          <button
+            class="icon-btn"
+            :title="t('annotation.moreMenu')"
+            @click.stop="archiveMenuOpen = !archiveMenuOpen"
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+              <circle cx="3" cy="8" r="1.4" />
+              <circle cx="8" cy="8" r="1.4" />
+              <circle cx="13" cy="8" r="1.4" />
             </svg>
           </button>
           <div v-if="archiveMenuOpen" class="menu">
+            <button v-if="store.copiedText" @click="openDrawerFromMenu">
+              {{ t('annotation.copiedText') }}
+            </button>
+            <div v-if="store.copiedText" class="menu-sep" />
             <button :disabled="!store.copiedList.length" @click="runArchive('copied')">
               {{ t('annotation.archiveCopied', { n: store.copiedList.length }) }}
             </button>
@@ -439,6 +431,12 @@ const doArchiveHint = (): void => {
     type: 'info',
     time: 2500
   })
+}
+
+/** 菜单内打开「已复制文本」抽屉：先收起菜单再开（避免两层浮层叠加）。 */
+const openDrawerFromMenu = (): void => {
+  archiveMenuOpen.value = false
+  openDrawer()
 }
 
 const openDrawer = (): void => {
@@ -863,6 +861,11 @@ onBeforeUnmount(() => {
   border-radius: 9px;
   box-shadow: var(--shadow-pop);
   z-index: 40;
+}
+.menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
 }
 .menu button {
   display: block;

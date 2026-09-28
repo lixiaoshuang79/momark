@@ -1165,7 +1165,8 @@
       "deleteRound": "已删除第 {round} 轮共 {n} 条"
     },
     "globalNotePlaceholder": "写一条对整篇文档的意见…",
-    "globalNoteTag": "全局备注"
+    "globalNoteTag": "全局备注",
+    "moreMenu": "更多"
   },
   "welcome": {
     "windowTitle": "欢迎使用墨记",

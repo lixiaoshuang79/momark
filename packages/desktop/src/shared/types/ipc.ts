@@ -453,6 +453,8 @@ export interface IAnnotation {
   id: string
   anchor: IAnnotationAnchor
   note: string
+  /** 全局备注：不锚定正文内容（与引擎 `IAnnotation.global` 同义）。 */
+  global?: boolean
 
   // ── 用户可见状态：只有「未复制 / 已复制」 ──
   copied: boolean
@@ -489,6 +491,8 @@ export interface IAnnotationExportItem {
   orphaned: boolean
   /** 引文是否切断了行内标记（加粗/链接/行内代码）。 */
   fragment: boolean
+  /** 全局备注（见 `IAnnotation.global`）。 */
+  global?: boolean
 }
 
 /** `userData/annotations/<sha1(abspath)>.json` 的落盘结构。 */
