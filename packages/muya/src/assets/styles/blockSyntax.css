@@ -808,7 +808,12 @@ figure.mu-html-block .mu-html-preview .mu-html-frame {
 
 .mu-html-frame-resizer {
     position: absolute;
-    z-index: 11;
+    /* 必须压在块级悬停工具条（`.mu-preview-tools`，z-index 10000）之上：两者都在
+       块的右下角，手柄的命中区正好落在工具条范围内——z-index 低于它时手柄中心
+       命中的是工具条，拖拽事件根本到不了手柄（实测：pointerdown 计数恒为 0，
+       用户反馈「块的大小调不了」）。手柄只覆盖工具条右下角一小块，工具条的按钮
+       都在左侧，不受影响。 */
+    z-index: 10001;
     right: -3px;
     bottom: -3px;
     display: none;

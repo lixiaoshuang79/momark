@@ -106,6 +106,26 @@ const FRAME_DEFAULT_HEIGHT = 400;
 // 生效前拖拽/缩放，会以旧的 400px 基线锚定，一动手就跳一下。
 const FRAME_HEIGHT_EVENT = 'mu-html-frame-height-change';
 
+/**
+ * 拖拽结束时该落盘的宽度（导出以便单测）。
+ *
+ * - 目标宽度先夹在 [下限, 当前栏宽] 内（编辑器里不允许把块拖出正文栏）；
+ * - 但**没有明确往小拖**时（目标 ≥ 拖拽起点的显示宽），落盘值不得低于**存档
+ *   尺寸**：在大窗口里调好的 1200，到了窄窗口/右栏会被夹成 800 显示——此时
+ *   随手拖一下若把 1200 写成 800，就会「每次打开块都小一点」（用户实测）。
+ *   只有明确往小拖（目标 < 起始显示宽）才用新值。
+ */
+export function resolveDraggedWidth(
+    width: number,
+    startShownW: number,
+    startStoredW: number,
+    maxW: number,
+): number {
+    const capped = Math.max(FRAME_MIN_WIDTH, Math.min(width, maxW));
+
+    return width < startShownW - 1 ? capped : Math.max(capped, startStoredW);
+}
+
 // ── 块内含脚本的 HTML（单文件交互原型/图表）──────────────────────────────
 // 无脚本的 HTML 块直接进编辑器 DOM，并经过 DOMPurify 净化 —— `<script>` 会被
 // 剥掉，所以「脚本画出来的图」在纯 HTML 块里永远不出现。此前唯一的替代通道是
@@ -456,7 +476,8 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
         // 横向滚动（且拖不出可视区），没有任何收益。可用宽度量不到时不设上限。
         const avail = availableWidth();
         const maxW = avail > 0 ? avail : Number.POSITIVE_INFINITY;
-        curW = Math.max(FRAME_MIN_WIDTH, Math.min(width, maxW));
+
+        curW = resolveDraggedWidth(width, dragStartW, dragStartStoredW, maxW);
         curH = Math.max(FRAME_MIN_HEIGHT, height);
         apply();
     };
@@ -492,6 +513,8 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
     let dragStartY = 0;
     let dragStartW = 0;
     let dragStartH = 0;
+    // 拖拽起点的存档宽度（可能 > 当前栏宽，见 resizeTo 的「不缩水」规则）。
+    let dragStartStoredW = 0;
     resizer.addEventListener('pointerdown', (event) => {
         readBaseNow();
         dragStartX = event.clientX;
@@ -501,6 +524,7 @@ function createFrameShell(frame: HTMLIFrameElement, context: IFrameShellContext)
         const avail = availableWidth();
         const shownW = curW || baseW;
         dragStartW = avail > 0 ? Math.min(shownW, avail) : shownW;
+        dragStartStoredW = curW || baseW;
         dragStartH = curH || baseH;
         resizer.setPointerCapture(event.pointerId);
     });
