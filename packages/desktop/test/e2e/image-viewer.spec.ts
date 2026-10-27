@@ -45,13 +45,12 @@ const viewerVisible = (page: Page): Promise<boolean> =>
     return el.offsetParent !== null || getComputedStyle(el).display !== 'none'
   })
 
-const viewerImgCount = (page: Page): Promise<number> =>
-  page.locator('.image-viewer img').count()
+const viewerImgCount = (page: Page): Promise<number> => page.locator('.image-viewer img').count()
 
 // Click the rendered inline image to populate the engine's selected-image
 // state (ImageSelection._handleClick → selectImage). Returns the clicked
 // element handle so the caller can keep driving it.
-const selectImage = async(page: Page): Promise<void> => {
+const selectImage = async (page: Page): Promise<void> => {
   const img = page.locator('.editor-component .mu-inline-image .mu-image-container img').first()
   await img.waitFor({ state: 'attached', timeout: 15000 })
   await img.click({ timeout: 5000 })
@@ -61,25 +60,30 @@ test.describe('SimpleImageViewer (Space-to-preview + Esc close)', () => {
   let app: ElectronApplication
   let page: Page
 
-  test.beforeAll(async() => {
-    const launched = await launchWithMarkdown(`![alt](${SVG_DATA_URI})\n`, {
-      suppressErrorDialog: true
-    })
+  test.beforeAll(async () => {
+    // The standalone image drives the select/Space tests; the table-cell image
+    // mirrors the PRD-document layout where screenshots live inside a table.
+    const launched = await launchWithMarkdown(
+      `![alt](${SVG_DATA_URI})\n\n| a | b |\n| --- | --- |\n| ![cell](${SVG_DATA_URI}) | x |\n`,
+      {
+        suppressErrorDialog: true
+      }
+    )
     app = launched.app
     page = launched.page
     // The data-URI <img> mounts via the async loadImageAsync path; wait for the
     // success state so the image is selectable.
-    await page.waitForSelector(
-      '.editor-component .mu-inline-image.mu-image-success img',
-      { state: 'attached', timeout: 15000 }
-    )
+    await page.waitForSelector('.editor-component .mu-inline-image.mu-image-success img', {
+      state: 'attached',
+      timeout: 15000
+    })
   })
 
-  test.afterAll(async() => {
+  test.afterAll(async () => {
     if (app) await app.close()
   })
 
-  test.beforeEach(async() => {
+  test.beforeEach(async () => {
     // Ensure no stale viewer is open from a prior test.
     const open = await viewerVisible(page)
     if (open) {
@@ -102,7 +106,7 @@ test.describe('SimpleImageViewer (Space-to-preview + Esc close)', () => {
     await clearRendererErrors(app)
   })
 
-  test('image renders as a selectable inline image', async() => {
+  test('image renders as a selectable inline image', async () => {
     const imgCount = await page
       .locator('.editor-component .mu-inline-image .mu-image-container img')
       .count()
@@ -111,7 +115,7 @@ test.describe('SimpleImageViewer (Space-to-preview + Esc close)', () => {
     expect(await viewerVisible(page)).toBe(false)
   })
 
-  test('Space on a selected image opens the .image-viewer overlay', async() => {
+  test('Space on a selected image opens the .image-viewer overlay', async () => {
     await selectImage(page)
     await page.keyboard.press('Space')
 
@@ -126,7 +130,7 @@ test.describe('SimpleImageViewer (Space-to-preview + Esc close)', () => {
     await expectNoRendererErrors(app)
   })
 
-  test('Esc closes the viewer and destroys its mounted image', async() => {
+  test('Esc closes the viewer and destroys its mounted image', async () => {
     await selectImage(page)
     await page.keyboard.press('Space')
     await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(true)
@@ -140,7 +144,7 @@ test.describe('SimpleImageViewer (Space-to-preview + Esc close)', () => {
     await expectNoRendererErrors(app)
   })
 
-  test('Space on a selected image does NOT insert a literal space into the markdown', async() => {
+  test('Space on a selected image does NOT insert a literal space into the markdown', async () => {
     const before = await getMarkdownContent(page, app)
 
     await selectImage(page)
@@ -160,12 +164,49 @@ test.describe('SimpleImageViewer (Space-to-preview + Esc close)', () => {
     await expectNoRendererErrors(app)
   })
 
+  // Double-click on an image (the discoverable gesture for table-cell images
+  // in PRD-style documents) opens the same viewer through the engine's
+  // `preview-image` emit.
+  test('double-click on an image opens the same viewer', async () => {
+    const img = page.locator('.editor-component .mu-inline-image .mu-image-container img').first()
+    await img.waitFor({ state: 'attached', timeout: 15000 })
+    await img.dblclick({ timeout: 5000 })
+
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(true)
+    await expect.poll(() => viewerImgCount(page), { timeout: 5000 }).toBeGreaterThanOrEqual(1)
+
+    const overlaySrc = await page.locator('.image-viewer img').first().getAttribute('src')
+    expect(overlaySrc).toBe(SVG_DATA_URI)
+
+    await page.locator('.image-viewer .icon-close').click({ timeout: 5000 })
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(false)
+
+    await expectNoRendererErrors(app)
+  })
+
+  test('double-click on a table-cell image opens the same viewer', async () => {
+    const img = page
+      .locator('.editor-component .mu-table-cell .mu-inline-image .mu-image-container img')
+      .first()
+    await img.waitFor({ state: 'attached', timeout: 15000 })
+    await img.dblclick({ timeout: 5000 })
+
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(true)
+    await expect.poll(() => viewerImgCount(page), { timeout: 5000 }).toBeGreaterThanOrEqual(1)
+
+    const overlaySrc = await page.locator('.image-viewer img').first().getAttribute('src')
+    expect(overlaySrc).toBe(SVG_DATA_URI)
+
+    await page.locator('.image-viewer .icon-close').click({ timeout: 5000 })
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(false)
+
+    await expectNoRendererErrors(app)
+  })
+
   // Item 130 — Cmd/Ctrl-click on an image opens the same SimpleImageViewer via
   // the `format-click` bus handler (editor.vue:1847).
-  test('Cmd/Ctrl-click on an image opens the same viewer', async() => {
-    const img = page
-      .locator('.editor-component .mu-inline-image .mu-image-container img')
-      .first()
+  test('Cmd/Ctrl-click on an image opens the same viewer', async () => {
+    const img = page.locator('.editor-component .mu-inline-image .mu-image-container img').first()
     await img.waitFor({ state: 'attached', timeout: 15000 })
     await img.click({ timeout: 5000, modifiers: [modifierKey] })
 

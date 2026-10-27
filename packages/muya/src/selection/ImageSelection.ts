@@ -17,6 +17,7 @@ class ImageSelection {
     attach(): void {
         const { eventCenter, domNode } = this._muya;
         eventCenter.attachDOMEvent(domNode, 'click', this._handleClick);
+        eventCenter.attachDOMEvent(domNode, 'dblclick', this._handleDblClick);
         eventCenter.attachDOMEvent(document, 'click', this._handleDocClick);
         eventCenter.attachDOMEvent(document, 'keydown', this._handleKeydown);
     }
@@ -69,14 +70,41 @@ class ImageSelection {
             = this._muya.domNode
                 .querySelector<HTMLImageElement>(`#${imageId} img`)
                 ?.getAttribute('src') ?? '';
-        const src = getImageSrc(tokenSrc).src || imgSrc;
+        this._emitPreview(getImageSrc(tokenSrc).src || imgSrc);
+    }
 
+    private _emitPreview(src: string) {
         if (src) {
             this._muya.eventCenter.emit('preview-image', {
                 data: src,
             });
         }
     }
+
+    private _handleDblClick = (event: Event): void => {
+        const { target } = event;
+        if (!isHTMLElement(target))
+            return;
+
+        const imageWrapper = target.closest<HTMLElement>(`.${CLASS_NAMES.MU_INLINE_IMAGE}`);
+        if (!imageWrapper)
+            return;
+
+        // Linked images keep their navigation behaviour: the plain click that
+        // precedes the double click already follows the link, and #3835 set
+        // the same precedence for modifier-clicks.
+        if (imageWrapper.closest(LINK_SELECTOR))
+            return;
+
+        const img = target.closest<HTMLImageElement>('img');
+        const src = img?.getAttribute('src');
+        if (!src)
+            return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        this._emitPreview(src);
+    };
 
     private _handleClickInlineImage(event: Event, imageWrapper: HTMLElement) {
         event.preventDefault();
