@@ -83,6 +83,7 @@ import { useBrowserPanelStore } from '@/store/browserPanel'
 import { useSplitStore } from '@/store/split'
 import { useWorkspaceStore } from '@/store/workspace'
 import BpModes from '@/components/browserPanel/bpModes.vue'
+import { motionReduced } from '@/util/motion'
 // 正文整屏滑出/滑入动效的全局样式（类名挂在兄弟组件的根节点上，
 // scoped 样式无法命中，必须全局注入）。
 import './transitions.css'
@@ -199,9 +200,6 @@ const newUntitled = (): void => {
 let indicatorAnim: Animation | null = null
 // 上一次落定的目标（内容坐标，px）；几何没变时 ResizeObserver 的重复回调直接跳过。
 let indicatorTarget: { x: number; w: number } | null = null
-const REDUCED_MOTION =
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const moveIndicator = (animate: boolean): void => {
   const strip = tabContainer.value
@@ -234,11 +232,14 @@ const moveIndicator = (animate: boolean): void => {
   const curRect = ind.getBoundingClientRect()
   const curX = curRect.left - stripRect.left + strip.scrollLeft
   const curW = curRect.width
-  if (indicatorAnim) {
-    indicatorAnim.cancel()
-    indicatorAnim = null
+  // WAAPI 的 fill:forwards 在 onfinish 后仍会继续作用于元素，而 onfinish 已把
+  // `indicatorAnim` 清空——reduced-motion 的瞬移分支只写 inline style，就会被这个已完成
+  // 的旧动画压住，表现为小蓝条停在旧标签。先清掉所有残留动画，再走两条分支。
+  for (const animation of ind.getAnimations()) {
+    animation.cancel()
   }
-  if (!animate || REDUCED_MOTION || curW === 0) {
+  indicatorAnim = null
+  if (!animate || motionReduced() || curW === 0) {
     ind.style.width = `${targetW}px`
     ind.style.transform = `translateX(${targetX}px)`
     ind.style.opacity = '1'

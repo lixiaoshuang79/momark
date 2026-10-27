@@ -1,5 +1,7 @@
 import type Content from './block/base/content';
 import type Parent from './block/base/parent';
+import type TreeNode from './block/base/treeNode';
+import type HTMLBlock from './block/commonMark/html';
 import type { TBlockPath } from './block/types';
 import type { Listener } from './event/types';
 import type { ILocale } from './i18n/types';
@@ -119,6 +121,10 @@ const PARSE_AFFECTING_OPTIONS = new Set<keyof IMuyaOptions>([
     'frontMatter',
     'trimUnnecessaryCodeBlockEmptyLines',
 ]);
+
+function isHtmlBlock(node: TreeNode): node is HTMLBlock {
+    return node.blockName === 'html-block';
+}
 
 function endpointPair(
     anchor: Nullable<Parent>,
@@ -371,6 +377,9 @@ export class Muya {
     }
 
     setOptions(options: Partial<IMuyaOptions>, forceRender = false) {
+        const htmlModeChanged = 'disableHtml' in options
+            && !!options.disableHtml !== !!this.options.disableHtml;
+
         Object.assign(this.options, options);
 
         if ('spellcheckEnabled' in options)
@@ -392,8 +401,12 @@ export class Muya {
 
         applyAppearance(this.domNode, options);
 
-        if (!forceRender)
+        if (!forceRender) {
+            if (htmlModeChanged)
+                this._refreshHtmlBlocks();
+
             return;
+        }
 
         if (Object.keys(options).some(key => PARSE_AFFECTING_OPTIONS.has(key as keyof IMuyaOptions))) {
             const { jsonState } = this.editor;
@@ -401,6 +414,14 @@ export class Muya {
         }
 
         this._forceRender();
+    }
+
+    // HTML 块可能嵌在列表/引用里，所以走整树遍历；只刷新 html-block，其它块不动。
+    private _refreshHtmlBlocks() {
+        this.editor.scrollPage?.depthFirstTraverse((node) => {
+            if (isHtmlBlock(node))
+                node.refreshRenderMode();
+        });
     }
 
     private _forceRender() {

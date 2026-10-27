@@ -19,6 +19,7 @@ import { useAnnotationStore } from '@/store/annotation'
 import { DEFAULT_EDITOR_FONT_FAMILY, DEFAULT_CODE_FONT_FAMILY } from '@/config'
 import { guessClipboardFilePath } from '@/util/clipboard'
 import { createImageAction } from '@/util/docPaneImage'
+import { createIdleCoalescer, createOwnWriteTracker } from '@/util/docPaneSync'
 import bus from '@/bus'
 
 /**
@@ -59,7 +60,6 @@ const {
   autoPairQuote,
   trimUnnecessaryCodeBlockEmptyLines,
   language,
-  isHtmlEnabled,
   isGitlabCompatibilityEnabled,
   hideQuickInsertHint,
   hideLinkPopup,
@@ -76,6 +76,9 @@ const {
 } = storeToRefs(preferencesStore)
 
 let muya: any = null
+
+const derivedStats = createIdleCoalescer()
+const ownWrites = createOwnWriteTracker()
 
 const buildOptions = (): Record<string, unknown> => {
   const tab = splitDocTab.value
@@ -95,7 +98,7 @@ const buildOptions = (): Record<string, unknown> => {
     autoPairMarkdownSyntax: autoPairMarkdownSyntax.value,
     autoPairQuote: autoPairQuote.value,
     trimUnnecessaryCodeBlockEmptyLines: trimUnnecessaryCodeBlockEmptyLines.value,
-    disableHtml: !isHtmlEnabled.value,
+    disableHtml: !preferencesStore.htmlRenderingEnabled,
     isGitlabCompatibilityEnabled: isGitlabCompatibilityEnabled.value,
     hideQuickInsertHint: hideQuickInsertHint.value,
     hideLinkPopup: hideLinkPopup.value,
@@ -142,16 +145,23 @@ onMounted(() => {
   muya.init()
 
   // 引擎每次文档变更都发 json-change；此处派发主 store 的内容变更管线
-  // （脏标记/自动保存/字数统计/TOC），id 绑定分屏文档自身。
+  // （脏标记/自动保存），id 绑定分屏文档自身。按键路径上只序列化一次：字数与
+  // TOC 只喂顶栏和大纲，与左编辑器一样合并到空闲时推（PUSH_TAB_DERIVED_STATS）。
   muya.on('json-change', () => {
     const tab = splitDocTab.value
     if (!tab || !muya) return
+    const { id } = tab
     const markdown = muya.getMarkdown()
-    editorStore.LISTEN_FOR_CONTENT_CHANGE({
-      id: tab.id,
-      markdown,
-      wordCount: muyaWordCount(markdown),
-      toc: muya.getTOC()
+    editorStore.LISTEN_FOR_CONTENT_CHANGE({ id, markdown })
+    ownWrites.remember(tab.markdown)
+    derivedStats.schedule(() => {
+      // TOC 只对左栏当前文档有意义（store 也只认它），且只能从仍显示这篇的引擎取。
+      const showing = !!muya && splitDocTab.value?.id === id
+      editorStore.PUSH_TAB_DERIVED_STATS({
+        id,
+        wordCount: muyaWordCount(markdown),
+        toc: showing && editorStore.currentFile?.id === id ? muya.getTOC() : undefined
+      })
     })
   })
 
@@ -189,21 +199,25 @@ const handleFlush = () => {
   muya?.flush()
 }
 
-// 外部内容变化回填：文件监听（file-changed）更新 tab.markdown 时同步进右编辑器；
-// 右栏自身编辑经 LISTEN_FOR_CONTENT_CHANGE 写回的 markdown 与引擎一致 → 跳过。
+// 外部内容变化回填：文件监听（file-changed）、左栏编辑同一文档更新 tab.markdown
+// 时同步进右编辑器。右栏自己刚推上去的值由自写标记认出，不再整篇序列化比对。
 watch(
   () => splitDocTab.value?.markdown,
   (md) => {
     if (!muya || md == null) return
+    if (ownWrites.isOwnEcho(md)) return
     if (md === muya.getMarkdown()) return
     muya.setContent(md)
   }
 )
 
 // 换文档强制重载（即使两文档内容恰好相同，也要重建引擎文档树/历史）。
+// 上一篇挂起的字数统计先落掉，自写标记属于上一篇，作废。
 watch(
   () => splitDocTab.value?.id,
   () => {
+    derivedStats.flush()
+    ownWrites.reset()
     const tab = splitDocTab.value
     if (!muya || !tab) return
     muya.setContent(tab.markdown ?? '')
@@ -221,6 +235,15 @@ watch(
       pathname: tab.pathname,
       tabId: tab.id
     })
+  }
+)
+
+// HTML 渲染开关（「启用 HTML」与极速模式叠加后的实际值）：与左编辑器一致，
+// 引擎就地刷新 HTML 块。
+watch(
+  () => preferencesStore.htmlRenderingEnabled,
+  (enabled) => {
+    muya?.setOptions({ disableHtml: !enabled })
   }
 )
 
@@ -246,6 +269,8 @@ onBeforeUnmount(() => {
     splitStore.SET_DOC_FOCUSED(false)
     bus.emit('annotation-focus-primary')
   }
+  // 最后一次按键的字数统计在销毁引擎前落掉（之后再没有引擎能取 TOC）。
+  derivedStats.flush()
   if (muya) {
     muya.destroy()
     muya = null

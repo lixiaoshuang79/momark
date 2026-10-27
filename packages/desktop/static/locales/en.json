@@ -409,6 +409,7 @@
       "items": {
         "autoSave": "Automatically save the content being edited",
         "autoSaveDelay": "The time in ms after a change that the file is saved",
+        "turboMode": "Turbo mode: turn off the right panel's web pages and embedded HTML rendering to save memory",
         "titleBarStyle": "The title bar style (Windows and Linux system only)",
         "openFilesInNewWindow": "Open files in a new window",
         "openFolderInNewWindow": "Open folder via menu in a new window",
@@ -493,6 +494,11 @@
         "title": "Annotations",
         "enabled": "Enable content annotations",
         "enabledNotes": "Select text to add a note; the third tab of the right panel lists them"
+      },
+      "turbo": {
+        "title": "Turbo Mode",
+        "enabled": "Enable turbo mode",
+        "enabledNotes": "Turns off the right panel's web pages (links open in your default browser) and embedded HTML rendering (HTML blocks show their source) to save memory. Annotations and the split document keep working. Takes effect immediately"
       },
       "window": {
         "title": "Window",
@@ -728,6 +734,7 @@
       "compatibility": {
         "enableGitlab": "Enable GitLab compatibility",
         "enableHtml": "Enable HTML support",
+        "htmlTurboNote": "Turbo mode is on, so HTML is not rendered; this setting applies again once turbo mode is off",
         "title": "Compatibility"
       },
       "lists": {

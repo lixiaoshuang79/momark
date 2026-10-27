@@ -1,12 +1,14 @@
 <template>
   <div
+    v-if="!turboMode || showAnnotation"
     class="bp-modes"
-    :class="{ shown: shown, three: showAnnotation }"
+    :class="{ shown: shown, three: showAnnotation && !turboMode, turbo: turboMode }"
     role="tablist"
     aria-label="面板模式"
   >
     <span class="bp-slider" :class="sliderPos" aria-hidden="true" />
     <button
+      v-if="!turboMode"
       role="tab"
       :aria-selected="activeTab === 'url'"
       :class="{ on: activeTab === 'url' }"
@@ -76,6 +78,9 @@ import { usePreferencesStore } from '@/store/preferences'
 // translateX(calc(200% + 4px))。这套几何只在 `three` 类下生效，偏好关闭
 // （只剩两个 tab）时退回原来的两档尺寸——因此覆盖规则写在本组件而不是
 // 全局 browserPanel.css 里。
+//
+// 极速模式：网页档整个移除。文档变成第一档、标注第二档；标注偏好也关掉时
+// 只剩文档一档，选择器整体不渲染（没有可切换的档位）。
 defineProps<{
   shown: boolean
 }>()
@@ -83,7 +88,7 @@ defineProps<{
 const bpStore = useBrowserPanelStore()
 const annotationStore = useAnnotationStore()
 const preferencesStore = usePreferencesStore()
-const { activeTab } = storeToRefs(bpStore)
+const { activeTab, turboMode } = storeToRefs(bpStore)
 
 const showAnnotation = computed(() => preferencesStore.annotationEnabled !== false)
 const uncopied = computed(() => annotationStore.uncopiedCount)
@@ -118,7 +123,9 @@ watch(
 const sliderPos = computed(() => {
   // doc 档沿用全局 `.bp-slider.right`（100% + 2px = 滑块宽 + 档间 gap）；
   // 三档下滑块窄了，同样的公式依然成立，只有第三档需要新位置。
+  // 极速模式没有网页档：文档变成第一档，标注是第二档。
   if (activeTab.value === 'url') return ''
+  if (turboMode.value) return activeTab.value === 'annotation' ? 'turbo-ann' : ''
   return activeTab.value === 'annotation' ? 'pos-ann' : 'right'
 })
 
@@ -152,6 +159,11 @@ const select = (next: BpActiveTab) => {
   flex: 1 1 0;
   gap: 4px;
   padding: 5px 6px;
+}
+
+/* 极速模式：网页档整个移除，文档/标注变成两档；文档在左、标注在右。 */
+.bp-modes.turbo .bp-slider.turbo-ann {
+  transform: translateX(calc(100% + 2px));
 }
 
 .bp-mode-ann .bp-mode-badge {

@@ -1,4 +1,5 @@
 import { onBeforeUnmount } from 'vue'
+import { motionReduced } from '@/util/motion'
 
 export interface EditorEnterMotionOptions {
   /** 滑入行程（px）。 */
@@ -27,17 +28,13 @@ export interface EditorEnterMotionOptions {
  *   flush 期间，transition 时钟从样式提交后的首帧起算，天然衔接。
  *
  * 打断策略：pointerdown/keydown → cancel() 一帧落位终态；
- * prefers-reduced-motion 直接跳过。
+ * 系统减少动态效果时直接跳过（每次起跳现查）。
  */
 export function useEditorEnterMotion(
   getEl: () => HTMLElement | null,
   opts: EditorEnterMotionOptions = {}
 ): { play: (direction?: 'left' | 'right') => void; cancel: () => void } {
   const { distance = 32, slideMs = 420, fadeMs = 220, maxMs = 800 } = opts
-
-  const reducedMotion =
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   let cleanupTimer = 0
 
@@ -64,7 +61,7 @@ export function useEditorEnterMotion(
 
   const play = (direction: 'left' | 'right' = 'right'): void => {
     const el = getEl()
-    if (!el || reducedMotion) return
+    if (!el || motionReduced()) return
     // 连点切换防累积：上次动画立即落位再重新起跳。
     cancel()
     const sign = direction === 'left' ? -1 : 1
