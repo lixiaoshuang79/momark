@@ -11,6 +11,7 @@ import {
 } from '@muyajs/core/annotation/quickPhrase'
 import { useBrowserPanelStore } from './browserPanel'
 import { usePreferencesStore } from './preferences'
+import { motionReduced } from '../util/motion'
 
 /**
  * 内容标注 store（feat/annotations，方案 §5.1 / 契约冻结接口）。
@@ -117,13 +118,11 @@ const headline = (item: IAnnotationExportItem, order: number): string => {
 }
 
 /**
- * 系统「减少动态效果」开关的当前值。每次现查而不是缓存模块加载时的快照——
- * 用户在系统设置里中途改掉要能立刻生效。标注的飞点 / 徽标弹跳 / 条目入场
+ * 是否该省掉动效（系统「减少动态效果」）。每次现查而不是缓存模块加载时的
+ * 快照——用户在系统设置里中途改掉要能立刻生效。标注的飞点 / 徽标弹跳 / 条目入场
  * 都经它降级。
  */
-export const prefersReducedMotion = (): boolean =>
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+export const prefersReducedMotion = motionReduced
 
 /**
  * 生成交给 agent 的复制文本（**纯函数**，单测覆盖）。

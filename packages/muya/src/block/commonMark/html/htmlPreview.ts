@@ -730,17 +730,25 @@ class HTMLPreview extends Parent {
         if (this._html !== html)
             this._html = html;
 
-        const { disableHtml } = this.muya.options;
+        // `disableHtml`（关闭 HTML 渲染 / 极速模式）：预览挂件整个不建。这个模式下
+        // CSS 已把 `.mu-html-preview` 隐藏、只显示源码，以前照样净化并恢复 iframe
+        // （隐藏的 iframe 仍会加载远程页面）、img 也照样进 DOM，白占内存和网络。
+        // `_html` 已记下最新源码，重新开启时 `update()` 即可原样渲染。
+        if (this.muya.options.disableHtml) {
+            this._scriptFrameSource = '';
+            this.domNode!.innerHTML = '';
+
+            return;
+        }
 
         // 块内含脚本 → 整个块进沙箱 iframe。净化会把 `<script>` 剥掉（交互原型
         // 与脚本图表正是靠脚本产出画面），所以这条路径不净化，安全由沙箱负责；
         // 作者源码本来就在 .md 里，因此单个文件发给别人、离线也能跑。
-        // `disableHtml`（关闭 HTML 渲染）优先：此时照旧走净化/转义路径。
         //
         // 注意：沙箱帧是不透明源，块内若另外写 `<iframe src="本地文件">`，本地文件
         // 会被浏览器拒绝加载（远程 https 嵌入不受影响）——脚本与本地文件嵌入不要
         // 混在同一个块里。
-        if (!disableHtml && hasInlineScript(html)) {
+        if (hasInlineScript(html)) {
             // 引擎会因滚动/布局刷新预览块。脚本帧重挂会重载 srcdoc：画面闪一下、
             // 帧内状态（计数器、动画、滚动位置）清零。源码没变且外壳还在时直接复用。
             const shellAlive = this.domNode!.firstElementChild?.classList.contains(CLASS_NAMES.MU_HTML_FRAME);
@@ -763,7 +771,7 @@ class HTMLPreview extends Parent {
         // sandboxed iframes afterwards.
         const frames = new Map<string, IIframeAttrs>();
         const htmlWithSlots = extractIframeSlots(html, frames);
-        const htmlContent = sanitize(htmlWithSlots, PREVIEW_DOMPURIFY_CONFIG, disableHtml) as string;
+        const htmlContent = sanitize(htmlWithSlots, PREVIEW_DOMPURIFY_CONFIG, false) as string;
 
         // handle empty html bock
         if (isEmptyHtmlBlock(htmlContent)) {

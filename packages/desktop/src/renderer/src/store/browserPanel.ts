@@ -2,6 +2,7 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import notice from '@/services/notification'
 import type { BpZoomAction } from '@shared/types/ipc'
+import { usePreferencesStore } from './preferences'
 import { useSplitStore } from './split'
 
 /**
@@ -78,6 +79,11 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   // 当前激活页（主进程换 UA + reload），新建页沿用当前模式。
   const deviceMode = ref<'pc' | 'mobile'>('pc')
 
+  // 极速模式（偏好 turboMode）：网页模式整体停用——不建任何 <webview>、不进网页
+  // 模式、不开侧栏 HTML 渲染页。文档分屏与标注 tab 不受影响。
+  const preferencesStore = usePreferencesStore()
+  const turboMode = computed(() => preferencesStore.turboMode === true)
+
   let unlistenNewWindow: (() => void) | null = null
   let unlistenZoomCommand: (() => void) | null = null
   let unlistenInputContext: (() => void) | null = null
@@ -106,6 +112,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   }
 
   function SET_MODE(next: BpMode): void {
+    if (next === 'url' && turboMode.value) return
     mode.value = next
     const splitStore = useSplitStore()
     if (splitStore.active) {
@@ -127,12 +134,14 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
       annotationsTab.value = true
       return
     }
+    if (tab === 'url' && turboMode.value) return
     annotationsTab.value = false
     SET_MODE(tab)
   }
 
   // 新建网页实例：主进程校验 URL 并分配 id，渲染层随后创建 <webview>。
   async function ADD_WEB_PAGE(input: string): Promise<string | null> {
+    if (turboMode.value) return null
     const target = resolveInput(input)
     if (!target) return null
     try {
@@ -275,6 +284,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   const htmlDoc = ref<HtmlDocView | null>(null)
 
   function OPEN_HTML_DOC(src: string, title: string, html = ''): void {
+    if (turboMode.value) return
     SET_OPEN(true)
     // 用户显式要看页面 → 优先满足：自动离开标注 tab（标注数据不受影响，
     // 切回标注 tab 即原样恢复）。
@@ -297,6 +307,49 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   async function OPEN_EXTERNAL(url: string): Promise<void> {
     await window.bp.openExternal(url)
   }
+
+  // 正文 http(s) 链接的落点：默认在右栏网页里打开（用户拍板）；极速模式下
+  // 不建 webview，交给系统默认浏览器。
+  function OPEN_LINK(url: string): void {
+    if (turboMode.value) {
+      OPEN_EXTERNAL(url).catch(() => {})
+      return
+    }
+    SET_OPEN(true)
+    SET_MODE('url')
+    ADD_WEB_PAGE(url)
+  }
+
+  // 进入极速模式：关掉全部网页（页面数组清空 → 对应 <webview> 随之卸载，guest
+  // 由主进程 closePage 关闭）和侧栏 HTML 渲染页。面板正在展示的正是这些内容时：
+  // 有分屏文档就落回文档模式（URL 分屏降级为文档分屏），没有就收起面板，免得
+  // 留一个用户没要过的「最近文档」空态。标注 tab 叠在上面时只把底层模式换成文档。
+  // 退出极速模式不做任何恢复：已关掉的网页不自动重开。
+  function DROP_WEB_CONTENT(): void {
+    const splitStore = useSplitStore()
+    const showingDropped =
+      open.value &&
+      !annotationsTab.value &&
+      (mode.value === 'url' || (htmlDoc.value !== null && !splitStore.active))
+
+    for (const page of urlPages.value) window.bp.closePage(page.id)
+    urlPages.value = []
+    activePageId.value = null
+    dockAddrOpen.value = false
+    zoomHint.value = null
+    htmlDoc.value = null
+
+    if (mode.value === 'url') SET_MODE('doc')
+    if (showingDropped && !splitStore.active) SET_OPEN(false)
+  }
+
+  watch(
+    turboMode,
+    (on) => {
+      if (on) DROP_WEB_CONTENT()
+    },
+    { immediate: true }
+  )
 
   // round18：把「面板输入上下文」推给主进程，供缩放快捷键归属判定使用。
   // 判定规则（主进程 browserPanel.ts）：面板正在展示网页 + 光标不在编辑器里
@@ -368,6 +421,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     urlWidth,
     htmlDoc,
     deviceMode,
+    turboMode,
     SET_OPEN,
     TOGGLE_PANEL,
     SET_MODE,
@@ -388,6 +442,8 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     OPEN_HTML_DOC,
     CLOSE_HTML_DOC,
     OPEN_EXTERNAL,
+    OPEN_LINK,
+    DROP_WEB_CONTENT,
     LISTEN,
     STOP_LISTENING,
     TOGGLE_DEVICE_MODE

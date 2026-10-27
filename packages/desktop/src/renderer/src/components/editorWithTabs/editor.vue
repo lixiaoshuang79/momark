@@ -235,7 +235,6 @@ const {
   frontmatterType,
   superSubScript,
   footnote,
-  isHtmlEnabled,
   isGitlabCompatibilityEnabled,
   lineHeight,
   fontSize,
@@ -1177,11 +1176,15 @@ watch(footnote, (value, oldValue) => {
   }
 })
 
-watch(isHtmlEnabled, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ disableHtml: !value }, true)
+// 极速模式与「启用 HTML」叠加后的实际值。引擎就地刷新 HTML 块，不整篇重渲染。
+watch(
+  () => preferencesStore.htmlRenderingEnabled,
+  (value, oldValue) => {
+    if (value !== oldValue && editor.value) {
+      editor.value.setOptions({ disableHtml: !value })
+    }
   }
-})
+)
 
 watch(isGitlabCompatibilityEnabled, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
@@ -1370,12 +1373,10 @@ const jumpClick = (linkInfo: { href?: string | null } | null) => {
   if (!linkInfo) return
   const { href } = linkInfo
   if (!href) return
-  // 正文点击链接：http(s) 默认在右侧边栏的网页面板里打开（用户拍板）。
+  // 正文点击链接：http(s) 交给右栏（默认网页面板，极速模式改走系统浏览器）。
   // 锚点/相对 .md 路径仍走原通道（页内滚动 / 当前窗口打开文件）。
   if (/^https?:\/\//i.test(href)) {
-    bpStore.SET_OPEN(true)
-    bpStore.SET_MODE('url')
-    bpStore.ADD_WEB_PAGE(href)
+    bpStore.OPEN_LINK(href)
     return
   }
   editorStore.FORMAT_LINK_CLICK({ data: { href }, dirname: window.DIRNAME })
@@ -2473,7 +2474,7 @@ onMounted(() => {
     frontmatterType: frontmatterType.value,
     superSubScript: superSubScript.value,
     footnote: footnote.value,
-    disableHtml: !isHtmlEnabled.value,
+    disableHtml: !preferencesStore.htmlRenderingEnabled,
     isGitlabCompatibilityEnabled: isGitlabCompatibilityEnabled.value,
     hideQuickInsertHint: hideQuickInsertHint.value,
     hideLinkPopup: hideLinkPopup.value,

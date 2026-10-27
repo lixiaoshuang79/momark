@@ -50,6 +50,24 @@ class HTMLBlock extends Parent {
         this.createDomNode();
     }
 
+    /**
+     * `disableHtml` 运行时切换后就地刷新本块：只改 figure 的类名并重跑预览挂件，
+     * 不重建块树（大文档切换要即时，编辑历史与选区也不受影响）。
+     */
+    refreshRenderMode() {
+        const { disableHtml } = this.muya.options;
+        const cls = CLASS_NAMES.MU_DISABLE_HTML_RENDER;
+
+        this.classList = this.classList.filter(name => name !== cls);
+        if (disableHtml)
+            this.classList.push(cls);
+        this.domNode?.classList.toggle(cls, !!disableHtml);
+
+        // 预览挂件是 htmlPreview（它反向 import 本文件，这里不能运行时 import），按形状调用。
+        const preview = this.attachments.head as (Parent & { update?: () => void }) | null;
+        preview?.update?.();
+    }
+
     queryBlock(path: TBlockPath) {
         return path.length && path[0] === 'text'
             ? this.firstContentInDescendant()

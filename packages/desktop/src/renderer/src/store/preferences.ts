@@ -46,6 +46,9 @@ export interface PreferencesState {
   // 标注卡片的常用语（feat/quick-phrases）：顺序即 ⌥1–⌥9 的键位顺序，
   // 最多 9 条、每条 ≤24 字。应用级一份（不随文档存），`[]` 是合法值。
   annotationQuickPhrases: string[]
+  // 极速模式：关掉右栏网页（链接改走系统浏览器）与内嵌 HTML 渲染，省内存。
+  // 与 isHtmlEnabled 叠加时它优先，但不改写 isHtmlEnabled——关掉即按原偏好恢复。
+  turboMode: boolean
   titleBarStyle: TitleBarStyle | string
   openFilesInNewWindow: boolean
   openFolderInNewWindow: boolean
@@ -169,6 +172,7 @@ export const usePreferencesStore = defineStore('preferences', {
     autoSaveDelay: 5000,
     annotationEnabled: true,
     annotationQuickPhrases: [...DEFAULT_QUICK_PHRASES],
+    turboMode: false,
     titleBarStyle: 'custom',
     openFilesInNewWindow: false,
     openFolderInNewWindow: false,
@@ -270,7 +274,9 @@ export const usePreferencesStore = defineStore('preferences', {
   }),
 
   getters: {
-    getAll: (state): PreferencesState => state
+    getAll: (state): PreferencesState => state,
+    // 编辑器实际是否渲染 HTML 块：两个编辑器（左栏 / 右栏分屏）都按它给引擎传 disableHtml。
+    htmlRenderingEnabled: (state): boolean => state.isHtmlEnabled && !state.turboMode
   },
 
   actions: {

@@ -17,8 +17,9 @@
         <div class="bp-track" :class="{ show: activePageLoading }" />
 
         <!-- 三种内容常驻挂载（v-show）：切换网页/文档/标注、收起再展开面板
-             都不影响里面的内容与状态（网页滚动/登录态、预览文档保持）。 -->
-        <url-mode v-show="activeTab === 'url'" />
+             都不影响里面的内容与状态（网页滚动/登录态、预览文档保持）。
+             极速模式例外：网页模式整块卸载，保证一个 <webview> 都不留。 -->
+        <url-mode v-if="!turboMode" v-show="activeTab === 'url'" />
         <doc-mode v-show="activeTab === 'doc'" ref="docModeRef" />
         <annotation-mode v-show="activeTab === 'annotation'" />
       </div>
@@ -26,7 +27,7 @@
       <!-- 底部条按 tab 各归其位：网址 = 40px 导航条；文档 = 「打开文件… /
            新建文件」（36px 顶部 hairline，两按钮左右等分）；标注 = 面板自带
            底条（annotationMode.vue 内），所以这里两套都收起。 -->
-      <nav-bar v-show="activeTab === 'url'" />
+      <nav-bar v-if="!turboMode" v-show="activeTab === 'url'" />
       <div v-show="activeTab === 'doc'" class="bp-doc-actions">
         <button class="bp-openfile" @click="openDocFile">
           <mo-icon name="i-folder" />
@@ -72,7 +73,14 @@ const splitStore = useSplitStore()
 const workspaceStore = useWorkspaceStore()
 const preferencesStore = usePreferencesStore()
 
-const { open: bpanelOpen, activeTab, urlPages, activePageId, dragState } = storeToRefs(bpStore)
+const {
+  open: bpanelOpen,
+  activeTab,
+  urlPages,
+  activePageId,
+  dragState,
+  turboMode
+} = storeToRefs(bpStore)
 const { panelWidthPx } = storeToRefs(workspaceStore)
 
 // 偏好关掉标注 → 若正停在标注 tab，退回它压住的那个模式（数据保留，重新

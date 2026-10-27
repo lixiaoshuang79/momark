@@ -159,8 +159,10 @@ class App {
     // webview 安全策略（右侧浏览器面板）：仅主编辑器窗口允许挂载面板
     // webview（src http(s) + persist:panel + 强制安全 webPreferences），
     // guest 上锁（新窗口→面板内建页 / will-navigate 拦截）、权限默认全拒、
-    // 证书错误一律拒绝。实现见 main/browserPanel.ts。
-    installBrowserPanelSecurity()
+    // 证书错误一律拒绝。实现见 main/browserPanel.ts。极速模式下一律拒绝挂载。
+    installBrowserPanelSecurity(
+      () => this._accessor.preferences.getItem<boolean>('turboMode') === true
+    )
   }
 
   /**

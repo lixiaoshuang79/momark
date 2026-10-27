@@ -44,6 +44,22 @@
     <compound>
       <template #head>
         <h6 class="title">
+          {{ t('preferences.general.turbo.title') }}
+        </h6>
+      </template>
+      <template #children>
+        <bool
+          :description="t('preferences.general.turbo.enabled')"
+          :notes="t('preferences.general.turbo.enabledNotes')"
+          :bool="turboMode"
+          :on-change="(value) => onSelectChange('turboMode', value)"
+        />
+      </template>
+    </compound>
+
+    <compound>
+      <template #head>
+        <h6 class="title">
           {{ t('preferences.general.window.title') }}
         </h6>
       </template>
@@ -222,6 +238,7 @@ const {
   autoSave,
   autoSaveDelay,
   annotationEnabled,
+  turboMode,
   titleBarStyle,
   defaultDirectoryToOpen,
   openFilesInNewWindow,

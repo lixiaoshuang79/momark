@@ -411,6 +411,7 @@
       "items": {
         "autoSave": "自动保存正在编辑的内容",
         "autoSaveDelay": "文件保存前的延迟时间（毫秒）",
+        "turboMode": "极速模式：关闭右栏网页与内嵌 HTML 渲染，降低内存占用",
         "autoNormalizeLineEndings": "打开文件时自动规范化行尾。禁用时按原样打开文件",
         "titleBarStyle": "标题栏样式（仅限 Windows 和 Linux 系统）",
         "openFilesInNewWindow": "在新窗口中打开文件",
@@ -495,6 +496,11 @@
         "title": "内容标注",
         "enabled": "启用内容标注",
         "enabledNotes": "选中正文即可写备注；右栏第三个 tab 是标注面板"
+      },
+      "turbo": {
+        "title": "极速模式",
+        "enabled": "启用极速模式",
+        "enabledNotes": "关闭右栏网页（链接改用默认浏览器打开）和内嵌 HTML 渲染（HTML 块只显示源码），降低内存占用；标注与文档分屏照常可用。切换即时生效"
       },
       "window": {
         "title": "窗口",
@@ -730,6 +736,7 @@
       "compatibility": {
         "enableGitlab": "启用 GitLab 兼容性",
         "enableHtml": "启用 HTML 支持",
+        "htmlTurboNote": "极速模式开启中，HTML 暂不渲染；关闭极速模式后按此项恢复",
         "title": "兼容性"
       },
       "lists": {

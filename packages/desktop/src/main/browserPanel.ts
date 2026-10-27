@@ -47,6 +47,10 @@ const MARKDOWN_FILTERS = [
 
 const isHttpUrl = (url: unknown): url is string => typeof url === 'string' && HTTP_URL_REG.test(url)
 
+// 极速模式（偏好 turboMode）的主进程兜底：渲染层已不再建网页，这里再拒掉
+// webview 挂载与建页，保证这个模式下不会冒出任何 guest 进程。
+let isTurboMode: () => boolean = () => false
+
 // round17：guest 缩放快捷键识别。Cmd（mac）/ Ctrl（其他平台）+ =、-、0；
 // 主键盘与小键盘都接受（浏览器约定：Cmd+= 与 Cmd+Shift+= 同为放大）。
 const zoomActionForInput = (input: Input): BpZoomAction | null => {
@@ -259,7 +263,8 @@ const resolveGuest = (pageId: string, sender: WebContents): WebContents | null =
 
 // ── webview 安全策略（web-contents-created）────────────────────────
 
-export const installBrowserPanelSecurity = (): void => {
+export const installBrowserPanelSecurity = (turboMode?: () => boolean): void => {
+  if (turboMode) isTurboMode = turboMode
   app.on('web-contents-created', (_event, contents) => {
     if (contents.getType() === 'window') {
       // 宿主窗口（编辑器 / 设置）：仅编辑器允许挂载面板 webview。
@@ -267,6 +272,11 @@ export const installBrowserPanelSecurity = (): void => {
         'will-attach-webview',
         (event: Event, webPreferences: WebPreferences, params: Record<string, unknown>) => {
           if (!isEditorHostContents(contents)) {
+            event.preventDefault()
+            return
+          }
+          if (isTurboMode()) {
+            log.info('[browserPanel] turbo mode is on, webview attach rejected')
             event.preventDefault()
             return
           }
@@ -463,6 +473,9 @@ export const registerBrowserPanelIpc = (): void => {
   })
 
   ipcMain.handle('bp:createPage', (event, url: string) => {
+    if (isTurboMode()) {
+      throw new Error('The browser panel is disabled in turbo mode.')
+    }
     if (!isHttpUrl(url)) {
       log.warn('[browserPanel] bp:createPage rejected:', url)
       throw new Error('Only http(s) URLs can be opened in the browser panel.')

@@ -75,6 +75,7 @@
       <template #children>
         <bool
           :description="t('preferences.markdown.compatibility.enableHtml')"
+          :notes="turboMode ? t('preferences.markdown.compatibility.htmlTurboNote') : ''"
           :bool="isHtmlEnabled"
           :on-change="(value) => onSelectChange('isHtmlEnabled', value)"
         />
@@ -158,6 +159,7 @@ const {
   superSubScript,
   footnote,
   isHtmlEnabled,
+  turboMode,
   isGitlabCompatibilityEnabled,
   sequenceTheme,
   plantumlServer

@@ -3,6 +3,7 @@
   "autoSaveDelay": 5000,
   "annotationEnabled": true,
   "annotationQuickPhrases": ["看不懂，优化表达", "删掉", "写详细", "待定"],
+  "turboMode": false,
   "titleBarStyle": "custom",
   "openFilesInNewWindow": false,
   "openFolderInNewWindow": false,
