@@ -100,7 +100,10 @@ test.describe('SimpleImageViewer (Space-to-preview + Esc close)', () => {
     await page
       .locator('.editor-component .mu-paragraph-content')
       .first()
-      .click({ position: { x: 2, y: 2 }, timeout: 5000 })
+      // Clear the inline image's hover icons/floats: a click on the image
+      // wrapper is swallowed by the engine and never reaches the document
+      // handlers that hide the image toolbar/resize bar.
+      .click({ position: { x: 200, y: 2 }, timeout: 5000 })
       .catch(() => {})
     await page.waitForTimeout(120)
     await clearRendererErrors(app)
@@ -198,6 +201,108 @@ test.describe('SimpleImageViewer (Space-to-preview + Esc close)', () => {
     expect(overlaySrc).toBe(SVG_DATA_URI)
 
     await page.locator('.image-viewer .icon-close').click({ timeout: 5000 })
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(false)
+
+    await expectNoRendererErrors(app)
+  })
+
+  test('bottom zoom control zooms, resets and re-centers', async () => {
+    const img = page.locator('.editor-component .mu-inline-image .mu-image-container img').first()
+    await img.waitFor({ state: 'attached', timeout: 15000 })
+    await img.dblclick({ timeout: 5000 })
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(true)
+
+    const value = page.locator('.image-viewer-zoom .zoom-value')
+    await expect(value).toHaveText('100%')
+
+    await page.locator('.image-viewer-zoom .zoom-in').click({ timeout: 5000 })
+    await expect(value).toHaveText('110%')
+    await page.locator('.image-viewer-zoom .zoom-in').click({ timeout: 5000 })
+    await expect(value).toHaveText('121%')
+    await page.locator('.image-viewer-zoom .zoom-out').click({ timeout: 5000 })
+    await expect(value).toHaveText('110%')
+
+    await page.locator('.image-viewer-zoom .zoom-value').click({ timeout: 5000 })
+    await expect(value).toHaveText('100%')
+    const transform = await page
+      .locator('.image-viewer > div > img')
+      .evaluate((el) => (el as HTMLElement).style.transform)
+    expect(transform).toContain('scale(1)')
+    expect(transform).toContain('translate(0px, 0px)')
+
+    await page.keyboard.press('Escape')
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(false)
+
+    await expectNoRendererErrors(app)
+  })
+
+  test('wheel zoom moves a few percent per notch', async () => {
+    const img = page.locator('.editor-component .mu-inline-image .mu-image-container img').first()
+    await img.waitFor({ state: 'attached', timeout: 15000 })
+    await img.dblclick({ timeout: 5000 })
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(true)
+
+    const value = page.locator('.image-viewer-zoom .zoom-value')
+    const box = await page.locator('.image-viewer > div').boundingBox()
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+    await page.mouse.wheel(0, -100)
+
+    await expect
+      .poll(async () => parseInt((await value.textContent()) ?? '0', 10))
+      .toBeGreaterThan(100)
+    const pct = parseInt((await value.textContent()) ?? '0', 10)
+    // The old fixed 1.1× step landed on 110% for one notch; delta-proportional
+    // zoom keeps a notch under 110%.
+    expect(pct).toBeLessThan(110)
+
+    await page.keyboard.press('Escape')
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(false)
+
+    await expectNoRendererErrors(app)
+  })
+
+  test('viewer overlay covers editor floats and app chrome', async () => {
+    const img = page.locator('.editor-component .mu-inline-image .mu-image-container img').first()
+    await img.waitFor({ state: 'attached', timeout: 15000 })
+    // Select the image so its floating toolbar is on screen before the viewer
+    // opens; the overlay must sit above it (and above the app sidebar/tabs).
+    await img.click({ timeout: 5000 })
+    const toolbar = page.locator('.mu-float-wrapper.mu-image-toolbar-container')
+    await toolbar.waitFor({ state: 'visible', timeout: 5000 })
+    // The float starts at top:-9999 and is positioned asynchronously by
+    // floating-ui; wait for it to land inside the viewport before sampling.
+    await expect
+      .poll(
+        async () => {
+          const b = await toolbar.boundingBox()
+          return !!b && b.x > 0 && b.y > 0
+        },
+        { timeout: 5000 }
+      )
+      .toBe(true)
+    const box = await toolbar.boundingBox()
+    expect(box).not.toBeNull()
+
+    await img.dblclick({ timeout: 5000 })
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(true)
+
+    const layering = await page.evaluate(
+      ({ x, y }) => {
+        const viewer = document.querySelector('.image-viewer') as HTMLElement | null
+        const top = document.elementFromPoint(x, y)
+        return {
+          // `.editor-wrapper` sets `isolation: isolate`; a viewer left inside it
+          // cannot paint above body-level floats no matter its z-index.
+          parentIsBody: viewer?.parentElement === document.body,
+          topmostInsideViewer: !!top?.closest('.image-viewer')
+        }
+      },
+      { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }
+    )
+    expect(layering.parentIsBody).toBe(true)
+    expect(layering.topmostInsideViewer).toBe(true)
+
+    await page.keyboard.press('Escape')
     await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(false)
 
     await expectNoRendererErrors(app)

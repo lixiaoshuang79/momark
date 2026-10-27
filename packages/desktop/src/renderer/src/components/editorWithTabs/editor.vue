@@ -15,12 +15,14 @@
       @choose="onHtmlPasteChoose"
       @close="closeHtmlPasteChooser"
     />
-    <div v-show="imageViewerVisible" class="image-viewer">
-      <span class="icon-close" @click="setImageViewerVisible(false)">
-        <CloseIcon />
-      </span>
-      <div ref="imageViewerRef" />
-    </div>
+    <Teleport to="body">
+      <div v-show="imageViewerVisible" class="image-viewer">
+        <span class="icon-close" @click="setImageViewerVisible(false)">
+          <CloseIcon />
+        </span>
+        <div ref="imageViewerRef" />
+      </div>
+    </Teleport>
     <el-dialog
       v-model="dialogTableVisible"
       :show-close="isShowClose"
@@ -824,6 +826,8 @@ class SimpleImageViewer {
   startX: number
   startY: number
   img!: HTMLImageElement
+  zoomBar!: HTMLDivElement
+  zoomValue!: HTMLButtonElement
   _onWheel!: (e: WheelEvent) => void
   _onMousedown!: (e: MouseEvent) => void
   _onMousemove!: (e: MouseEvent) => void
@@ -848,22 +852,101 @@ class SimpleImageViewer {
       'max-width:90vw;max-height:90vh;object-fit:contain;transform-origin:center center;user-select:none;display:block;'
     this.img.draggable = false
     this.container.appendChild(this.img)
+    this._createZoomBar()
     this._bindEvents()
+    this._updateTransform()
+  }
+
+  _createZoomBar() {
+    const bar = document.createElement('div')
+    bar.className = 'image-viewer-zoom'
+
+    const zoomOut = document.createElement('button')
+    zoomOut.type = 'button'
+    zoomOut.className = 'zoom-out'
+    zoomOut.textContent = '−'
+    zoomOut.title = t('menu.window.zoomOut')
+    zoomOut.setAttribute('aria-label', t('menu.window.zoomOut'))
+    zoomOut.addEventListener('click', (e) => {
+      e.stopPropagation()
+      this._zoomBy(1 / 1.1)
+    })
+
+    const value = document.createElement('button')
+    value.type = 'button'
+    value.className = 'zoom-value'
+    value.title = t('menu.window.resetZoom')
+    value.setAttribute('aria-label', t('menu.window.resetZoom'))
+    value.addEventListener('click', (e) => {
+      e.stopPropagation()
+      this._resetZoom()
+    })
+
+    const zoomIn = document.createElement('button')
+    zoomIn.type = 'button'
+    zoomIn.className = 'zoom-in'
+    zoomIn.textContent = '+'
+    zoomIn.title = t('menu.window.zoomIn')
+    zoomIn.setAttribute('aria-label', t('menu.window.zoomIn'))
+    zoomIn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      this._zoomBy(1.1)
+    })
+
+    bar.append(zoomOut, value, zoomIn)
+    this.zoomBar = bar
+    this.zoomValue = value
+    this.container.appendChild(bar)
+    this._updateZoomLabel()
+  }
+
+  _isZoomBarEvent(target: EventTarget | null): boolean {
+    return !!this.zoomBar && target instanceof Node && this.zoomBar.contains(target)
+  }
+
+  _zoomBy(factor: number) {
+    this._setScale(this.scale * factor)
+  }
+
+  _setScale(scale: number) {
+    this.scale = Math.max(0.1, Math.min(10, scale))
+    this._updateTransform()
+  }
+
+  _resetZoom() {
+    this.scale = 1
+    this.translateX = 0
+    this.translateY = 0
+    this._updateTransform()
+  }
+
+  _updateZoomLabel() {
+    if (this.zoomValue) {
+      this.zoomValue.textContent = `${Math.round(this.scale * 100)}%`
+    }
   }
 
   _updateTransform() {
     this.img.style.transform = `translate(${this.translateX}px,${this.translateY}px) scale(${this.scale})`
+    this._updateZoomLabel()
   }
 
   _bindEvents() {
     this._onWheel = (e: WheelEvent) => {
+      if (this._isZoomBarEvent(e.target)) {
+        e.preventDefault()
+        return
+      }
       e.preventDefault()
-      const factor = e.deltaY < 0 ? 1.1 : 0.9
-      this.scale = Math.max(0.1, Math.min(10, this.scale * factor))
-      this._updateTransform()
+      // Trackpads emit long runs of tiny wheel events; a fixed 1.1× step per
+      // event made the zoom lurch. Scale with the event delta instead and cap
+      // each event, so a mouse notch moves a few percent and a trackpad swipe
+      // stays smooth.
+      const delta = Math.max(-120, Math.min(120, e.deltaY))
+      this._setScale(this.scale * Math.exp(-delta * 0.0006))
     }
     this._onMousedown = (e: MouseEvent) => {
-      if (e.button !== 0) return
+      if (e.button !== 0 || this._isZoomBarEvent(e.target)) return
       this.isDragging = true
       this.startX = e.clientX - this.translateX
       this.startY = e.clientY - this.translateY
@@ -2885,6 +2968,7 @@ onBeforeUnmount(() => {
 }
 
 .image-viewer > div {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
@@ -2892,5 +2976,49 @@ onBeforeUnmount(() => {
   justify-content: center;
   cursor: grab;
   overflow: hidden;
+}
+
+.image-viewer-zoom {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.4;
+  user-select: none;
+  cursor: default;
+  transform: translateX(-50%);
+  backdrop-filter: blur(6px);
+
+  & button {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #fff;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  & button:hover {
+    background: rgba(255, 255, 255, 0.22);
+  }
+
+  & .zoom-value {
+    min-width: 44px;
+    padding: 0 4px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
 }
 </style>
