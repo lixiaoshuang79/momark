@@ -1,6 +1,6 @@
 {
   "name": "marktext",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "MarkText",
   "license": "AGPL-3.0-only",
   "main": "./out/main/index.js",

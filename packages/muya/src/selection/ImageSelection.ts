@@ -86,18 +86,30 @@ class ImageSelection {
         if (!isHTMLElement(target))
             return;
 
-        const imageWrapper = target.closest<HTMLElement>(`.${CLASS_NAMES.MU_INLINE_IMAGE}`);
-        if (!imageWrapper)
-            return;
-
-        // Linked images keep their navigation behaviour: the plain click that
-        // precedes the double click already follows the link, and #3835 set
-        // the same precedence for modifier-clicks.
-        if (imageWrapper.closest(LINK_SELECTOR))
-            return;
-
         const img = target.closest<HTMLImageElement>('img');
-        const src = img?.getAttribute('src');
+        if (!img)
+            return;
+
+        const imageWrapper = target.closest<HTMLElement>(`.${CLASS_NAMES.MU_INLINE_IMAGE}`);
+        if (imageWrapper) {
+            // Linked images keep their navigation behaviour: the plain click that
+            // precedes the double click already follows the link, and #3835 set
+            // the same precedence for modifier-clicks.
+            if (imageWrapper.closest(LINK_SELECTOR))
+                return;
+        }
+        else {
+            // HTML 块/原始表格预览里的 <img>：sanitize 后是普通 img，没有
+            // `.mu-inline-image` 包装（markdown 表格单元格里的 html 标签会走
+            // htmlTag → image() 得到包装，这里只补 HTML 块的预览）。链接包裹
+            // 的图片保留链接行为。
+            if (!target.closest(`.${CLASS_NAMES.MU_HTML_PREVIEW}`))
+                return;
+            if (target.closest('a[href]'))
+                return;
+        }
+
+        const src = img.getAttribute('src');
         if (!src)
             return;
 

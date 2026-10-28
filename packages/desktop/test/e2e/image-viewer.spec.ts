@@ -62,9 +62,12 @@ test.describe('SimpleImageViewer (Space-to-preview + Esc close)', () => {
 
   test.beforeAll(async () => {
     // The standalone image drives the select/Space tests; the table-cell image
-    // mirrors the PRD-document layout where screenshots live inside a table.
+    // mirrors the PRD-document layout where screenshots live inside a table;
+    // the raw HTML table mirrors embedded HTML blocks (no .mu-inline-image).
     const launched = await launchWithMarkdown(
-      `![alt](${SVG_DATA_URI})\n\n| a | b |\n| --- | --- |\n| ![cell](${SVG_DATA_URI}) | x |\n`,
+      `![alt](${SVG_DATA_URI})\n\n| a | b |\n| --- | --- |\n| ![cell](${SVG_DATA_URI}) | x |\n\n` +
+        '<table style="width:100%;table-layout:fixed;"><tr><td style="padding:4px;">' +
+        `<img src="${SVG_DATA_URI}" width="100%"></td></tr></table>\n`,
       {
         suppressErrorDialog: true
       }
@@ -254,6 +257,23 @@ test.describe('SimpleImageViewer (Space-to-preview + Esc close)', () => {
     // The old fixed 1.1× step landed on 110% for one notch; delta-proportional
     // zoom keeps a notch under 110%.
     expect(pct).toBeLessThan(110)
+
+    await page.keyboard.press('Escape')
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(false)
+
+    await expectNoRendererErrors(app)
+  })
+
+  test('double-click on an image inside an HTML block opens the same viewer', async () => {
+    const img = page.locator('.editor-component .mu-html-preview img').first()
+    await img.waitFor({ state: 'attached', timeout: 15000 })
+    await img.dblclick({ timeout: 5000 })
+
+    await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(true)
+    await expect.poll(() => viewerImgCount(page), { timeout: 5000 }).toBeGreaterThanOrEqual(1)
+
+    const overlaySrc = await page.locator('.image-viewer img').first().getAttribute('src')
+    expect(overlaySrc).toBe(SVG_DATA_URI)
 
     await page.keyboard.press('Escape')
     await expect.poll(() => viewerVisible(page), { timeout: 5000 }).toBe(false)
