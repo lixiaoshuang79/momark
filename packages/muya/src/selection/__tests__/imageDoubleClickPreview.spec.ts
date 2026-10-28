@@ -97,6 +97,38 @@ describe('double-click previews an inline image', () => {
         expect(calls).toEqual([]);
     });
 
+    it('works for an image inside an HTML block preview', () => {
+        const src = 'https://example.com/html-table.png';
+        const htmlTable
+            = '<table style="width:100%;table-layout:fixed;"><tr>'
+            + `<td style="padding:4px;"><img src="${src}" width="100%"></td>`
+            + '</tr></table>';
+        const muya = boot(`${htmlTable}\n`);
+        const img = muya.domNode.querySelector<HTMLImageElement>(
+            `.${CLASS_NAMES.MU_HTML_PREVIEW} img`,
+        );
+        expect(img).not.toBeNull();
+        const calls = capturePreview(muya);
+
+        doubleClick(img!);
+
+        expect(calls).toEqual([{ data: src }]);
+    });
+
+    it('does not preview a linked image inside an HTML block', () => {
+        const src = 'https://example.com/pic.png';
+        const muya = boot(`<div><a href="https://example.com/"><img src="${src}"></a></div>\n`);
+        const img = muya.domNode.querySelector<HTMLImageElement>(
+            `.${CLASS_NAMES.MU_HTML_PREVIEW} img`,
+        );
+        expect(img).not.toBeNull();
+        const calls = capturePreview(muya);
+
+        doubleClick(img!);
+
+        expect(calls).toEqual([]);
+    });
+
     it('does not preview on a single click', () => {
         const src = 'https://example.com/pic.png';
         const muya = boot(`![alt](${src})`);
