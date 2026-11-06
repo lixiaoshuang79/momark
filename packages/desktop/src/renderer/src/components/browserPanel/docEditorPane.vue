@@ -185,7 +185,7 @@ onMounted(() => {
   // 标注面板数据同步：引擎侧增删改 / 重定位完成后回读面板（仅在本文档持有
   // 焦点时——否则会拿左侧文档的引擎数据刷面板）。
   muya.on('annotation-change', () => {
-    if (splitStore.docFocused) annotationStore.syncFromEngine()
+    if (splitStore.docFocused) annotationStore.syncFromEngine(muya)
   })
 
   bus.on('language-changed', handleLocale)
@@ -265,10 +265,12 @@ onBeforeUnmount(() => {
   bus.off('flush-active-editor', handleFlush)
   // 右栏关闭：标注焦点交还主编辑器（面板不能停在已销毁的引擎 / 已关掉的
   // 文档上）。必须在 destroy 之前——交还动作会把 store 的当前引擎换回主编辑器。
-  if (splitStore.docFocused) {
-    splitStore.SET_DOC_FOCUSED(false)
-    bus.emit('annotation-focus-primary')
-  }
+  //
+  // 无条件交还：`RETURN_SPLIT_TO_TABS()` / 换分屏文档会**先**把 `docFocused`
+  // 置 false，按它判断会跳过交还，store 就永远指着这个即将销毁的引擎——之后
+  // 左编辑器里标注，面板读的是空表（用户实测：标注有角标、面板 0 条）。
+  splitStore.SET_DOC_FOCUSED(false)
+  bus.emit('annotation-focus-primary')
   // 最后一次按键的字数统计在销毁引擎前落掉（之后再没有引擎能取 TOC）。
   derivedStats.flush()
   if (muya) {

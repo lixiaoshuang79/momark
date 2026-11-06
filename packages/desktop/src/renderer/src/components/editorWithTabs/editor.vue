@@ -2533,7 +2533,7 @@ onMounted(() => {
     annotationStore.REVEAL()
   })
   muya.on('annotation-change', () => {
-    annotationStore.syncFromEngine()
+    annotationStore.syncFromEngine(muya)
   })
 
   // HTML embed toolbar's "open in side panel" action: render the embedded

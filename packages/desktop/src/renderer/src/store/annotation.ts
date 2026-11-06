@@ -232,10 +232,17 @@ export const useAnnotationStore = defineStore('annotation', () => {
   // 引擎（`muya.annotation`）。未挂载时面板只读。
   let engine: { annotation?: unknown; eventCenter?: EngineEventCenter } | null = null
 
-  const annotationModule = (): Record<string, (...args: unknown[]) => unknown> | null => {
-    const module = engine?.annotation as Record<string, (...args: unknown[]) => unknown> | undefined
+  const annotationModuleOf = (
+    instance: unknown
+  ): Record<string, (...args: unknown[]) => unknown> | null => {
+    const module = (instance as { annotation?: unknown } | null)?.annotation as
+      | Record<string, (...args: unknown[]) => unknown>
+      | undefined
     return module ?? null
   }
+
+  const annotationModule = (): Record<string, (...args: unknown[]) => unknown> | null =>
+    annotationModuleOf(engine)
 
   // ── 引擎事件（muya.eventCenter，契约见 实现规格 §二）─────────────────
   // 引擎侧卡片经事件总线把「打开设置 / 存为常用语 / 保存成功」交给桌面。
@@ -428,9 +435,16 @@ export const useAnnotationStore = defineStore('annotation', () => {
 
   // ── 载入 / 落盘 ───────────────────────────────────────────────────
 
-  /** 从引擎回读标注表（`annotation-change` 后调用）。 */
-  function syncFromEngine(): void {
-    const module = annotationModule()
+  /**
+   * 从引擎回读标注表（`annotation-change` 后调用）。
+   *
+   * `engineHint` 由**事件的发出方**传入：分屏还回标签栏 / 关分屏时，`RETURN_SPLIT_TO_TABS`
+   * 会先把 `docFocused` 置 false，右栏编辑器卸载时便跳过了交还主引擎，store 的
+   * `engine` 可能停在一个已销毁的实例上——此时按 store 指针读就是一张空表，面板
+   * 永远不更新（还会把空表写盘）。带上发出方就不会读错引擎。
+   */
+  function syncFromEngine(engineHint?: unknown): void {
+    const module = engineHint ? annotationModuleOf(engineHint) : annotationModule()
     const doc = currentDoc.value
     if (!module || !doc) return
 
