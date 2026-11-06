@@ -12,6 +12,7 @@
          文档名的 ×（直接关掉整个右侧栏，不落空白文档态）。 -->
     <div v-if="htmlDoc" ref="htmlViewRef" class="bp-html-view">
       <iframe
+        :key="frameKey"
         ref="htmlFrameRef"
         :src="htmlDoc.src"
         sandbox="allow-scripts"
@@ -129,10 +130,17 @@ const zoomTo = (scale: number) => {
 
 // 缩放后拖动右侧栏分隔线：容器尺寸变化时按新尺寸重算补偿（zoom=1 时
 // 无内联样式，天然跟随）。换文档/关闭时复位缩放。
+//
+// 同时也换一个新 iframe：右侧栏与编辑器内嵌用的是**同一个引导页 src**，
+// iframe 不重建就不会有新的 load，`deliverHtmlSource` 也就不会再投递；而引导页
+// 有 `written` 标志、收到过源码后拒绝二次投递——不换 key 的表现是右栏一直停在
+// 上一份 HTML（在另一个文件里点「在侧栏打开」，看到的就是别的文件的页面）。
+const frameKey = ref(0)
 let resizeObserver: ResizeObserver | null = null
 watch(
   () => htmlDoc.value,
   async (doc) => {
+    frameKey.value++
     htmlZoom.value = 1
     resizeObserver?.disconnect()
     resizeObserver = null

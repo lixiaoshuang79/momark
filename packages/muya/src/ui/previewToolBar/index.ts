@@ -3,9 +3,9 @@ import type HTMLBlock from '../../block/commonMark/html';
 import type MathBlock from '../../block/extra/math';
 import type { Muya } from '../../index';
 import { ScrollPage } from '../../block/scrollPage';
-import { getFrameSource } from '../../utils/htmlFrameSource';
 import { BLOCK_DOM_PROPERTY } from '../../config';
 import { isMouseEvent, throttle } from '../../utils';
+import { getFrameSource } from '../../utils/htmlFrameSource';
 import { h, patch } from '../../utils/snabbdom';
 import BaseFloat from '../baseFloat';
 import ICONS from './config';
@@ -51,7 +51,11 @@ export class PreviewToolBar extends BaseFloat {
             const container = [...eles].find(
                 ele =>
                     ele[BLOCK_DOM_PROPERTY]
-                    && /html-block|math-block/.test((ele[BLOCK_DOM_PROPERTY] as HTMLBlock).blockName),
+                    && /html-block|math-block/.test((ele[BLOCK_DOM_PROPERTY] as HTMLBlock).blockName)
+                    // 只认本实例文档里的块：插件按实例注册，但监听挂在 document.body
+                    // 上，右栏分屏编辑器也有自己的一份——不过滤的话两边会互相把对方的
+                    // 块记进 `_block`，「在侧栏打开」就可能送出另一个文档的内容。
+                    && this.muya.domNode.contains(ele),
             );
             if (container && !(container[BLOCK_DOM_PROPERTY] as HTMLBlock).active) {
                 const block = container[BLOCK_DOM_PROPERTY] as HTMLBlock;
@@ -124,10 +128,19 @@ export class PreviewToolBar extends BaseFloat {
     selectItem(event: Event, i: typeof ICONS[number]) {
         event.preventDefault();
         const { _block: block } = this;
+
+        // `_block` 是 mousemove 缓存的最近一次命中的块；文档切换/块重建后它可能
+        // 已经脱离文档。照旧块执行会把上一个文件的内容送到侧栏（用户实测：
+        // 在 A 文件点「在侧栏打开」显示的是 B 文件的 HTML），这里直接放弃。
+        if (!block || !block.domNode?.isConnected) {
+            this.hide();
+            return;
+        }
+
         let cursorBlock = null;
         switch (i.type) {
             case 'edit': {
-                cursorBlock = block!.firstContentInDescendant();
+                cursorBlock = block.firstContentInDescendant();
                 break;
             }
 
@@ -141,7 +154,7 @@ export class PreviewToolBar extends BaseFloat {
                     this.muya,
                     state,
                 );
-                block!.replaceWith(newBlock);
+                block.replaceWith(newBlock);
                 cursorBlock = newBlock.firstContentInDescendant();
                 break;
             }
@@ -149,7 +162,7 @@ export class PreviewToolBar extends BaseFloat {
             case 'open-sidebar': {
                 // Only meaningful for HTML embeds; the host app listens for
                 // this event and renders the page in the right side panel.
-                const frame = block!.domNode!.querySelector('iframe');
+                const frame = block.domNode!.querySelector('iframe');
                 const src = frame?.getAttribute('src');
                 if (src) {
                     // 带上块源码：侧栏加载的是同一个引导页空壳（html-frame.html），
