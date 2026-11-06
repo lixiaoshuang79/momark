@@ -127,10 +127,17 @@ function emitSelectionChange(
     muya: Muya,
     extra: { isCollapsed?: boolean; isSelectionInSameBlock?: boolean } = {},
 ): void {
+    // 真实事件由 `TextSelection._emitSelectionChange()` 发出，总带选区端点；
+    // 工具条用端点区分「跨块范围」与 `Selection.activate()` 那种没有端点的
+    // 空事件，所以这里的桩也要带上。
+    const sameBlock = extra.isSelectionInSameBlock ?? true;
+    const { first, last } = realBlocks(muya);
     muya.eventCenter.emit('selection-change', {
         formats: [],
         isCollapsed: extra.isCollapsed ?? false,
-        isSelectionInSameBlock: extra.isSelectionInSameBlock ?? true,
+        isSelectionInSameBlock: sameBlock,
+        anchorBlock: first,
+        focusBlock: sameBlock ? first : last,
     });
 }
 
@@ -239,6 +246,50 @@ describe('inlineFormatToolbar · cross-block channel', () => {
         emitSelectionChange(muya);
         expect(toolbar.status).toBe(false);
         expect(isCrossBlock(toolbar)).toBe(false);
+    });
+
+    it('restores the full tool set when a same-block picker event follows a cross-block render', async () => {
+        const muya = bootMuya();
+        stubAnnotationModule(muya);
+        stubDocumentSelection();
+        const toolbar = new InlineFormatToolbar(muya);
+        const { first } = realBlocks(muya);
+
+        emitSelectionChange(muya, { isSelectionInSameBlock: false });
+        expect(isCrossBlock(toolbar)).toBe(true);
+
+        // `muya-format-picker` 是同块通道（点击/键盘/拖选都走它）。程序化选区与
+        // 重渲后的原生选区恢复不经过点击的重置分支，跨块锁存会残留——这里钉住
+        // 「同块事件自己把锁存放掉」，否则行内选区只渲染出「备注」一项。
+        const reference = {
+            getBoundingClientRect: () => RECT,
+            clientWidth: RECT.width,
+            clientHeight: RECT.height,
+        };
+        muya.eventCenter.emit('muya-format-picker', { reference, block: first });
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        expect(isCrossBlock(toolbar)).toBe(false);
+        expect(toolbar.status).toBe(true);
+        expect(items(toolbar).some(item => item.classList.contains('strong'))).toBe(true);
+        expect(items(toolbar).some(item => item.classList.contains('annotation'))).toBe(true);
+    });
+
+    it('does not treat an endpoint-less selection-change (collapse / image select) as cross-block', () => {
+        const muya = bootMuya();
+        stubAnnotationModule(muya);
+        stubDocumentSelection();
+        const toolbar = new InlineFormatToolbar(muya);
+
+        // 先摆出跨块态，再由一条没有端点的事件（`Selection.activate()` 只发
+        // `{ kind }`）收敛：空选区不是跨块范围，锁存必须放掉。
+        emitSelectionChange(muya, { isSelectionInSameBlock: false });
+        expect(isCrossBlock(toolbar)).toBe(true);
+
+        muya.eventCenter.emit('selection-change', { kind: 'image' });
+
+        expect(isCrossBlock(toolbar)).toBe(false);
+        expect(toolbar.status).toBe(false);
     });
 
     it('collapses it for a collapsed selection and when the preference is off', () => {
