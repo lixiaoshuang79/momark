@@ -30,6 +30,28 @@ test.describe('inline format toolbar', () => {
         await expect(page.locator(floats.inlineFormatToolbar)).toBeVisible();
     });
 
+    test('a single-block selection after a cross-block one shows every tool again', async ({ page }) => {
+        // 回归：跨块渲染只留「标注」，而它是个锁存标志——同块选区若从
+        // selectionchange 通道进来（程序化选区、重渲后的原生选区恢复），
+        // 以前不会把标志放掉，下一次行内选区仍只渲染出「备注」一项。
+        await page.evaluate(() => window.muya!.setContent('first paragraph text\n\nsecond paragraph text'));
+
+        await page.evaluate(() => {
+            const paragraphs = document.querySelectorAll('#editor .mu-paragraph');
+            const textOf = (el: Element) => document.createTreeWalker(el, NodeFilter.SHOW_TEXT).nextNode() as Text;
+            window.getSelection()!.setBaseAndExtent(textOf(paragraphs[0]), 0, textOf(paragraphs[1]), 6);
+        });
+        await expect(page.locator(`${floats.inlineFormatToolbar} li.item`)).toHaveCount(1);
+
+        await page.evaluate(() => {
+            const paragraphs = document.querySelectorAll('#editor .mu-paragraph');
+            const text = document.createTreeWalker(paragraphs[1], NodeFilter.SHOW_TEXT).nextNode() as Text;
+            window.getSelection()!.setBaseAndExtent(text, 0, text, 6);
+        });
+        await expect(page.locator(`${floats.inlineFormatToolbar} li.item.strong`)).toHaveCount(1);
+        await expect(page.locator(`${floats.inlineFormatToolbar} li.item.annotation`)).toHaveCount(1);
+    });
+
     test('clicking the strong button wraps the selection in **bold**', async ({ page }) => {
         await page.evaluate(() => window.muya!.setContent('hello world'));
         await selectAllOfFirstParagraph(page);

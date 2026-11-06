@@ -125,6 +125,10 @@ export class InlineFormatToolbar extends BaseFloat {
                     return;
                 this._block = block;
                 this._formats = block.getFormatsInRange().formats;
+                // 这条通道只服务同块选区，跨块锁存必须在渲染前复位：跨块态不经过
+                // 点击/拖选的重置分支（程序化选区、重渲后的原生选区恢复都绕过它），
+                // 残留的锁存会让下一次行内选区只渲染出「备注」一项。
+                this._crossBlock = false;
                 requestAnimationFrame(() => {
                     this.show(reference);
                     this._render();
@@ -220,11 +224,16 @@ export class InlineFormatToolbar extends BaseFloat {
         // fires. We show the toolbar ourselves with the annotation action alone
         // — format buttons have no cross-block implementation, so hiding them
         // is the honest capability map.
-        eventCenter.subscribe('selection-change', ({ formats, isCollapsed, isSelectionInSameBlock }) => {
+        eventCenter.subscribe('selection-change', ({ formats, isCollapsed, isSelectionInSameBlock, anchorBlock, focusBlock }) => {
             const enabled = this._annotationModule()?.enabled;
 
             if (!isSelectionInSameBlock) {
-                if (isCollapsed || !enabled) {
+                // `Selection.collapse()` / `activate()` 发出的事件没有选区端点
+                // （标签只有 `{ kind }`），`isCollapsed` 在空选区上也是 false——
+                // 它们不是跨块范围，按收起处理，别把跨块锁存打开。
+                const hasEndpoints = !!anchorBlock && !!focusBlock;
+
+                if (isCollapsed || !enabled || !hasEndpoints) {
                     if (this._crossBlock) {
                         this._crossBlock = false;
                         this.hide();
