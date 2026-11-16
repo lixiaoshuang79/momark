@@ -1082,10 +1082,40 @@
       "embedDone": "已内嵌 {name}",
       "embedFailed": "内嵌 HTML 失败",
       "inlined": "已内联 {count} 个资源",
-      "missed": "{count} 个资源未内联（文件读不到）",
+      "missed": "{count} 个资源未内联（{reasons}）",
       "uploadDone": "已上传并插入链接",
       "uploadFailed": "上传 HTML 失败",
       "uploadFailedHint": "上传服务没有返回链接，请在偏好设置 → 图像 里检查上传服务配置。"
+    },
+    "htmlFile": {
+      "cannotOpen": "无法打开 HTML 文件",
+      "tooLarge": "HTML 文件过大（{size}），上限为 32 MB",
+      "saveAsTitle": "另存为 HTML 文件",
+      "saved": "已保存 {name}",
+      "saveFailed": "保存 HTML 文件失败",
+      "missed": "{count} 个本地资源未内联（{reasons}），页面可能显示不全",
+      "exportHeavy": "大体积 HTML（{size}）未随导出渲染，请查看对应的 .html 文件。"
+    },
+    "htmlTab": {
+      "readOnly": "只读 HTML 页面",
+      "changedOnDisk": "{name} 已在磁盘上发生变更，是否重新载入？",
+      "removedOnDisk": "{name} 已从磁盘删除，当前显示最后一次载入的内容",
+      "reload": "重新载入",
+      "openExternal": "在浏览器打开",
+      "showInFolder": "在文件夹中显示",
+      "turboTitle": "极速模式不渲染网页",
+      "turboHint": "可在「设置 → 通用」关闭极速模式后在此查看，或在浏览器中打开。",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "zoomReset": "重置缩放",
+      "snapshotOf": "{name} 中 HTML 块的快照（只读）"
+    },
+    "htmlInline": {
+      "outside": "{count} 个在 HTML 所在目录之外",
+      "missing": "{count} 个不存在",
+      "tooLarge": "{count} 个超过体积上限",
+      "unreadable": "{count} 个读取失败",
+      "separator": "、"
     }
   },
   "statusBar": {

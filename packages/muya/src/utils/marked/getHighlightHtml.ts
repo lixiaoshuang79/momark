@@ -2,6 +2,7 @@ import type { ILexOption } from './types';
 import { Marked } from 'marked';
 import { markedHighlight } from 'marked-highlight';
 import Prism from 'prismjs';
+import { canHighlightCode } from '../codeHighlightBudget';
 import cjkEmStrongExtension from './extensions/cjkEmStrong';
 import emojiExtension from './extensions/emoji';
 import footnoteExtension from './extensions/footnote';
@@ -26,6 +27,10 @@ function highlight(code: string, lang: string) {
         return code;
 
     if (DIAGRAM_TYPE.includes(lang))
+        return code;
+
+    // 与编辑器内的代码块同一预算：超长 / 含长段编码载荷的代码按纯文本导出。
+    if (!canHighlightCode(code))
         return code;
 
     const grammar = Prism.languages[lang];

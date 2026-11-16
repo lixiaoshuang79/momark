@@ -866,6 +866,67 @@ figure.mu-html-block.mu-disable-html-render .mu-html-preview {
     display: none;
 }
 
+/* 重量 HTML 块：未激活时源码视图不参与排版（几 MB 的源码文本即使 opacity:0
+   也要逐行断行布局），预览区只显示降级卡片。点「编辑」进入块后才渲染源码。 */
+figure.mu-html-block.mu-html-heavy:not(.mu-active, .mu-disable-html-render) > .mu-html-container {
+    display: none;
+}
+
+figure.mu-html-block .mu-html-preview > .mu-html-heavy-card {
+    margin: 0.5em 0;
+    padding: 12px 16px;
+
+    color: var(--editor-color-80);
+    font-size: 13px;
+    line-height: 1.6;
+
+    border: 1px dashed var(--editor-color-30);
+    border-radius: 6px;
+
+    user-select: none;
+}
+
+.mu-html-heavy-card .mu-html-heavy-title {
+    color: var(--editor-color);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.mu-html-heavy-card .mu-html-heavy-meta {
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+.mu-html-heavy-card .mu-html-heavy-actions {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0 6px;
+}
+
+.mu-html-heavy-card .mu-html-heavy-actions button {
+    padding: 3px 12px;
+
+    color: var(--editor-color);
+    font-size: 13px;
+
+    background: transparent;
+    border: 1px solid rgb(128 128 128 / 45%);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.mu-html-heavy-card .mu-html-heavy-actions button:hover {
+    color: var(--theme-color);
+
+    border-color: var(--theme-color);
+}
+
+.mu-html-heavy-card .mu-html-heavy-hint {
+    font-size: 12px;
+
+    opacity: 0.8;
+}
+
 /* math block and diagram */
 figure.mu-math-block,
 figure.mu-diagram-block {

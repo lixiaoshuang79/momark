@@ -3,24 +3,30 @@ import { BrowserWindow, dialog, ipcMain } from 'electron'
 import type { BrowserWindowConstructorOptions } from 'electron'
 import log from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
-import { isChildOfDirectory, isSamePathSync } from 'common/filesystem/paths'
+import { hasHtmlExtension, isChildOfDirectory, isSamePathSync } from 'common/filesystem/paths'
 import BaseWindow, { WindowLifecycle, WindowType } from './base'
 import type Accessor from '../app/accessor'
 import { ensureWindowPosition, zoomIn, zoomOut } from './utils'
 import { TITLE_BAR_HEIGHT, editorWinOptions, isLinux, isOsx } from '../config'
 import { showEditorContextMenu } from '../contextMenu/editor'
+import { readHtmlFileOrNotify } from '../filesystem/htmlFile'
 import { loadMarkdownFile } from '../filesystem/markdown'
 import { switchLanguage } from '../spellchecker'
+import type { HtmlFileDocument } from '@shared/types/files'
 import fs from 'fs'
 
 type RawMarkdownDocument = Awaited<ReturnType<typeof loadMarkdownFile>>
 
-// The deferred file/markdown to open before the window finishes loading.
-interface PendingFile {
-  doc: RawMarkdownDocument
-  options: Record<string, unknown>
-  selected: boolean
-}
+// The deferred file to open before the window finishes loading. HTML files
+// become read-only tabs; they share the dedupe/watch/recent bookkeeping.
+type PendingFile =
+  | {
+      kind: 'markdown'
+      doc: RawMarkdownDocument
+      options: Record<string, unknown>
+      selected: boolean
+    }
+  | { kind: 'html'; doc: HtmlFileDocument; selected: boolean }
 
 interface BufferStoreInfo {
   id: string
@@ -68,7 +74,7 @@ class EditorWindow extends BaseWindow {
 
     // Root directory and file list to open when the window is ready.
     this._directoryToOpen = null
-    this._filesToOpen = [] // {doc: IMarkdownDocumentRaw, options: any, selected: boolean}
+    this._filesToOpen = []
     this._markdownToOpen = [] // List of markdown strings or an empty string will open a new untitled tab
 
     // Root directory and file list that are currently opened. These lists are
@@ -319,7 +325,7 @@ class EditorWindow extends BaseWindow {
   }
 
   /**
-   * Open new tabs from markdown files with options for editor window.
+   * Open new tabs from markdown or HTML files with options for editor window.
    */
   openTabs(
     fileList: { filePath: string; selected: boolean; options: Record<string, unknown> }[]
@@ -339,6 +345,13 @@ class EditorWindow extends BaseWindow {
         browserWindow!.webContents.send('mt::switch-tab-by-file_path', filePath)
         continue
       }
+      if (hasHtmlExtension(filePath)) {
+        readHtmlFileOrNotify(browserWindow, filePath).then((doc) => {
+          if (!doc) return
+          this._openOrQueue({ kind: 'html', doc, selected })
+        })
+        continue
+      }
       loadMarkdownFile(
         filePath,
         eol,
@@ -347,11 +360,7 @@ class EditorWindow extends BaseWindow {
         autoNormalizeLineEndings
       )
         .then((rawDocument) => {
-          if (this.lifecycle === WindowLifecycle.READY) {
-            this._doOpenTab(rawDocument, options, selected)
-          } else {
-            this._filesToOpen!.push({ doc: rawDocument, options, selected })
-          }
+          this._openOrQueue({ kind: 'markdown', doc: rawDocument, options, selected })
         })
         .catch((err: Error) => {
           const { message, stack } = err
@@ -536,23 +545,33 @@ class EditorWindow extends BaseWindow {
 
   // --- private ---------------------------------
 
+  private _openOrQueue(file: PendingFile): void {
+    if (this.lifecycle === WindowLifecycle.QUITTED) return
+    if (this.lifecycle === WindowLifecycle.READY) {
+      this._doOpenTab(file)
+    } else {
+      this._filesToOpen!.push(file)
+    }
+  }
+
   /**
-   * Open a new new tab from the markdown document.
+   * Open a new tab from a loaded document: markdown becomes an editable tab,
+   * HTML a read-only one.
    */
-  private _doOpenTab(
-    rawDocument: RawMarkdownDocument,
-    options: Record<string, unknown>,
-    selected: boolean
-  ): void {
+  private _doOpenTab(file: PendingFile): void {
     const { _accessor, browserWindow } = this
     const { menu: appMenu } = _accessor
-    const { pathname } = rawDocument
+    const { pathname } = file.doc
 
     // 登记并挂 file watcher（幂等，渲染层可能随后再发一次登记）。
     this.addToOpenedFiles(pathname)
 
     appMenu.addRecentlyUsedDocument(pathname)
-    browserWindow!.webContents.send('mt::open-new-tab', rawDocument, options, selected)
+    if (file.kind === 'html') {
+      browserWindow!.webContents.send('mt::open-html-tab', file.doc, file.selected)
+    } else {
+      browserWindow!.webContents.send('mt::open-new-tab', file.doc, file.options, file.selected)
+    }
   }
 
   private _doOpenFilesToOpen(): void {
@@ -565,8 +584,8 @@ class EditorWindow extends BaseWindow {
     }
     this._directoryToOpen = null
 
-    for (const { doc, options, selected } of this._filesToOpen!) {
-      this._doOpenTab(doc, options, selected)
+    for (const file of this._filesToOpen!) {
+      this._doOpenTab(file)
     }
     this._filesToOpen!.length = 0
   }

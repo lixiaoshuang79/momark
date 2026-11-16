@@ -956,6 +956,36 @@
       "languageMissing": "Idioma do corretor não encontrado {languageCode}",
       "switchError": "Erro ao alternar corretor para {languageCode}, {error}",
       "title": "Verificação Ortográfica"
+    },
+    "htmlFile": {
+      "cannotOpen": "Não é possível abrir o arquivo HTML",
+      "tooLarge": "O arquivo HTML é muito grande ({size}); o limite é 32 MB",
+      "saveAsTitle": "Salvar como arquivo HTML",
+      "saved": "{name} salvo",
+      "saveFailed": "Falha ao salvar o arquivo HTML",
+      "missed": "{count} recursos locais não foram incorporados ({reasons}); a página pode estar incompleta",
+      "exportHeavy": "HTML grande ({size}) não é renderizado na exportação; veja o arquivo .html correspondente."
+    },
+    "htmlTab": {
+      "readOnly": "Página HTML somente leitura",
+      "changedOnDisk": "{name} foi alterado no disco. Recarregar?",
+      "removedOnDisk": "{name} foi removido do disco; exibindo o último conteúdo carregado",
+      "reload": "Recarregar",
+      "openExternal": "Abrir no navegador",
+      "showInFolder": "Mostrar na pasta",
+      "turboTitle": "O modo turbo não renderiza páginas web",
+      "turboHint": "Desative o modo turbo em Configurações → Geral para ver a página aqui, ou abra-a no navegador.",
+      "zoomIn": "Ampliar",
+      "zoomOut": "Reduzir",
+      "zoomReset": "Redefinir zoom",
+      "snapshotOf": "Instantâneo de um bloco HTML em {name} (somente leitura)"
+    },
+    "htmlInline": {
+      "outside": "{count} fora da pasta do arquivo HTML",
+      "missing": "{count} não encontrados",
+      "tooLarge": "{count} acima do limite de tamanho",
+      "unreadable": "{count} ilegíveis",
+      "separator": ", "
     }
   }
 }

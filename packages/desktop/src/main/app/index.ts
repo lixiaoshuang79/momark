@@ -14,13 +14,13 @@ import {
   ipcMain
 } from 'electron'
 import type { BrowserWindowConstructorOptions } from 'electron'
-import { isChildOfDirectory, MARKDOWN_EXTENSIONS } from 'common/filesystem/paths'
+import { HTML_EXTENSIONS, isChildOfDirectory, MARKDOWN_EXTENSIONS } from 'common/filesystem/paths'
 import { isFile2 } from 'common/filesystem'
 import type { IUserPreferences } from '@shared/types/preferences'
 import { isLinux, isOsx, isWindows } from '../config'
 import parseArgs from '../cli/parser'
 import { normalizeAndResolvePath } from '../filesystem'
-import { normalizeMarkdownPath } from '../filesystem/markdown'
+import { normalizeDocumentPath } from '../filesystem/markdown'
 import { registerKeyboardListeners } from '../keyboard'
 import { selectTheme } from '../menu/actions/theme'
 import { dockMenu } from '../menu/templates'
@@ -105,7 +105,7 @@ class App {
           continue
         }
 
-        const info = normalizeMarkdownPath(path.resolve(workingDirectory, pathname))
+        const info = normalizeDocumentPath(path.resolve(workingDirectory, pathname))
         if (info) {
           buf.push(info as PathInfo)
         }
@@ -302,7 +302,7 @@ class App {
           continue
         }
 
-        const info = normalizeMarkdownPath(pathname)
+        const info = normalizeDocumentPath(pathname)
         if (info) {
           _openFilesCache.push(info as PathInfo)
         }
@@ -439,12 +439,12 @@ class App {
       // buffer JSON 里，因此渲染层的关窗确认不再有 restoreAll 豁免
       // （见 renderer store/editor.ts 的 LISTEN_FOR_CLOSE）。
       if (startUpAction === 'folder' && defaultDirectoryToOpen) {
-        const info = normalizeMarkdownPath(defaultDirectoryToOpen)
+        const info = normalizeDocumentPath(defaultDirectoryToOpen)
         if (info) {
           _openFilesCache.unshift(info as PathInfo)
         }
       } else if (startUpAction === 'openLastFolder' && lastOpenedFolder) {
-        const info = normalizeMarkdownPath(lastOpenedFolder)
+        const info = normalizeDocumentPath(lastOpenedFolder)
         if (info) {
           _openFilesCache.unshift(info as PathInfo)
         }
@@ -506,7 +506,7 @@ class App {
   openFile = (event: Electron.Event, pathname: string): void => {
     event.preventDefault()
     log.info('[open-file] 系统请求打开:', pathname)
-    const info = normalizeMarkdownPath(pathname)
+    const info = normalizeDocumentPath(pathname)
     if (info) {
       this._openFilesCache.push(info as PathInfo)
 
@@ -846,13 +846,19 @@ class App {
       dialog
         .showOpenDialog(win, {
           properties: ['openFile', 'multiSelections'],
-          filters: [{ name: t('menu.file.openFile'), extensions: [...MARKDOWN_EXTENSIONS] }]
+          filters: [
+            {
+              name: t('menu.file.openFile'),
+              extensions: [...MARKDOWN_EXTENSIONS, ...HTML_EXTENSIONS]
+            }
+          ]
         })
         .then(({ filePaths }) => {
           if (Array.isArray(filePaths) && filePaths.length > 0) {
-            for (const filePath of filePaths) {
-              this._createEditorWindow(null, [normalizeAndResolvePath(filePath)])
-            }
+            this._createEditorWindow(
+              null,
+              filePaths.map((p) => normalizeAndResolvePath(p))
+            )
             this._closeWelcomeWindows()
           }
         })
@@ -886,7 +892,7 @@ class App {
     // Click on a recent document: open it in a fresh editor window.
     ipcMain.on('mt::welcome::open-recent', (event, filePath: string) => {
       const resolvedPath = normalizeAndResolvePath(filePath)
-      const info = normalizeMarkdownPath(resolvedPath)
+      const info = normalizeDocumentPath(resolvedPath)
       if (info) {
         this._createEditorWindow(null, [info.path])
         this._closeWelcomeWindows()
@@ -962,7 +968,7 @@ class App {
         if (editor) {
           editor.openTabsFromPaths(
             fileList
-              .map((p) => normalizeMarkdownPath(p))
+              .map((p) => normalizeDocumentPath(p))
               .filter((i): i is PathInfo => i !== null && !i.isDir)
               .map((i) => i.path)
           )

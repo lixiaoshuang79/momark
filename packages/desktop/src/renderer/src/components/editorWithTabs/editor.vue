@@ -128,7 +128,7 @@ import { SpellChecker } from '@/spellchecker'
 import { isOsx, animatedScrollTo } from '@/util'
 import { moveImageToFolder, uploadImage } from '@/util/fileSystem'
 import { guessClipboardFilePath } from '@/util/clipboard'
-import { inlineHtmlDocument } from '@/util/htmlInline'
+import { describeMissedResources, inlineHtmlDocument } from '@/util/htmlInline'
 import { dataURLToFile } from '@/util/dataURLToFile'
 import { getCssForOptions, getHtmlToc, type PdfCssOptions, type HtmlTocOptions } from '@/util/pdf'
 import { resolveTocHeadingElement } from '@/util/tocNavigation'
@@ -137,6 +137,7 @@ import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore, adjustTrailingNewlines } from '@/store/editor'
 import { useProjectStore } from '@/store/project'
 import { useBrowserPanelStore } from '@/store/browserPanel'
+import { openHtmlBlockSideBySide, saveHtmlBlockAsFile } from '@/util/htmlBlockActions'
 import { useAnnotationStore } from '@/store/annotation'
 import { useSplitStore } from '@/store/split'
 import { storeToRefs } from 'pinia'
@@ -347,15 +348,19 @@ const closeHtmlPasteChooser = () => {
 
 // 「内嵌到文档」：读文件 → 内联同目录的 CSS/JS/图片 → 在光标处插入一个 HTML 块。
 // 转换后 .md 自包含（单文件可带走），脚本在渲染时由沙箱 iframe 执行。
+// 入口走 `mt::html::read`：与打开 .html 同一套校验（真实 .html、32MB 上限、编码探测），
+// 读不了时主进程已经弹过通知。
 const embedHtmlFile = async (path: string, name: string) => {
   try {
-    const raw = String(await window.fileUtils.readFile(path, 'utf8'))
-    const { html, inlined, missed } = await inlineHtmlDocument(raw, path)
+    const source = await window.electron.ipcRenderer.invoke('mt::html::read', path)
+    if (!source) return
+    const { html, inlined, missed } = await inlineHtmlDocument(source.html, source.pathname)
     editor.value?.insertHtmlBlock(html)
 
+    const reasons = describeMissedResources(missed)
     const detail = [
       inlined.length ? t('editor.htmlFilePaste.inlined', { count: inlined.length }) : '',
-      missed.length ? t('editor.htmlFilePaste.missed', { count: missed.length }) : ''
+      missed.length ? t('editor.htmlFilePaste.missed', { count: missed.length, reasons }) : ''
     ]
       .filter(Boolean)
       .join('；')
@@ -1880,6 +1885,8 @@ interface ExportOptions {
 }
 
 const handleExport = async (options: unknown) => {
+  // html 标签只读、不在引擎里：没有可导出的文档。
+  if (editorStore.currentFile?.kind === 'html') return
   const opts = options as ExportOptions
   const { type, headerFooterStyled, htmlTitle } = opts
 
@@ -2536,11 +2543,15 @@ onMounted(() => {
     annotationStore.syncFromEngine(muya)
   })
 
-  // HTML embed toolbar's "open in side panel" action: render the embedded
-  // page in the right panel's document mode (sandboxed iframe, same opaque
-  // origin isolation as the in-editor embed).
-  muya.on('muya-html-open-sidebar', (payload: { src: string; title: string; html?: string }) => {
-    bpStore.OPEN_HTML_DOC(payload.src, payload.title || 'HTML', payload.html || '')
+  // HTML 块「并列查看」：块源码做成快照 html 标签放进右侧分屏，本文档留在左边。
+  muya.on('muya-html-open-side-by-side', (payload: { title: string; html: string }) => {
+    openHtmlBlockSideBySide(payload, editorStore.currentFile?.filename ?? '')
+  })
+  // 大体积 HTML 块降级卡片「另存为 .html 文件…」：默认存到当前文档同目录。
+  muya.on('muya-html-save-as-file', (payload: { title: string; html: string }) => {
+    saveHtmlBlockAsFile(payload, editorStore.currentFile?.pathname || null).catch((err) => {
+      console.error('[html-file] save as failed', err)
+    })
   })
 
   // 粘贴的是 .html 文件（而不是从浏览器复制的 HTML 内容）：弹一个二选一气泡，
@@ -2628,8 +2639,8 @@ onMounted(() => {
     // There is a chance that this event is fired AFTER the tab is switched. If we purely rely on this.currentFile later on
     // it can cause invalid updates. Hence, we need the id to identify changes as part of each tab
     if (!currentFile.value || !editor.value) return
-    const { id } = currentFile.value
-    if (!id) return
+    const { id, kind } = currentFile.value
+    if (!id || kind === 'html') return
     const markdown = editor.value.getMarkdown()
     // Stash the real engine history for in-session tab-switch restoration. The
     // synthetic save-tracking id is derived from the live document content (a

@@ -120,6 +120,22 @@ declare module '@muyajs/core' {
     auto: boolean
   }
   export function collectHtmlFrameTargets(root: ParentNode | null | undefined): IHtmlFrameTarget[]
+
+  /** 内嵌 HTML 块的轻重判定（唯一一份规则在 `packages/muya/src/utils/htmlWeight.ts`）。 */
+  export type THtmlHeavyReason = 'size' | 'line'
+  export interface IHtmlWeight {
+    heavy: boolean
+    reasons: THtmlHeavyReason[]
+    chars: number
+    longestLine: number
+    hasScript: boolean
+  }
+  export const HTML_LITE_MAX_CHARS: number
+  export const HTML_LITE_MAX_LINE: number
+  export function classifyHtmlWeight(html: string): IHtmlWeight
+  export function isHeavyHtml(html: string): boolean
+  export function formatHtmlSize(html: string): string
+  export function extractHtmlTitle(html: string): string
 }
 
 /**

@@ -1080,10 +1080,40 @@
       "embedDone": "Embedded {name}",
       "embedFailed": "Failed to embed HTML",
       "inlined": "Inlined {count} assets",
-      "missed": "{count} assets not inlined (unreadable)",
+      "missed": "{count} assets not inlined ({reasons})",
       "uploadDone": "Uploaded and inserted link",
       "uploadFailed": "Failed to upload HTML",
       "uploadFailedHint": "The upload service did not return a link — check it in Preferences → Image."
+    },
+    "htmlFile": {
+      "cannotOpen": "Cannot open HTML file",
+      "tooLarge": "HTML file is too large ({size}); the limit is 32 MB",
+      "saveAsTitle": "Save as HTML File",
+      "saved": "Saved {name}",
+      "saveFailed": "Failed to save HTML file",
+      "missed": "{count} local resources were not inlined ({reasons}); the page may be incomplete",
+      "exportHeavy": "Large HTML ({size}) is not rendered in exports; see the corresponding .html file."
+    },
+    "htmlTab": {
+      "readOnly": "Read-only HTML page",
+      "changedOnDisk": "{name} has changed on disk. Reload it?",
+      "removedOnDisk": "{name} was removed from disk; showing the last loaded content",
+      "reload": "Reload",
+      "openExternal": "Open in Browser",
+      "showInFolder": "Show in Folder",
+      "turboTitle": "Turbo mode does not render web pages",
+      "turboHint": "Turn off turbo mode in Settings → General to view this page here, or open it in your browser.",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out",
+      "zoomReset": "Reset Zoom",
+      "snapshotOf": "Snapshot of an HTML block in {name} (read-only)"
+    },
+    "htmlInline": {
+      "outside": "{count} outside the HTML file's folder",
+      "missing": "{count} not found",
+      "tooLarge": "{count} over the size limit",
+      "unreadable": "{count} unreadable",
+      "separator": ", "
     }
   },
   "statusBar": {

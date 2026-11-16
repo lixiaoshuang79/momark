@@ -110,5 +110,13 @@ export const ja = {
         'Input Front Matter...': 'ヘッダーを入力する...',
         'Invalid Mathematical Formula': '数式が間違っている',
         'Empty Mathematical Formula': '数式がありません',
+        // heavy html block
+        'Large HTML is not rendered inline': '大きな HTML はドキュメント内に表示されません',
+        'Longest line': '最長行',
+        'characters': '文字',
+        'Contains scripts': 'スクリプトを含む',
+        'Inline rendering is for lightweight HTML such as charts. Save full-page prototypes as .html files and review them side by side.': 'ドキュメント内ではグラフなどの軽量な HTML のみ表示します。ページ全体のプロトタイプは .html ファイルとして保存し、並べて確認してください。',
+        'Open Side by Side': '並べて表示',
+        'Save as HTML File…': '.html ファイルとして保存…',
     },
 };

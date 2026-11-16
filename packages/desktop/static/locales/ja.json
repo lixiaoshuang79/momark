@@ -956,6 +956,36 @@
       "languageMissing": "スペルチェック言語が見つかりません {languageCode}",
       "switchError": "{languageCode} のスペルチェック切り替えエラー、{error}",
       "title": "スペルチェック"
+    },
+    "htmlFile": {
+      "cannotOpen": "HTML ファイルを開けません",
+      "tooLarge": "HTML ファイルが大きすぎます（{size}）。上限は 32 MB です",
+      "saveAsTitle": "HTML ファイルとして保存",
+      "saved": "{name} を保存しました",
+      "saveFailed": "HTML ファイルの保存に失敗しました",
+      "missed": "{count} 件のローカルリソースを埋め込めませんでした（{reasons}）。ページが不完全な可能性があります",
+      "exportHeavy": "大きな HTML（{size}）はエクスポートに含まれません。対応する .html ファイルを参照してください。"
+    },
+    "htmlTab": {
+      "readOnly": "読み取り専用の HTML ページ",
+      "changedOnDisk": "{name} はディスク上で変更されました。再読み込みしますか？",
+      "removedOnDisk": "{name} はディスクから削除されました。最後に読み込んだ内容を表示しています",
+      "reload": "再読み込み",
+      "openExternal": "ブラウザで開く",
+      "showInFolder": "フォルダに表示",
+      "turboTitle": "高速モードでは Web ページを表示しません",
+      "turboHint": "「設定 → 一般」で高速モードをオフにするとここで表示できます。ブラウザで開くこともできます。",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小",
+      "zoomReset": "ズームをリセット",
+      "snapshotOf": "{name} 内の HTML ブロックのスナップショット（読み取り専用）"
+    },
+    "htmlInline": {
+      "outside": "HTML のフォルダー外 {count} 件",
+      "missing": "見つからない {count} 件",
+      "tooLarge": "サイズ上限超過 {count} 件",
+      "unreadable": "読み込み失敗 {count} 件",
+      "separator": "、"
     }
   }
 }

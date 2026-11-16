@@ -4,9 +4,11 @@ import listToTree, { type ListItem, type TreeNode } from '../util/listToTree'
 import { isSameToc } from '../util/tocKeys'
 import {
   createDocumentState,
+  createHtmlDocumentState,
   getOptionsFromState,
   getBlankFileState,
-  defaultFileState
+  defaultFileState,
+  isHtmlTab
 } from './help'
 import notice from '../services/notification'
 import {
@@ -18,6 +20,7 @@ import {
 import { toRaw } from 'vue'
 import { defineStore } from 'pinia'
 import { useAnnotationStore } from './annotation'
+import { useHtmlTabsStore } from './htmlTabs'
 import { usePreferencesStore } from './preferences'
 import { useProjectStore } from './project'
 import { useLayoutStore } from './layout'
@@ -29,6 +32,7 @@ import { debouncedSendBufferedState, sendBufferedState } from './bufferedState'
 import type {
   IFileState,
   FileNotification,
+  HtmlFileDocument,
   LineEnding,
   MarkdownDocument,
   PageOptions,
@@ -177,6 +181,14 @@ const engineWrittenMarkdown = new Map<string, string>()
 // 结果一致时视为「纯格式差异」，不提示、不重载（2026-10-13：此前用原始串
 // 直接比，agent 改写 PRD 的表格填充就会触发「已在磁盘上发生变更」横幅）。
 let markdownCanonicalizer: ((markdown: string) => string) | null = null
+
+// 左编辑区的 Muya 引擎当前装着哪个标签（最近一次 `file-changed` 的目标）。html
+// 标签不进引擎，切到 html 时引擎原样保留上一篇 md（编辑区只是被隐藏）；
+// `engineParked` 记下离开那一刻的内容与目录。从 html 切回同一篇、且期间内容没变
+// （右栏同文档双开没改过它）时就不必再发 `file-changed`——那会整篇重解析重渲染，
+// 5MB 文档要好几秒。
+let engineTabId: string | null = null
+let engineParked: { markdown: string; listToc: TocItem[] } | null = null
 
 /** 两份 markdown 渲染语义是否一致（都经引擎规范化后比较）。 */
 const isSameRenderedMarkdown = (a: string, b: string): boolean => {
@@ -637,11 +649,12 @@ export const useEditorStore = defineStore('editor', {
     getSaveTarget(): IFileState | null {
       const splitStore = useSplitStore()
       const workspaceStore = useWorkspaceStore()
+      let target = this.currentFile ?? null
       if (splitStore.active && splitStore.kind === 'doc' && splitStore.docFocused) {
-        const splitTab = workspaceStore.splitDocTab
-        if (splitTab) return splitTab
+        target = workspaceStore.splitDocTab ?? target
       }
-      return this.currentFile ?? null
+      // html 标签只读，没有可保存的内容。
+      return target && !isHtmlTab(target) ? target : null
     },
 
     // need pass some data to main process when `save` menu item clicked
@@ -832,7 +845,7 @@ export const useEditorStore = defineStore('editor', {
       // F1(B-26)：保存/关闭前先落进引擎批里的最后一次编辑（同 LISTEN_FOR_CLOSE）。
       this.flushActiveEditor()
       const unsavedFiles = tabs
-        .filter((file) => !(file.isSaved && /[^\n]/.test(file.markdown)))
+        .filter((file) => !isHtmlTab(file) && !(file.isSaved && /[^\n]/.test(file.markdown)))
         .map((file) => {
           const { id, filename, pathname, markdown } = file
           const options = getOptionsFromState(file)
@@ -861,7 +874,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     MOVE_FILE_TO(): void {
-      if (!this.currentFile) return
+      if (!this.currentFile || isHtmlTab(this.currentFile)) return
       this.flushActiveEditor()
       const projectStore = useProjectStore()
       const { id, filename, pathname, markdown } = this.currentFile
@@ -906,7 +919,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     RESPONSE_FOR_RENAME(): void {
-      if (!this.currentFile) return
+      if (!this.currentFile || isHtmlTab(this.currentFile)) return
       this.flushActiveEditor()
       const projectStore = useProjectStore()
       const { id, filename, pathname, markdown } = this.currentFile
@@ -933,7 +946,7 @@ export const useEditorStore = defineStore('editor', {
 
     // ask for main process to rename this file to a new name `newFilename`
     RENAME(newFilename: string): void {
-      if (!this.currentFile) return
+      if (!this.currentFile || isHtmlTab(this.currentFile)) return
       const { id, pathname, filename } = this.currentFile
       if (typeof filename === 'string' && filename !== newFilename) {
         const newPathname = window.path.join(window.path.dirname(pathname), newFilename)
@@ -966,25 +979,25 @@ export const useEditorStore = defineStore('editor', {
       debouncedSendBufferedState()
     },
 
-    UPDATE_CURRENT_FILE(currentFile: IFileState): void {
-      const oldCurrentFile = this.currentFile
-      let didUpdateCurrentFile = false
-      if (oldCurrentFile == null || oldCurrentFile.id !== currentFile.id) {
-        const { id, markdown, cursor, history, pathname, scrollTop, muyaIndexCursor } = currentFile
-        // Must run while `currentFile` still points at the outgoing tab, so its
-        // flushed edit is attributed to that tab and not lost on switch (#2938).
-        if (oldCurrentFile) {
-          this.flushActiveEditor()
-        }
-        window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
-        this.currentFile = currentFile
-        didUpdateCurrentFile = true
+    /**
+     * 把已成为 `currentFile` 的标签装进左编辑区。md 发 `file-changed` 让引擎装载
+     * 并切标注上下文；html 不进引擎，只清掉引擎派生的目录、让标注脱离文档。
+     */
+    enterTab(tab: IFileState): void {
+      const { id, markdown, cursor, history, pathname, scrollTop, muyaIndexCursor } = tab
+      window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
 
-        if (!this.tabs.some((file) => file.id === currentFile.id)) {
-          this.tabs.push(currentFile)
-          this.updateTabIdToIndex()
-        }
+      if (isHtmlTab(tab)) {
+        this.listToc = []
+        this.toc = []
+        useAnnotationStore().DETACH_DOC()
+        return
+      }
 
+      if (engineTabId === id && engineParked && engineParked.markdown === markdown) {
+        this.listToc = engineParked.listToc
+        this.toc = listToTree<TocItem>(engineParked.listToc)
+      } else {
         bus.emit('file-changed', {
           id,
           markdown,
@@ -994,10 +1007,38 @@ export const useEditorStore = defineStore('editor', {
           history,
           scrollTop
         })
+        engineTabId = id
+      }
+      engineParked = null
 
-        // 标注只认主编辑区的主文档（方案 §3.6）：换了标签就切标注上下文——
-        // 先把旧文件的标注 flush 落盘，再装载新文件的表并推给引擎。
-        useAnnotationStore().SWITCH_DOC({ pathname, tabId: id })
+      // 标注只认主编辑区的主文档（方案 §3.6）：换了标签就切标注上下文——
+      // 先把旧文件的标注 flush 落盘，再装载新文件的表并推给引擎。
+      useAnnotationStore().SWITCH_DOC({ pathname, tabId: id })
+    },
+
+    UPDATE_CURRENT_FILE(currentFile: IFileState): void {
+      const oldCurrentFile = this.currentFile
+      let didUpdateCurrentFile = false
+      if (oldCurrentFile == null || oldCurrentFile.id !== currentFile.id) {
+        // Must run while `currentFile` still points at the outgoing tab, so its
+        // flushed edit is attributed to that tab and not lost on switch (#2938).
+        // html 标签不在引擎里：离开它时 flush 会把引擎里那篇 md 的待提交编辑记到
+        // html 标签头上。
+        if (oldCurrentFile && !isHtmlTab(oldCurrentFile)) {
+          this.flushActiveEditor()
+          if (isHtmlTab(currentFile)) {
+            engineParked = { markdown: oldCurrentFile.markdown, listToc: this.listToc }
+          }
+        }
+        this.currentFile = currentFile
+        didUpdateCurrentFile = true
+
+        if (!this.tabs.some((file) => file.id === currentFile.id)) {
+          this.tabs.push(currentFile)
+          this.updateTabIdToIndex()
+        }
+
+        this.enterTab(currentFile)
       }
 
       this.UPDATE_LINE_ENDING_MENU()
@@ -1087,6 +1128,10 @@ export const useEditorStore = defineStore('editor', {
         }
       )
 
+      window.electron.ipcRenderer.on('mt::open-html-tab', (_, doc, selected) => {
+        this.NEW_HTML_TAB({ doc, selected })
+      })
+
       window.electron.ipcRenderer.on(
         'mt::new-untitled-tab',
         (_, selected = true, markdown = '') => {
@@ -1155,7 +1200,12 @@ export const useEditorStore = defineStore('editor', {
       const index = tabs.findIndex((t) => t.id === file.id)
 
       // 关标签 = 离开这份文档：标注立即落盘（不等 800ms debounce，见方案 §5.5）。
-      if (file.pathname) useAnnotationStore().flush(file.pathname)
+      if (isHtmlTab(file)) {
+        useHtmlTabsStore().DROP(file.id)
+      } else if (file.pathname) {
+        useAnnotationStore().flush(file.pathname)
+      }
+      if (engineTabId === file.id) engineTabId = null
 
       // 引擎自写标记按标签存活：不清理会在长会话里越攒越多（标签 id 全会话唯一）。
       if (file.id) engineWrittenMarkdown.delete(file.id)
@@ -1178,19 +1228,8 @@ export const useEditorStore = defineStore('editor', {
           this.tabs[index] ?? this.tabs[index - 1] ?? this.tabs[0] ?? null
         this.currentFile = fileState
         if (fileState && typeof fileState.markdown === 'string') {
-          const { id, markdown, cursor, history, pathname, scrollTop, muyaIndexCursor } = fileState
-          window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
-          bus.emit('file-changed', {
-            id,
-            markdown,
-            cursor,
-            muyaIndexCursor,
-            renderCursor: true,
-            history,
-            scrollTop
-          })
-          // 关掉的是当前标签 → 主文档换人，标注上下文跟着切。
-          useAnnotationStore().SWITCH_DOC({ pathname, tabId: id })
+          // 关掉的是当前标签 → 主文档换人，引擎内容与标注上下文跟着切。
+          this.enterTab(fileState)
         } else {
           window.DIRNAME = ''
         }
@@ -1268,6 +1307,8 @@ export const useEditorStore = defineStore('editor', {
         this.tabs.splice(index, 1)
         // 引擎自写标记同生共死（见 FORCE_CLOSE_TAB）。
         engineWrittenMarkdown.delete(id)
+        if (closed && isHtmlTab(closed)) useHtmlTabsStore().DROP(id)
+        if (engineTabId === id) engineTabId = null
         if (this.currentFile?.id === id) {
           this.currentFile = null
           window.DIRNAME = ''
@@ -1282,18 +1323,7 @@ export const useEditorStore = defineStore('editor', {
       if (this.currentFile == null && this.tabs.length > 0) {
         this.currentFile = this.tabs[tabIndex] ?? this.tabs[tabIndex - 1] ?? this.tabs[0] ?? null
         if (this.currentFile && typeof this.currentFile.markdown === 'string') {
-          const { id, markdown, cursor, history, pathname, scrollTop, muyaIndexCursor } =
-            this.currentFile
-          window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
-          bus.emit('file-changed', {
-            id,
-            markdown,
-            cursor,
-            muyaIndexCursor,
-            renderCursor: true,
-            history,
-            scrollTop
-          })
+          this.enterTab(this.currentFile)
         }
       }
 
@@ -1333,6 +1363,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     RENAME_FILE(file: IFileState): void {
+      if (isHtmlTab(file)) return
       this.UPDATE_CURRENT_FILE(file)
       bus.emit('rename')
     },
@@ -1484,7 +1515,7 @@ export const useEditorStore = defineStore('editor', {
       let keepTabBarState = false
       if (currentFile) {
         const { isSaved, pathname: cfPath } = currentFile
-        if (isSaved && !cfPath) {
+        if (isSaved && !cfPath && !isHtmlTab(currentFile)) {
           keepTabBarState = true
           this.FORCE_CLOSE_TAB(currentFile)
         }
@@ -1527,6 +1558,63 @@ export const useEditorStore = defineStore('editor', {
       }
     },
 
+    /**
+     * 以只读 html 标签打开一个页面，返回标签 id。骨架同 `NEW_TAB_WITH_CONTENT`：
+     * 同路径已打开就切过去；`pathname` 为空的是内嵌块快照，每次都新建。
+     * `title` / `origin` 只用于快照标签：显示名与「来自哪篇文档」（文件标签用文件名）。
+     */
+    NEW_HTML_TAB({
+      doc,
+      selected = true,
+      title,
+      origin
+    }: {
+      doc: HtmlFileDocument
+      selected?: boolean
+      title?: string
+      origin?: string
+    }): string {
+      const { pathname } = doc
+      if (pathname) {
+        const existingTab = this.tabs.find((t) =>
+          window.fileUtils.isSamePathSync(t.pathname, pathname)
+        )
+        if (existingTab) {
+          if (selected) this.UPDATE_CURRENT_FILE(existingTab)
+          return existingTab.id
+        }
+        window.electron.ipcRenderer.send('mt::window-add-file-path', pathname)
+      }
+
+      let keepTabBarState = false
+      const { currentFile } = this
+      if (
+        selected &&
+        currentFile &&
+        currentFile.isSaved &&
+        !currentFile.pathname &&
+        !isHtmlTab(currentFile)
+      ) {
+        keepTabBarState = true
+        this.FORCE_CLOSE_TAB(currentFile)
+      }
+
+      const state = createHtmlDocumentState({
+        pathname,
+        filename: title || doc.filename || 'HTML'
+      })
+      useHtmlTabsStore().SET_SOURCE(state.id, doc, origin)
+
+      if (selected) {
+        this.UPDATE_CURRENT_FILE(state)
+      } else {
+        this.tabs.push(state)
+        this.updateTabIdToIndex()
+      }
+      if (!keepTabBarState) this.SHOW_TAB_VIEW(false)
+      return state.id
+    },
+
     SHOW_TAB_VIEW(always: boolean): void {
       const { tabs } = this
       const layoutStore = useLayoutStore()
@@ -1539,7 +1627,7 @@ export const useEditorStore = defineStore('editor', {
     SET_SAVE_STATUS_WHEN_REMOVE({ pathname }: { pathname: string }): void {
       let didUpdateSaveStatus = false
       this.tabs.forEach((f) => {
-        if (f.pathname === pathname) {
+        if (f.pathname === pathname && !isHtmlTab(f)) {
           f.isSaved = false
           didUpdateSaveStatus = true
         }
@@ -1561,6 +1649,9 @@ export const useEditorStore = defineStore('editor', {
      * @param toc Flat list of headings returned by `muya.getTOC()`.
      */
     UPDATE_TOC(toc: TocItem[]): void {
+      // 引擎在 html 标签激活期间仍可能回报目录（源码模式退出时的交接），那是被
+      // 隐藏的上一篇 md 的目录。
+      if (isHtmlTab(this.currentFile)) return
       this.listToc = toc ?? []
       this.toc = listToTree<TocItem>(toc ?? [])
     },
@@ -1590,7 +1681,8 @@ export const useEditorStore = defineStore('editor', {
       }
 
       const tab = this.tabs[this.tabIdToIndex[id]!]
-      if (!tab) return
+      // html 标签不在引擎里，引擎发来的变更只可能是切换间隙的残留。
+      if (!tab || isHtmlTab(tab)) return
 
       const { filename, pathname, markdown: oldMarkdown, trimTrailingNewline } = tab
 
@@ -1653,6 +1745,7 @@ export const useEditorStore = defineStore('editor', {
       if (!id || !pathname) {
         throw new Error('HANDLE_AUTO_SAVE: Invalid tab.')
       }
+      if (isHtmlTab(this.tabs.find((t) => t.id === id))) return
 
       const preferencesStore = usePreferencesStore()
       const projectStore = useProjectStore()
@@ -1720,7 +1813,7 @@ export const useEditorStore = defineStore('editor', {
       const index = this.tabIdToIndex[id]
       if (index == null) return
       const tab = this.tabs[index]
-      if (tab) tab.cursor = cursor
+      if (tab && !isHtmlTab(tab)) tab.cursor = cursor
     },
 
     // 左右双开同步 watch 的来源判定：store 里的这份 markdown 是否就是引擎自己
@@ -1756,7 +1849,7 @@ export const useEditorStore = defineStore('editor', {
       const index = this.tabIdToIndex[id]
       if (index == null) return
       const tab = this.tabs[index]
-      if (!tab) return
+      if (!tab || isHtmlTab(tab)) return
       if (wordCount) tab.wordCount = wordCount
       if (id === this.currentFile?.id && toc && !isSameToc(toc, toRaw(this.listToc))) {
         this.listToc = toc
@@ -1776,7 +1869,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     EXPORT({ type, content, pageOptions, headerTemplate, footerTemplate }: ExportPayload): void {
-      if (this.currentFile === null) return
+      if (this.currentFile === null || isHtmlTab(this.currentFile)) return
 
       let title = ''
       const { listToc } = this
@@ -1823,7 +1916,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     SET_LINE_ENDING(lineEnding: LineEnding | string): void {
-      if (!this.currentFile) return
+      if (!this.currentFile || isHtmlTab(this.currentFile)) return
       const { lineEnding: oldLineEnding } = this.currentFile
       if (lineEnding !== oldLineEnding) {
         this.currentFile.lineEnding = lineEnding
@@ -1845,7 +1938,7 @@ export const useEditorStore = defineStore('editor', {
 
     LISTEN_FOR_SET_ENCODING(): void {
       bus.on('mt::set-file-encoding', (encodingName) => {
-        if (!this.currentFile) return
+        if (!this.currentFile || isHtmlTab(this.currentFile)) return
         const { encoding } = this.currentFile.encoding
         if (encoding !== encodingName) {
           this.currentFile.encoding.encoding = encodingName as string
@@ -1858,7 +1951,7 @@ export const useEditorStore = defineStore('editor', {
 
     LISTEN_FOR_SET_FINAL_NEWLINE(): void {
       bus.on('mt::set-final-newline', (value) => {
-        if (!this.currentFile) return
+        if (!this.currentFile || isHtmlTab(this.currentFile)) return
         const { trimTrailingNewline } = this.currentFile
         if (trimTrailingNewline !== value) {
           this.currentFile.trimTrailingNewline = value as number
@@ -1875,7 +1968,9 @@ export const useEditorStore = defineStore('editor', {
         const { tabs } = this
         const { pathname } = change
         const tab = tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, pathname))
-        if (tab) {
+        if (tab && isHtmlTab(tab)) {
+          this.notifyHtmlTabChanged(tab, type)
+        } else if (tab) {
           const { id, isSaved, filename } = tab
           switch (type) {
             case 'unlink': {
@@ -1945,6 +2040,33 @@ export const useEditorStore = defineStore('editor', {
           }
         } else {
           console.error(`LISTEN_FOR_FILE_CHANGE: Cannot find tab for path "${pathname}".`)
+        }
+      })
+    },
+
+    /**
+     * html 标签对应的文件在磁盘上变了：只出横幅，不置脏（标签只读，没有可丢的编辑）。
+     * 改动/新建由用户确认后重新读盘；删除只提示，页面保留最后一次读到的内容。
+     */
+    notifyHtmlTabChanged(tab: IFileState, type: string): void {
+      const { id, filename } = tab
+      if (type === 'unlink') {
+        this.pushTabNotification({
+          tabId: id,
+          msg: t('editor.htmlTab.removedOnDisk', { name: filename }),
+          style: 'warn',
+          showConfirm: false,
+          exclusiveType: 'file_changed'
+        })
+        return
+      }
+      this.pushTabNotification({
+        tabId: id,
+        msg: t('editor.htmlTab.changedOnDisk', { name: filename }),
+        showConfirm: true,
+        exclusiveType: 'file_changed',
+        action: (status) => {
+          if (status) useHtmlTabsStore().RELOAD(id)
         }
       })
     },

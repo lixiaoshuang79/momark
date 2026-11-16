@@ -64,7 +64,7 @@ vi.mock('minimatch', async () => {
 const loadMarkdownFileMock = vi.hoisted(() => vi.fn())
 vi.mock('main_renderer/filesystem/markdown', () => ({
   loadMarkdownFile: loadMarkdownFileMock,
-  normalizeMarkdownPath: (p: string) => ({ path: p, isDir: false })
+  normalizeDocumentPath: (p: string) => ({ path: p, isDir: false })
 }))
 vi.mock('ced', () => ({ default: () => 'UTF-8' }))
 

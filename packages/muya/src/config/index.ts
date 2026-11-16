@@ -203,6 +203,9 @@ export const CLASS_NAMES = genUpper2LowerKeyHash([
     'MU_HTML_FRAME',
     'MU_HTML_FRAME_TOOLBAR',
     'MU_HTML_FRAME_RESIZER',
+    // Heavy HTML blocks: figure marker + the fallback card shown instead of a render
+    'MU_HTML_HEAVY',
+    'MU_HTML_HEAVY_CARD',
 ]);
 
 export const PARAGRAPH_TYPES = [

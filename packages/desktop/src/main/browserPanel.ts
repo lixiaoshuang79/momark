@@ -21,7 +21,9 @@ import log from 'electron-log'
 import crypto from 'crypto'
 import path from 'path'
 import { readFileSync } from 'fs'
+import { HTML_EXTENSIONS, hasHtmlExtension } from 'common/filesystem/paths'
 import { loadMarkdownFile } from './filesystem/markdown'
+import { readHtmlFileOrNotify } from './filesystem/htmlFile'
 // A-9：Chrome cookie 导入已下线，这里只保留「引导已展示」标志的落盘
 // （渲染层仍会发这个通道，保留以免报错）。
 import { markChromeCookieGuideShown } from './chromeCookieSync'
@@ -42,6 +44,14 @@ const MARKDOWN_FILTERS = [
   {
     name: 'Markdown',
     extensions: ['md', 'markdown', 'mdown', 'mkdn', 'mkd', 'mdwn', 'mdtxt', 'mdtext', 'mdx', 'txt']
+  }
+]
+
+// 右栏「打开文件…」：Markdown 建编辑标签、HTML 建只读 html 标签，都放进分屏。
+const PANEL_OPEN_FILTERS = [
+  {
+    name: 'Markdown / HTML',
+    extensions: [...MARKDOWN_FILTERS[0].extensions, ...HTML_EXTENSIONS]
   }
 ]
 
@@ -459,6 +469,15 @@ const readMarkdownDocumentForPanel = async (
 
 // ── IPC 注册 ────────────────────────────────────────────────────────
 
+/** 右栏「打开文件…」/ 最近文件：.html 读成只读页面文档，其余按 Markdown 读。 */
+const readPanelDocument = async (win: BrowserWindow | null, filePath: string) => {
+  if (hasHtmlExtension(filePath)) {
+    const doc = await readHtmlFileOrNotify(win, filePath)
+    return doc ? { kind: 'html' as const, ...doc } : null
+  }
+  return readMarkdownDocumentForPanel(win, filePath)
+}
+
 export const registerBrowserPanelIpc = (): void => {
   // round18：面板输入上下文（渲染层在「面板开合 / 模式 / 激活页 / 编辑器焦点」
   // 变化时推送）。只为缩放快捷键归属判定服务，不参与任何渲染。
@@ -600,18 +619,18 @@ export const registerBrowserPanelIpc = (): void => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return null
     const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-      title: '打开 Markdown 文件',
+      title: '打开 Markdown / HTML 文件',
       properties: ['openFile'],
-      filters: MARKDOWN_FILTERS
+      filters: PANEL_OPEN_FILTERS
     })
     if (canceled || filePaths.length === 0) return null
-    return readMarkdownDocumentForPanel(win, filePaths[0])
+    return readPanelDocument(win, filePaths[0])
   })
 
   // 最近打开列表点击：按路径读取并在右侧面板文档模式预览（不建标签）。
   ipcMain.handle('bp:readDoc', async (event, filePath: string) => {
     if (typeof filePath !== 'string' || !filePath) return null
     const win = BrowserWindow.fromWebContents(event.sender)
-    return readMarkdownDocumentForPanel(win, filePath)
+    return readPanelDocument(win, filePath)
   })
 }

@@ -29,6 +29,7 @@ import type {
   SerializedStat,
   LineEnding,
   FileChangeDetail,
+  HtmlFileDocument,
   UnsavedFile
 } from './files'
 import type { BufferedState as BufferedStateType } from './bufferedState'
@@ -75,15 +76,29 @@ export interface IpcInvokeChannels {
   // 地址栏外开箭头（PHASE2-SPEC §5）：仅 http(s) 才允许 shell.openExternal。
   'bp:openExternal': { args: [url: string]; ret: boolean }
   // 文档模式「打开文件…」：主进程弹系统对话框并读回 Markdown 文本。
-  'bp:pickDoc': { args: []; ret: { path: string; markdown: string } | null }
+  // 选的是 .html 时返回 `{ kind: 'html', ... }`，渲染层建只读 html 标签放进分屏。
+  'bp:pickDoc': {
+    args: []
+    ret: { path: string; markdown: string } | ({ kind: 'html' } & HtmlFileDocument) | null
+  }
   // 文档模式按路径直读：最近打开列表点击后直接在右侧面板预览。
-  'bp:readDoc': { args: [path: string]; ret: { path: string; markdown: string } | null }
+  'bp:readDoc': {
+    args: [path: string]
+    ret: { path: string; markdown: string } | ({ kind: 'html' } & HtmlFileDocument) | null
+  }
   // round11 Chrome 登录态打通：渲染层就绪后拉取 FDA 授权引导状态。
   'bp:chrome-cookie-guide-state': { args: []; ret: { shouldShow: boolean } }
   'mt::clipboard::guess-file-path': { args: []; ret: string | null }
   'mt::clipboard::read-text': { args: []; ret: string }
   'mt::cmd::exists': { args: [name: string]; ret: boolean }
   'mt::fonts::list': { args: []; ret: string[] }
+  // 重量 HTML 块「另存为 .html」：主进程弹保存框、写盘，返回写好的文件供渲染层建标签。
+  'mt::html::save-as': {
+    args: [payload: { html: string; title: string; docPathname: string | null }]
+    ret: HtmlFileDocument | null
+  }
+  // html 标签「重新载入」：按路径重新读本地 .html。
+  'mt::html::read': { args: [pathname: string]; ret: HtmlFileDocument | null }
   // ── 导出：内嵌 HTML 块的沙箱帧离屏截图（见 main/ipc/exportHtmlFrame.ts）──
   // 块的显示尺寸是会话内的、不写回 markdown，导出侧只能拿当前尺寸去离屏复现。
   'mt::export::rasterize-html-frame': {
@@ -102,6 +117,7 @@ export interface IpcInvokeChannels {
   'mt::fs::path-exists': { args: [path: string]; ret: boolean }
   'mt::fs::read-file': { args: [path: string, encoding?: string]; ret: string | Uint8Array }
   'mt::fs::readdir': { args: [path: string]; ret: string[] }
+  'mt::fs::realpath': { args: [path: string]; ret: string }
   'mt::fs::stat': { args: [path: string]; ret: SerializedStat }
   'mt::fs::unlink': { args: [path: string]; ret: void }
   'mt::fs::write-file': { args: [path: string, data: string | Uint8Array]; ret: void }
@@ -154,6 +170,8 @@ export interface IpcSendChannels {
   'menu-add-recently-used': [filePath: string]
   'menu-clear-recently-used': []
   'mt::add-recently-used-document': [filePath: string]
+  // html 标签「在浏览器打开」的落点（主进程校验扩展名）。
+  'mt::html::open-externally': [pathname: string]
   'mt::welcome::new-doc': []
   'mt::welcome::open-file': []
   'mt::welcome::open-folder': []
@@ -326,6 +344,8 @@ export interface IpcMainEventChannels {
   'mt::menu::closed': []
   'mt::new-untitled-tab': [selected?: boolean, markdown?: string]
   'mt::open-directory': [directoryPath: string]
+  // 打开本地 .html：渲染层建只读 html 文档标签（与 md 标签同一套标签栏/分屏）。
+  'mt::open-html-tab': [doc: HtmlFileDocument, selected: boolean]
   'mt::open-new-tab': [
     markdownDocument: MarkdownDocument | null,
     options?: TabOptions,

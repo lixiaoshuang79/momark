@@ -956,6 +956,36 @@
       "languageMissing": "Rechtschreibprüfungssprache fehlt {languageCode}",
       "switchError": "Rechtschreibprüfung-Wechselfehler für {languageCode}, {error}",
       "title": "Rechtschreibprüfung"
+    },
+    "htmlFile": {
+      "cannotOpen": "HTML-Datei kann nicht geöffnet werden",
+      "tooLarge": "HTML-Datei ist zu groß ({size}); das Limit beträgt 32 MB",
+      "saveAsTitle": "Als HTML-Datei speichern",
+      "saved": "{name} gespeichert",
+      "saveFailed": "HTML-Datei konnte nicht gespeichert werden",
+      "missed": "{count} lokale Ressourcen wurden nicht eingebettet ({reasons}); die Seite ist möglicherweise unvollständig",
+      "exportHeavy": "Großes HTML ({size}) wird beim Export nicht gerendert; siehe die zugehörige .html-Datei."
+    },
+    "htmlTab": {
+      "readOnly": "Schreibgeschützte HTML-Seite",
+      "changedOnDisk": "{name} wurde auf der Festplatte geändert. Neu laden?",
+      "removedOnDisk": "{name} wurde von der Festplatte entfernt; der zuletzt geladene Inhalt wird angezeigt",
+      "reload": "Neu laden",
+      "openExternal": "Im Browser öffnen",
+      "showInFolder": "Im Ordner anzeigen",
+      "turboTitle": "Der Turbomodus rendert keine Webseiten",
+      "turboHint": "Deaktiviere den Turbomodus unter Einstellungen → Allgemein, um die Seite hier anzuzeigen, oder öffne sie im Browser.",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "zoomReset": "Zoom zurücksetzen",
+      "snapshotOf": "Momentaufnahme eines HTML-Blocks in {name} (schreibgeschützt)"
+    },
+    "htmlInline": {
+      "outside": "{count} außerhalb des Ordners der HTML-Datei",
+      "missing": "{count} nicht gefunden",
+      "tooLarge": "{count} über der Größengrenze",
+      "unreadable": "{count} nicht lesbar",
+      "separator": ", "
     }
   }
 }

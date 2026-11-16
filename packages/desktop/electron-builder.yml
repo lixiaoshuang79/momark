@@ -95,6 +95,14 @@ fileAssociations:
     mimeType: text/markdown
     role: Editor
     icon: icons/md.ico
+  # HTML 原型：只读在右栏对照评审。rank Alternate = 只出现在「打开方式」里，
+  # 不抢浏览器的默认打开。
+  - ext: [html, htm]
+    name: HTML
+    description: HTML document
+    mimeType: text/html
+    role: Viewer
+    rank: Alternate
 win:
   executableName: momark
   artifactName: 'momark-win-${arch}-${version}.${ext}'

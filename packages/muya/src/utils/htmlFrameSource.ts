@@ -16,3 +16,11 @@ export function rememberFrameSource(frame: HTMLIFrameElement, source: string): v
 export function getFrameSource(frame: Element | null | undefined): string {
     return frame instanceof HTMLIFrameElement ? frameSources.get(frame) ?? '' : '';
 }
+
+// 引导页文件名（随渲染层打包，与 index.html 同级）。用相对 URL 解析，因此 dev
+// （Vite 服务器）与打包（file:// out/renderer/）两种形态都成立。
+export const SCRIPT_FRAME_PAGE = 'html-frame.html';
+
+export function scriptFramePageUrl(): string {
+    return new URL(SCRIPT_FRAME_PAGE, document.baseURI).href;
+}

@@ -676,6 +676,18 @@ export const useAnnotationStore = defineStore('annotation', () => {
   }
 
   /**
+   * 主编辑区切到只读 html 标签：html 没有标注，面板脱离当前文档。旧文档先落盘；
+   * 不推引擎——引擎（被隐藏）仍持有上一篇 md，切回去时 SWITCH_DOC 会重新装载。
+   */
+  function DETACH_DOC(): void {
+    const previous = activeKey.value
+    if (previous && isRealPath(previous)) flush(previous)
+    activeKey.value = null
+    activeId.value = null
+    lastIndexSignature = ''
+  }
+
+  /**
    * 焦点切到某个编辑器：把它挂成当前引擎，并把面板切到它正在编辑的文档。
    *
    * 左右两侧编辑器在**焦点侧真正切换**时各调一次（而不是每次光标移动）——
@@ -1052,6 +1064,7 @@ export const useAnnotationStore = defineStore('annotation', () => {
     addGlobalNote,
     MIGRATE_PATH,
     SWITCH_DOC,
+    DETACH_DOC,
     FOCUS_EDITOR,
     ADOPT_PATH,
     // 动作

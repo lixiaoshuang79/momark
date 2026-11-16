@@ -1,9 +1,11 @@
 import type { Muya } from '../../../muya';
 import type { IHtmlBlockState, IHtmlFrameMeta, TState } from '../../../state/types';
 import type { Nullable } from '../../../types';
+import type { IHtmlWeight } from '../../../utils/htmlWeight';
 import { CLASS_NAMES, PREVIEW_DOMPURIFY_CONFIG } from '../../../config';
 import { sanitize } from '../../../utils';
-import { rememberFrameSource } from '../../../utils/htmlFrameSource';
+import { rememberFrameSource, SCRIPT_FRAME_PAGE, scriptFramePageUrl } from '../../../utils/htmlFrameSource';
+import { classifyHtmlWeight, extractHtmlTitle, formatHtmlSize, hasInlineScript } from '../../../utils/htmlWeight';
 import { getIframeSrc, getImageSrc } from '../../../utils/image';
 import logger from '../../../utils/logger';
 import Parent from '../../base/parent';
@@ -142,19 +144,7 @@ export function resolveDraggedWidth(
 // 不透明源里，既碰不到编辑器/文档，也读不到本地文件 —— 与外部 iframe 嵌入（见上）
 // 同一套模型，也正是 Typora 的模型。作者源码本来就在 .md 里
 // （`_serializeHtmlBlock` 原样写回），所以一个文件发给别人、离线打开照样能跑。
-const SCRIPT_TAG_REG = /<script[\s>/]/i;
-
-export function hasInlineScript(html: string): boolean {
-    return SCRIPT_TAG_REG.test(html);
-}
-
-// 引导页文件名（随渲染层打包，与 index.html 同级）。用相对 URL 解析，因此 dev
-// （Vite 服务器）与打包（file:// out/renderer/）两种形态都成立。
-const SCRIPT_FRAME_PAGE = 'html-frame.html';
-
-export function scriptFramePageUrl(): string {
-    return new URL(SCRIPT_FRAME_PAGE, document.baseURI).href;
-}
+export { hasInlineScript, scriptFramePageUrl };
 
 // 父页面 → 引导页的源码投递消息（协议另一端在 src/renderer/public/html-frame.html）。
 export interface IFrameSourceMessage {
@@ -675,11 +665,72 @@ function createScriptFrame(source: string, context: IFrameShellContext): HTMLDiv
     return shell;
 }
 
+// ── 重量 HTML 的降级卡片 ───────────────────────────────────────────────
+// 重量块（判定见 utils/htmlWeight）不建 iframe、不净化、不进 DOM，只显示一张卡片：
+// 标题 + 体积信息 + 「在侧栏预览」「另存为 .html」两个出口。侧栏预览走与内嵌同一套
+// 沙箱引导页（不透明源），另存为由宿主应用落盘后在右栏打开，供左右对照评审。
+function createHeavyCard(muya: Muya, html: string, weight: IHtmlWeight): HTMLDivElement {
+    const t = (key: string) => muya.i18n.t(key);
+    const card = document.createElement('div');
+    card.classList.add(CLASS_NAMES.MU_HTML_HEAVY_CARD);
+
+    const title = document.createElement('div');
+    title.classList.add('mu-html-heavy-title');
+    title.textContent = t('Large HTML is not rendered inline');
+
+    const meta = document.createElement('div');
+    meta.classList.add('mu-html-heavy-meta');
+    const parts = [
+        formatHtmlSize(html),
+        `${t('Longest line')} ${weight.longestLine.toLocaleString('en-US')} ${t('characters')}`,
+    ];
+    if (weight.hasScript)
+        parts.push(t('Contains scripts'));
+    meta.textContent = parts.join(' · ');
+
+    const hint = document.createElement('div');
+    hint.classList.add('mu-html-heavy-hint');
+    hint.textContent = t('Inline rendering is for lightweight HTML such as charts. Save full-page prototypes as .html files and review them side by side.');
+
+    const pageTitle = extractHtmlTitle(html) || 'HTML';
+    const actions = document.createElement('div');
+    actions.classList.add('mu-html-heavy-actions');
+    const button = (label: string, run: () => void) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = label;
+        // 卡片在块的预览区里：不拦住的话 mousedown/click 会冒泡成「点块进入编辑」。
+        btn.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        btn.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            run();
+        });
+        actions.appendChild(btn);
+    };
+    button(t('Open Side by Side'), () => {
+        muya.eventCenter.emit('muya-html-open-side-by-side', { title: pageTitle, html });
+    });
+    button(t('Save as HTML File…'), () => {
+        muya.eventCenter.emit('muya-html-save-as-file', { title: pageTitle, html });
+    });
+
+    card.append(title, meta, actions, hint);
+
+    return card;
+}
+
 class HTMLPreview extends Parent {
     private _html: string;
 
     // 当前沙箱脚本帧对应的源码（用于避免引擎刷新预览块时重载 srcdoc）。
     private _scriptFrameSource = '';
+
+    // 当前降级卡片对应的源码（同理：源码没变时不重建卡片）。
+    private _heavySource = '';
 
     // 块状态里的外框尺寸 + 写回通道（用户拖拽/缩放结束后调用）。
     private _frameMeta: IHtmlFrameMeta;
@@ -736,10 +787,28 @@ class HTMLPreview extends Parent {
         // `_html` 已记下最新源码，重新开启时 `update()` 即可原样渲染。
         if (this.muya.options.disableHtml) {
             this._scriptFrameSource = '';
+            this._heavySource = '';
             this.domNode!.innerHTML = '';
 
             return;
         }
+
+        // 重量 HTML：只出降级卡片（见 createHeavyCard）。figure 上的标记类同时让
+        // 未激活时的源码视图 display:none —— 几 MB 的源码文本不参与排版。
+        const weight = classifyHtmlWeight(html);
+        this._markFigureHeavy(weight.heavy);
+        if (weight.heavy) {
+            this._scriptFrameSource = '';
+            if (this._heavySource === html && this.domNode!.firstElementChild?.classList.contains(CLASS_NAMES.MU_HTML_HEAVY_CARD))
+                return;
+
+            this._heavySource = html;
+            this.domNode!.innerHTML = '';
+            this.domNode!.appendChild(createHeavyCard(this.muya, html, weight));
+
+            return;
+        }
+        this._heavySource = '';
 
         // 块内含脚本 → 整个块进沙箱 iframe。净化会把 `<script>` 剥掉（交互原型
         // 与脚本图表正是靠脚本产出画面），所以这条路径不净化，安全由沙箱负责；
@@ -825,6 +894,19 @@ class HTMLPreview extends Parent {
                 frame.classList.add(CLASS_NAMES.MU_HTML_IFRAME);
                 holder.replaceWith(createFrameShell(frame, this._frameContext()));
             }
+        }
+    }
+
+    // 构造期（update 首次调用）还没挂进 figure，那时由 HTMLBlock 构造函数按初始源码
+    // 打标；之后源码被编辑跨过阈值时在这里同步。
+    private _markFigureHeavy(heavy: boolean) {
+        let node: Nullable<Parent> = this.parent;
+        while (node) {
+            if (node instanceof HTMLBlock) {
+                node.setHeavy(heavy);
+                return;
+            }
+            node = node.parent;
         }
     }
 

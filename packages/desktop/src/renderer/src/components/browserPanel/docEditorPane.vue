@@ -20,6 +20,7 @@ import { DEFAULT_EDITOR_FONT_FAMILY, DEFAULT_CODE_FONT_FAMILY } from '@/config'
 import { guessClipboardFilePath } from '@/util/clipboard'
 import { createImageAction } from '@/util/docPaneImage'
 import { createIdleCoalescer, createOwnWriteTracker } from '@/util/docPaneSync'
+import { openHtmlBlockSideBySide, saveHtmlBlockAsFile } from '@/util/htmlBlockActions'
 import bus from '@/bus'
 
 /**
@@ -186,6 +187,17 @@ onMounted(() => {
   // 焦点时——否则会拿左侧文档的引擎数据刷面板）。
   muya.on('annotation-change', () => {
     if (splitStore.docFocused) annotationStore.syncFromEngine(muya)
+  })
+
+  // HTML 块的两个出口与左编辑器一致：「并列查看」把页面放进分屏（本文档随之
+  // 回到左边）；「另存为」默认存到本文档同目录。
+  muya.on('muya-html-open-side-by-side', (payload: { title: string; html: string }) => {
+    openHtmlBlockSideBySide(payload, splitDocTab.value?.filename ?? '')
+  })
+  muya.on('muya-html-save-as-file', (payload: { title: string; html: string }) => {
+    saveHtmlBlockAsFile(payload, splitDocTab.value?.pathname || null).catch((err) => {
+      console.error('[html-file] save as failed', err)
+    })
   })
 
   bus.on('language-changed', handleLocale)

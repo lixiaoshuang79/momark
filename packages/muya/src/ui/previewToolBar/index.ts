@@ -5,7 +5,7 @@ import type { Muya } from '../../index';
 import { ScrollPage } from '../../block/scrollPage';
 import { BLOCK_DOM_PROPERTY } from '../../config';
 import { isMouseEvent, throttle } from '../../utils';
-import { getFrameSource } from '../../utils/htmlFrameSource';
+import { extractHtmlTitle } from '../../utils/htmlWeight';
 import { h, patch } from '../../utils/snabbdom';
 import BaseFloat from '../baseFloat';
 import ICONS from './config';
@@ -159,21 +159,16 @@ export class PreviewToolBar extends BaseFloat {
                 break;
             }
 
-            case 'open-sidebar': {
-                // Only meaningful for HTML embeds; the host app listens for
-                // this event and renders the page in the right side panel.
-                const frame = block.domNode!.querySelector('iframe');
-                const src = frame?.getAttribute('src');
-                if (src) {
-                    // 带上块源码：侧栏加载的是同一个引导页空壳（html-frame.html），
-                    // 只是父窗口换成了右栏 iframe；不带源码过去就没人 document.write，
-                    // 右栏只会是一片空白（用户实测反馈的原问题）。
-                    this.muya.eventCenter.emit('muya-html-open-sidebar', {
-                        src,
-                        title: frame!.getAttribute('title') || src,
-                        html: getFrameSource(frame),
-                    });
-                }
+            case 'open-side-by-side': {
+                // Only meaningful for HTML embeds; the host app opens the block
+                // source as a read-only page next to the document. Heavy blocks
+                // have no frame (only the fallback card), so the block source is
+                // the single source of truth for both kinds.
+                const html = (block as HTMLBlock).getState().text;
+                this.muya.eventCenter.emit('muya-html-open-side-by-side', {
+                    title: extractHtmlTitle(html) || 'HTML',
+                    html,
+                });
                 break;
             }
         }

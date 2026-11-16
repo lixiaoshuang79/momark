@@ -110,5 +110,13 @@ export const zhTW = {
         'Input Front Matter...': '輸入頁首資訊...',
         'Invalid Mathematical Formula': '數學公式錯誤',
         'Empty Mathematical Formula': '空數學公式',
+        // heavy html block
+        'Large HTML is not rendered inline': '大型 HTML，未在文件內渲染',
+        'Longest line': '最長行',
+        'characters': '字元',
+        'Contains scripts': '含腳本',
+        'Inline rendering is for lightweight HTML such as charts. Save full-page prototypes as .html files and review them side by side.': '文件內只渲染輕量 HTML（如圖表）。整頁原型請另存為 .html 檔案，與文件左右對照審閱。',
+        'Open Side by Side': '並列檢視',
+        'Save as HTML File…': '另存為 .html 檔案…',
     },
 };

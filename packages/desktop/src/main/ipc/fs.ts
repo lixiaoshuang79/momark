@@ -78,6 +78,7 @@ export const registerFsHandlers = (): void => {
     return fs.move(src, dest, { overwrite: false })
   })
   trustedHandle('mt::fs::stat', async (_e, p: string) => serializeStat(await fs.stat(p)))
+  trustedHandle('mt::fs::realpath', (_e, p: string) => fs.realpath(p))
 
   trustedHandle('mt::fs::write-file', (_e, p: string, data: unknown) => {
     refuseIfDenied('mt::fs::write-file', p)

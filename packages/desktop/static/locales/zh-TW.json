@@ -963,6 +963,36 @@
       "languageMissing": "拼字檢查語言缺失 {languageCode}",
       "switchError": "{languageCode} 拼字檢查切換錯誤，{error}",
       "title": "拼字檢查"
+    },
+    "htmlFile": {
+      "cannotOpen": "無法開啟 HTML 檔案",
+      "tooLarge": "HTML 檔案過大（{size}），上限為 32 MB",
+      "saveAsTitle": "另存為 HTML 檔案",
+      "saved": "已儲存 {name}",
+      "saveFailed": "儲存 HTML 檔案失敗",
+      "missed": "{count} 個本機資源未內嵌（{reasons}），頁面可能顯示不全",
+      "exportHeavy": "大體積 HTML（{size}）未隨匯出渲染，請查看對應的 .html 檔案。"
+    },
+    "htmlTab": {
+      "readOnly": "唯讀 HTML 頁面",
+      "changedOnDisk": "{name} 已在磁碟上變更，是否重新載入？",
+      "removedOnDisk": "{name} 已從磁碟刪除，目前顯示最後一次載入的內容",
+      "reload": "重新載入",
+      "openExternal": "在瀏覽器開啟",
+      "showInFolder": "在資料夾中顯示",
+      "turboTitle": "極速模式不轉譯網頁",
+      "turboHint": "可在「設定 → 一般」關閉極速模式後在此檢視，或在瀏覽器中開啟。",
+      "zoomIn": "放大",
+      "zoomOut": "縮小",
+      "zoomReset": "重設縮放",
+      "snapshotOf": "{name} 中 HTML 區塊的快照（唯讀）"
+    },
+    "htmlInline": {
+      "outside": "{count} 個在 HTML 所在目錄之外",
+      "missing": "{count} 個不存在",
+      "tooLarge": "{count} 個超過大小上限",
+      "unreadable": "{count} 個讀取失敗",
+      "separator": "、"
     }
   },
   "tabs": {

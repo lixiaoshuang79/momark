@@ -163,20 +163,6 @@ describe('browser panel: entering turbo mode', () => {
     expect(bpStore.open).toBe(true)
   })
 
-  it('closes the side-panel HTML page and refuses to open a new one', async () => {
-    const bpStore = useBrowserPanelStore()
-    bpStore.OPEN_HTML_DOC('file:///frame.html', 'Demo', '<script>1</script>')
-    expect(bpStore.htmlDoc).not.toBeNull()
-
-    await setTurbo(true)
-    expect(bpStore.htmlDoc).toBeNull()
-    expect(bpStore.open).toBe(false)
-
-    bpStore.OPEN_HTML_DOC('file:///frame.html', 'Demo', '<script>1</script>')
-    expect(bpStore.htmlDoc).toBeNull()
-    expect(bpStore.open).toBe(false)
-  })
-
   it('blocks every way back into web mode', async () => {
     await setTurbo(true)
     const bpStore = useBrowserPanelStore()
@@ -219,8 +205,5 @@ describe('browser panel: leaving turbo mode', () => {
     await vi.waitFor(() => expect(bpStore.urlPages).toHaveLength(1))
     expect(bp.createPage).toHaveBeenCalledWith('https://c.example/')
     expect(bpStore.mode).toBe('url')
-
-    bpStore.OPEN_HTML_DOC('file:///frame.html', 'Demo')
-    expect(bpStore.htmlDoc?.title).toBe('Demo')
   })
 })

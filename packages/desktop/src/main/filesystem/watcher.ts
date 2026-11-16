@@ -4,7 +4,7 @@ import log from 'electron-log'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { minimatch } from 'minimatch'
 import { exists } from 'common/filesystem'
-import { hasMarkdownExtension } from 'common/filesystem/paths'
+import { hasHtmlExtension, hasMarkdownExtension } from 'common/filesystem/paths'
 import { getUniqueId } from '../utils'
 import { loadMarkdownFile } from '../filesystem/markdown'
 import { isLinux, isOsx } from '../config'
@@ -177,6 +177,10 @@ const add = async (
   }
 
   const { birthtime: birthTime, mtimeMs } = stats
+  if (type === 'file' && hasHtmlExtension(pathname)) {
+    sendHtmlTabChange(win, 'add', pathname, mtimeMs)
+    return
+  }
   const isMarkdown = hasMarkdownExtension(pathname)
   const file: {
     pathname: string
@@ -226,6 +230,19 @@ const add = async (
   }
 }
 
+// html 标签只读、由用户确认后自行重读，所以只通知变化，不带内容。
+const sendHtmlTabChange = (
+  win: BrowserWindow,
+  type: 'add' | 'change',
+  pathname: string,
+  mtimeMs: number
+): void => {
+  win.webContents.send('mt::update-file', {
+    type,
+    change: { pathname, kind: 'html', mtimeMs }
+  })
+}
+
 const unlink = (win: BrowserWindow, pathname: string, type: WatchType): void => {
   const file = { pathname }
   win.webContents.send(EVENT_NAME[type], {
@@ -250,6 +267,16 @@ const change = async (
       })
     } catch {
       // File may have been deleted between the event and the stat; ignore.
+    }
+    return
+  }
+
+  if (hasHtmlExtension(pathname)) {
+    try {
+      const stats = await fsPromises.stat(pathname)
+      sendHtmlTabChange(win, 'change', pathname, stats.mtimeMs)
+    } catch {
+      // Deleted between the event and the stat; the unlink event follows.
     }
     return
   }
@@ -385,6 +412,9 @@ class Watcher {
           return true
         }
         if (fileInfo.isDirectory()) {
+          return false
+        }
+        if (type === 'file' && hasHtmlExtension(pathname)) {
           return false
         }
         return !hasMarkdownExtension(pathname)

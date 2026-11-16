@@ -16,6 +16,7 @@ export type IDocumentState = IFileState
 export type { IFileState }
 
 const defaultFileStateWithoutId = {
+  kind: 'markdown',
   isSaved: true,
   pathname: '',
   filename: 'Untitled-1.md',
@@ -69,6 +70,7 @@ export const getOptionsFromState = (
 }
 
 const documentStateKeys = [
+  'kind',
   'isSaved',
   'pathname',
   'filename',
@@ -159,3 +161,20 @@ export const createDocumentState = (
 export const getFileStateFromData = (
   data: Partial<IFileState> | Record<string, unknown> | null | undefined
 ): IFileState => createDocumentState(data)
+
+/**
+ * 只读 html 文档标签的状态。恒为已保存、`markdown` 为空：保存/自动保存/崩溃恢复
+ * 缓冲（只收未保存标签）天然跳过它；页面源码由 `store/htmlTabs` 按 id 另存。
+ * `pathname` 为空表示内嵌块快照（没有磁盘文件）。
+ */
+export const createHtmlDocumentState = ({
+  pathname,
+  filename
+}: {
+  pathname: string
+  filename: string
+}): IFileState =>
+  createDocumentState({ kind: 'html', isSaved: true, markdown: '', pathname, filename })
+
+export const isHtmlTab = (tab: Pick<IFileState, 'kind'> | null | undefined): boolean =>
+  tab?.kind === 'html'

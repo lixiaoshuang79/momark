@@ -956,6 +956,36 @@
       "languageMissing": "Idioma del corrector ortográfico faltante {languageCode}",
       "switchError": "Error del corrector ortográfico para {languageCode}, {error}",
       "title": "Corrector ortográfico"
+    },
+    "htmlFile": {
+      "cannotOpen": "No se puede abrir el archivo HTML",
+      "tooLarge": "El archivo HTML es demasiado grande ({size}); el límite es 32 MB",
+      "saveAsTitle": "Guardar como archivo HTML",
+      "saved": "Se guardó {name}",
+      "saveFailed": "Error al guardar el archivo HTML",
+      "missed": "{count} recursos locales no se incrustaron ({reasons}); la página puede estar incompleta",
+      "exportHeavy": "El HTML grande ({size}) no se renderiza al exportar; consulta el archivo .html correspondiente."
+    },
+    "htmlTab": {
+      "readOnly": "Página HTML de solo lectura",
+      "changedOnDisk": "{name} ha cambiado en el disco. ¿Volver a cargarlo?",
+      "removedOnDisk": "{name} se eliminó del disco; se muestra el último contenido cargado",
+      "reload": "Volver a cargar",
+      "openExternal": "Abrir en el navegador",
+      "showInFolder": "Mostrar en la carpeta",
+      "turboTitle": "El modo turbo no renderiza páginas web",
+      "turboHint": "Desactiva el modo turbo en Ajustes → General para ver la página aquí, o ábrela en tu navegador.",
+      "zoomIn": "Acercar",
+      "zoomOut": "Alejar",
+      "zoomReset": "Restablecer zoom",
+      "snapshotOf": "Instantánea de un bloque HTML de {name} (solo lectura)"
+    },
+    "htmlInline": {
+      "outside": "{count} fuera de la carpeta del archivo HTML",
+      "missing": "{count} no encontrados",
+      "tooLarge": "{count} superan el límite de tamaño",
+      "unreadable": "{count} no se pudieron leer",
+      "separator": ", "
     }
   }
 }

@@ -63,6 +63,8 @@ import { storeToRefs } from 'pinia'
 import { wordCount as wordCountFromMarkdown } from '@muyajs/core'
 import type { FileWordCount } from '@shared/types/files'
 import { addStyles, addThemeStyle, addCustomStyle, type AddStylesOptions } from '@/util/theme'
+import { getTabLabels } from '@/util/tabLabels'
+import { isHtmlTab } from '@/store/help'
 import Recent from '@/components/recent/index.vue'
 import EditorWithTabs from '@/components/editorWithTabs/index.vue'
 import EditorTabs from '@/components/editorWithTabs/tabs.vue'
@@ -137,13 +139,18 @@ const { active: splitActive, draggingSplit } = storeToRefs(splitStore)
 const { scene } = storeToRefs(workspaceStore)
 
 const pathname = computed(() => currentFile.value?.pathname)
-const filename = computed(() => currentFile.value?.filename)
+const tabLabels = computed(() => getTabLabels(tabs.value))
+const filename = computed(() =>
+  currentFile.value
+    ? (tabLabels.value.get(currentFile.value.id) ?? currentFile.value.filename)
+    : undefined
+)
 // 未命名文档从未保存过：展示层一律视为「未保存」（store 内 isSaved 仍为 true，
 // 保证空白 untitled 关闭不弹保存框；一旦修改 json-change 会置 false 走弹窗路径）。
 const isSaved = computed(() => {
   const f = currentFile.value
   if (!f) return undefined
-  return !!f.pathname && f.isSaved
+  return isHtmlTab(f) || (!!f.pathname && f.isSaved)
 })
 
 // round10：顶栏右上角字数/保存状态的数据源——光标落在右栏文档编辑器时
@@ -164,7 +171,10 @@ const titleStats = computed<{ wordCount: FileWordCount | null; isSaved: boolean 
           : typeof md === 'string' && md.length > 0
             ? wordCountFromMarkdown(md)
             : (wc ?? null)
-        return { wordCount: tabWordCount, isSaved: !!tab.pathname && tab.isSaved }
+        return {
+          wordCount: tabWordCount,
+          isSaved: isHtmlTab(tab) || (!!tab.pathname && tab.isSaved)
+        }
       }
     }
     return { wordCount: wordCount.value, isSaved: isSaved.value }
@@ -180,6 +190,8 @@ const titleTabCount = computed(() => (scene.value === 'single' ? tabs.value.leng
 const markdown = computed<string>(() => currentFile.value?.markdown ?? '')
 const cursor = computed(() => currentFile.value?.cursor)
 const wordCount = computed(() => {
+  // html 标签只读，字数没有意义，顶栏不显示。
+  if (isHtmlTab(currentFile.value)) return null
   const wc = currentFile.value?.wordCount
   const md = currentFile.value?.markdown
   const storedUsable =

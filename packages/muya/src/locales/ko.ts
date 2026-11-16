@@ -110,5 +110,13 @@ export const ko = {
         'Input Front Matter...': '머리말 입력...',
         'Invalid Mathematical Formula': '잘못된 수식',
         'Empty Mathematical Formula': '빈 수식',
+        // heavy html block
+        'Large HTML is not rendered inline': '큰 HTML은 문서 안에서 렌더링되지 않습니다',
+        'Longest line': '가장 긴 줄',
+        'characters': '자',
+        'Contains scripts': '스크립트 포함',
+        'Inline rendering is for lightweight HTML such as charts. Save full-page prototypes as .html files and review them side by side.': '문서 안에서는 차트 같은 가벼운 HTML만 렌더링합니다. 전체 페이지 프로토타입은 .html 파일로 저장해 나란히 검토하세요.',
+        'Open Side by Side': '나란히 보기',
+        'Save as HTML File…': '.html 파일로 저장…',
     },
 };

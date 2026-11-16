@@ -25,6 +25,16 @@ export interface MarkdownDocument {
   isMixedLineEndings?: boolean
 }
 
+/**
+ * 本地 .html 文件：主进程读盘后交给渲染层，作为只读的 html 文档标签打开
+ * （`kind: 'html'`）。源码不进标签状态，由 `store/htmlTabs` 按标签 id 保管。
+ */
+export interface HtmlFileDocument {
+  pathname: string
+  filename: string
+  html: string
+}
+
 export interface FileHistory {
   stack: HistoryStackEntry[]
   index: number
@@ -65,8 +75,15 @@ export interface FileSearchMatches {
  * cross-process IPC payloads. Mirrors `defaultFileState` in
  * `src/renderer/src/store/help.ts`.
  */
+/**
+ * 标签承载的文档类型。`html` 标签只读：不进 Muya 引擎、不参与保存/脏标记/
+ * 崩溃恢复，`markdown` 恒为空串，页面源码在 `store/htmlTabs`。
+ */
+export type TabKind = 'markdown' | 'html'
+
 export interface IFileState {
   id: string
+  kind: TabKind
   filename: string
   // Falsy (`''`) for untitled buffers; pre-migration this was sometimes
   // missing entirely. Always a string at runtime now.

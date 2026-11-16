@@ -12,6 +12,7 @@ import type HTMLPreview from '../../commonMark/html/htmlPreview';
 import { HTML_TAGS, VOID_HTML_TAGS } from '../../../config';
 import { adjustOffset, escapeHTML, firstWordOfInfo } from '../../../utils';
 import { computeLineCount, repositionLineNumberSpans, syncLineNumbersSpans } from '../../../utils/codeBlockLineNumbers';
+import { canHighlightCode } from '../../../utils/codeHighlightBudget';
 import { getHighlightHtml, MARKER_HASH } from '../../../utils/highlightHTML';
 import prism, { loadedLanguages, transformAliasToOrigin, walkTokens } from '../../../utils/prism/index';
 import Content from '../../base/content';
@@ -242,6 +243,7 @@ class CodeBlockContent extends Content {
             if (
                 languageReady
                 && /\S/.test(code)
+                && canHighlightCode(text)
             ) {
                 const wrapper = document.createElement('div');
                 wrapper.classList.add(`language-${fullLengthLang}`);
@@ -490,7 +492,7 @@ class CodeBlockContent extends Content {
             const { _lang: lang, text } = this;
             // transform alias to original language
             const fullLengthLang = transformAliasToOrigin([lang])[0];
-            if (fullLengthLang && /\S/.test(text) && loadedLanguages.has(fullLengthLang)) {
+            if (fullLengthLang && /\S/.test(text) && loadedLanguages.has(fullLengthLang) && canHighlightCode(text)) {
                 const tokens = prism.tokenize(text, prism.languages[fullLengthLang]);
                 let offset = start.offset;
                 let code = '';

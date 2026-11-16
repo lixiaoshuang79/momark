@@ -119,6 +119,7 @@ declare global {
     outputFile(p: string, data: string | Uint8Array): Promise<void>
     move(src: string, dest: string): Promise<void>
     stat(p: string): Promise<SerializedStat>
+    realpath(p: string): Promise<string>
     writeFile(p: string, data: string | Uint8Array): Promise<void>
     readFile(p: string, encoding?: string): Promise<string | Uint8Array>
     pathExists(p: string): Promise<boolean>
@@ -196,8 +197,8 @@ declare global {
       editorFocused: boolean
     }): void
     openExternal(url: string): Promise<boolean>
-    pickDoc(): Promise<{ path: string; markdown: string } | null>
-    readDoc(path: string): Promise<{ path: string; markdown: string } | null>
+    pickDoc(): Promise<IpcInvokeChannels['bp:pickDoc']['ret']>
+    readDoc(path: string): Promise<IpcInvokeChannels['bp:readDoc']['ret']>
     onNewWindowRequest(
       handler: (payload: { url: string; fromPageId: string | null }) => void
     ): () => void

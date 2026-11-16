@@ -86,7 +86,7 @@ vi.mock('main_renderer/app/nativeTheme', () => ({
 // 路径归一化：真实实现会去磁盘上核对（存在性/扩展名），单测里只要形状对得上。
 vi.mock('main_renderer/filesystem', () => ({ normalizeAndResolvePath: (p: string) => p }))
 vi.mock('main_renderer/filesystem/markdown', () => ({
-  normalizeMarkdownPath: (p: string) => (p.endsWith('.md') ? { path: p, isDir: false } : null)
+  normalizeDocumentPath: (p: string) => (p.endsWith('.md') ? { path: p, isDir: false } : null)
 }))
 
 const windowStub = (kind: string) =>
