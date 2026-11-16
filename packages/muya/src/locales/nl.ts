@@ -111,5 +111,13 @@ export const nl = {
         'Copy anchor link to this heading': 'Ankerlink naar deze kop kopiëren',
         'Click to add an image': 'Klik om een afbeelding toe te voegen',
         'Load image failed': 'Afbeelding laden mislukt',
+        // heavy html block
+        'Large HTML is not rendered inline': 'Grote HTML wordt niet inline weergegeven',
+        'Longest line': 'Langste regel',
+        'characters': 'tekens',
+        'Contains scripts': 'Bevat scripts',
+        'Inline rendering is for lightweight HTML such as charts. Save full-page prototypes as .html files and review them side by side.': 'Alleen lichte HTML zoals grafieken wordt inline weergegeven. Sla prototypes van een hele pagina op als .html-bestand en bekijk ze naast elkaar.',
+        'Open Side by Side': 'Naast elkaar bekijken',
+        'Save as HTML File…': 'Opslaan als HTML-bestand…',
     },
 };

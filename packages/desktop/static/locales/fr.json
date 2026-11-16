@@ -956,6 +956,36 @@
       "languageMissing": "Langue du correcteur manquante {languageCode}",
       "switchError": "Erreur de changement du correcteur pour {languageCode}, {error}",
       "title": "Vérification orthographique"
+    },
+    "htmlFile": {
+      "cannotOpen": "Impossible d’ouvrir le fichier HTML",
+      "tooLarge": "Le fichier HTML est trop volumineux ({size}) ; la limite est de 32 Mo",
+      "saveAsTitle": "Enregistrer en fichier HTML",
+      "saved": "{name} enregistré",
+      "saveFailed": "Échec de l’enregistrement du fichier HTML",
+      "missed": "{count} ressources locales n'ont pas été intégrées ({reasons}) ; la page peut être incomplète",
+      "exportHeavy": "Le HTML volumineux ({size}) n’est pas rendu à l’export ; voir le fichier .html correspondant."
+    },
+    "htmlTab": {
+      "readOnly": "Page HTML en lecture seule",
+      "changedOnDisk": "{name} a été modifié sur le disque. Recharger ?",
+      "removedOnDisk": "{name} a été supprimé du disque ; le dernier contenu chargé reste affiché",
+      "reload": "Recharger",
+      "openExternal": "Ouvrir dans le navigateur",
+      "showInFolder": "Afficher dans le dossier",
+      "turboTitle": "Le mode turbo n’affiche pas les pages web",
+      "turboHint": "Désactivez le mode turbo dans Paramètres → Général pour afficher la page ici, ou ouvrez-la dans votre navigateur.",
+      "zoomIn": "Zoom avant",
+      "zoomOut": "Zoom arrière",
+      "zoomReset": "Réinitialiser le zoom",
+      "snapshotOf": "Instantané d’un bloc HTML de {name} (lecture seule)"
+    },
+    "htmlInline": {
+      "outside": "{count} hors du dossier du fichier HTML",
+      "missing": "{count} introuvables",
+      "tooLarge": "{count} au-delà de la taille maximale",
+      "unreadable": "{count} illisibles",
+      "separator": ", "
     }
   }
 }

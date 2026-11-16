@@ -110,5 +110,13 @@ export const zhCN = {
         'Input Front Matter...': '输入页眉...',
         'Invalid Mathematical Formula': '数学公式错误',
         'Empty Mathematical Formula': '空数学公式',
+        // heavy html block
+        'Large HTML is not rendered inline': '大体积 HTML，未在文档内渲染',
+        'Longest line': '最长行',
+        'characters': '字符',
+        'Contains scripts': '含脚本',
+        'Inline rendering is for lightweight HTML such as charts. Save full-page prototypes as .html files and review them side by side.': '文档内只渲染轻量 HTML（如图表）。整页原型请另存为 .html 文件，与文档左右对照评审。',
+        'Open Side by Side': '并列查看',
+        'Save as HTML File…': '另存为 .html 文件…',
     },
 };

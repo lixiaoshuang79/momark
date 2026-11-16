@@ -164,6 +164,29 @@ export const isImageFile = (filepath: string): boolean => {
   return !!ext && IMAGE_EXTENSIONS.includes(ext) && isFile(filepath)
 }
 
+/** 墨记能打开的本地 HTML（作为只读文档标签，以沙箱帧渲染）。 */
+export const HTML_EXTENSIONS: readonly string[] = Object.freeze(['html', 'htm'])
+
+export const hasHtmlExtension = (filename: string): boolean => {
+  if (!filename || typeof filename !== 'string') return false
+  const lower = filename.toLowerCase()
+  return HTML_EXTENSIONS.some((ext) => lower.endsWith(`.${ext}`))
+}
+
+/**
+ * 普通文件且扩展名是 .html / .htm；符号链接按最终目标判断（目标也得是 .html / .htm），
+ * 否则 `notes.html -> ./deploy` 会被当成网页交给 `shell.openPath` 直接运行。
+ */
+export const isHtmlFile = (filepath: string): boolean => {
+  if (!hasHtmlExtension(filepath)) return false
+  try {
+    const target = fs.realpathSync(filepath)
+    return hasHtmlExtension(target) && fs.statSync(target).isFile()
+  } catch {
+    return false
+  }
+}
+
 /**
  * Returns true if the path is a markdown file or symbolic link to one.
  */

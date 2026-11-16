@@ -14,10 +14,10 @@ export default [
         icon: DeleteIcon,
     },
     {
-        // HTML blocks only (the math block toolbar filters it out): renders
-        // the embedded page in the right side panel.
-        type: 'open-sidebar',
-        tooltip: 'open in side panel',
+        // HTML blocks only (the math block toolbar filters it out): opens the
+        // embedded page side by side with the document.
+        type: 'open-side-by-side',
+        tooltip: 'open side by side',
         icon: SidebarIcon,
     },
 ];

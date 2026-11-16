@@ -223,6 +223,7 @@ const fileUtilsAPI = {
   outputFile: (p: string, data: string | Uint8Array) => invoke('mt::fs::output-file', p, data),
   move: (src: string, dest: string) => invoke('mt::fs::move', src, dest),
   stat: (p: string) => invoke('mt::fs::stat', p),
+  realpath: (p: string) => invoke('mt::fs::realpath', p),
   writeFile: (p: string, data: string | Uint8Array) => invoke('mt::fs::write-file', p, data),
   readFile: (p: string, encoding?: string) => invoke('mt::fs::read-file', p, encoding),
   pathExists: (p: string) => invoke('mt::fs::path-exists', p),

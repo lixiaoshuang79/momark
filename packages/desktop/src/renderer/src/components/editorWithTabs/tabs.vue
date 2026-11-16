@@ -22,15 +22,15 @@
         :key="file.id"
         class="tab"
         :class="{ active: currentFile?.id === file.id, dirty: !file.isSaved }"
-        :title="file.pathname"
+        :title="tabTooltip(file)"
         :data-id="file.id"
         @click.stop="selectFile(file)"
         @click.middle="closeTab(file.id)"
         @contextmenu.prevent="handleContextMenu($event, file)"
       >
         <span class="tname">
-          <span class="tn" :data-label="file.filename">
-            <span class="tn-text">{{ file.filename }}</span>
+          <span class="tn" :data-label="tabLabels.get(file.id) ?? file.filename">
+            <span class="tn-text">{{ tabLabels.get(file.id) ?? file.filename }}</span>
           </span>
           <span class="dot" />
         </span>
@@ -68,8 +68,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/store/editor'
+import { useHtmlTabsStore } from '@/store/htmlTabs'
 import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
@@ -84,6 +85,7 @@ import { useSplitStore } from '@/store/split'
 import { useWorkspaceStore } from '@/store/workspace'
 import BpModes from '@/components/browserPanel/bpModes.vue'
 import { motionReduced } from '@/util/motion'
+import { getTabLabels } from '@/util/tabLabels'
 // 正文整屏滑出/滑入动效的全局样式（类名挂在兄弟组件的根节点上，
 // scoped 样式无法命中，必须全局注入）。
 import './transitions.css'
@@ -98,6 +100,15 @@ const { currentFile, tabs } = storeToRefs(editorStore)
 const { showSideBar } = storeToRefs(layoutStore)
 const { open: bpanelOpen } = storeToRefs(bpStore)
 const { visibleTabs, scene } = storeToRefs(workspaceStore)
+
+const tabLabels = computed(() => getTabLabels(visibleTabs.value))
+const htmlTabsStore = useHtmlTabsStore()
+const tabTooltip = (file: IFileState): string => {
+  if (file.kind !== 'html') return file.pathname
+  if (file.pathname) return `${file.pathname}\n${t('editor.htmlTab.readOnly')}`
+  const origin = htmlTabsStore.sources.get(file.id)?.origin
+  return origin ? t('editor.htmlTab.snapshotOf', { name: origin }) : t('editor.htmlTab.readOnly')
+}
 
 interface AutoScroller {
   readonly down: boolean

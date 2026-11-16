@@ -12,10 +12,13 @@ import {
 import log from 'electron-log'
 import { isDirectory, isFile, exists } from 'common/filesystem'
 import {
+  HTML_EXTENSIONS,
   MARKDOWN_EXTENSIONS,
   ensureMarkdownExtension,
+  hasHtmlExtension,
   isDangerousExecutableFile,
   isExecutableFile,
+  isHtmlFile,
   isMarkdownFile,
   stripMarkdownExtension
 } from 'common/filesystem/paths'
@@ -26,11 +29,12 @@ import { COMMANDS } from '../../commands'
 import type { CommandManager } from '../../commands'
 import { EXTENSION_HASN, PANDOC_EXTENSIONS, URL_REG } from '../../config'
 import { normalizeAndResolvePath, writeFile } from '../../filesystem'
+import { readHtmlFileOrNotify, saveHtmlFile } from '../../filesystem/htmlFile'
 import { writeMarkdownFile } from '../../filesystem/markdown'
 import { getPath, getRecommendTitleFromMarkdownString } from '../../utils'
 import pandoc from '../../utils/pandoc'
 import { t } from '../../i18n'
-import type { UnsavedFile } from '@shared/types/files'
+import type { HtmlFileDocument, UnsavedFile } from '@shared/types/files'
 
 type Win = BrowserWindow | null | undefined
 
@@ -684,7 +688,7 @@ ipcMain.on('mt::window::drop', async (e, fileList: string[]) => {
     return
   }
   for (const file of fileList) {
-    if (isMarkdownFile(file)) {
+    if (isMarkdownFile(file) || isHtmlFile(file)) {
       openFileOrFolder(win, file)
       continue
     }
@@ -844,7 +848,7 @@ ipcMain.on('mt::format-link-click', async (e, { data, dirname }: FormatLinkPaylo
   if (pathname) {
     // decodeURIComponent() CommonMark #503, allow percent encoded path names to open files. https://github.com/marktext/marktext/issues/57
     pathname = path.normalize(decodeURIComponent(pathname))
-    if (isMarkdownFile(pathname)) {
+    if (isMarkdownFile(pathname) || isHtmlFile(pathname)) {
       const innerWin = BrowserWindow.fromWebContents(e.sender)
       if (innerWin) {
         openFileOrFolder(innerWin, pathname)
@@ -872,6 +876,77 @@ ipcMain.on('mt::format-link-click', async (e, { data, dirname }: FormatLinkPaylo
       shell.openPath(pathname)
     }
   }
+})
+
+// --- local HTML (side-by-side review) -------------
+
+interface HtmlSaveAsPayload {
+  html: string
+  title: string
+  docPathname: string | null
+}
+
+const sanitizeFileStem = (name: string): string =>
+  name
+    .replace(/[\\/:*?"<>|\n\r\t]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
+
+// 重量 HTML 块「另存为 .html」：默认存到文档同目录，文件名取页面标题；写完把写入的
+// 内容交给渲染层作为标签打开（文档本身不改，用户可自行把块换成指向该文件的链接）。
+ipcMain.handle(
+  'mt::html::save-as',
+  async (e, payload: HtmlSaveAsPayload): Promise<HtmlFileDocument | null> => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (!win || !payload || typeof payload.html !== 'string') {
+      return null
+    }
+    const docDir = payload.docPathname ? path.dirname(payload.docPathname) : getPath('documents')
+    const stem =
+      sanitizeFileStem(payload.title || '') ||
+      (payload.docPathname
+        ? stripMarkdownExtension(path.basename(payload.docPathname))
+        : 'prototype')
+    const { filePath, canceled } = await dialog.showSaveDialog(win, {
+      title: t('editor.htmlFile.saveAsTitle'),
+      defaultPath: path.join(docDir, `${stem}.html`),
+      filters: [{ name: 'HTML', extensions: [...HTML_EXTENSIONS] }]
+    })
+    if (canceled || !filePath) {
+      return null
+    }
+    const target = hasHtmlExtension(filePath) ? filePath : `${filePath}.html`
+    try {
+      return await saveHtmlFile(target, payload.html)
+    } catch (err) {
+      log.error('[html-file] save as failed:', err)
+      win.webContents.send('mt::show-notification', {
+        title: t('editor.htmlFile.saveFailed'),
+        type: 'error',
+        message: err instanceof Error ? err.message : String(err)
+      })
+      return null
+    }
+  }
+)
+
+// html 标签「重新载入」/ 粘贴 .html 内嵌：按路径读盘（只放行真实存在的 .html）。
+ipcMain.handle('mt::html::read', async (e, pathname: string): Promise<HtmlFileDocument | null> => {
+  if (typeof pathname !== 'string' || !isHtmlFile(pathname)) {
+    return null
+  }
+  return readHtmlFileOrNotify(BrowserWindow.fromWebContents(e.sender), pathname)
+})
+
+// html 标签「在浏览器打开」：只放行真实存在的 .html。
+ipcMain.on('mt::html::open-externally', (_e, pathname: string) => {
+  if (typeof pathname !== 'string' || !isHtmlFile(pathname)) {
+    return
+  }
+  shell.openPath(pathname).then((error) => {
+    if (error) log.error('[html-file] open externally failed:', error)
+  })
 })
 
 // --- commands -------------------------------------
@@ -952,8 +1027,8 @@ export const openFile = async (win: BrowserWindow | null): Promise<void> => {
     properties: ['openFile', 'multiSelections'],
     filters: [
       {
-        name: 'Markdown document',
-        extensions: [...MARKDOWN_EXTENSIONS]
+        name: 'Markdown / HTML',
+        extensions: [...MARKDOWN_EXTENSIONS, ...HTML_EXTENSIONS]
       }
     ]
   })

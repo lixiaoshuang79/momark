@@ -956,6 +956,36 @@
       "languageMissing": "Yazım denetimi dili eksik {languageCode}",
       "switchError": "{languageCode} için yazım denetimi değiştirme hatası, {error}",
       "title": "Yazım Denetimi"
+    },
+    "htmlFile": {
+      "cannotOpen": "HTML dosyası açılamıyor",
+      "tooLarge": "HTML dosyası çok büyük ({size}); sınır 32 MB",
+      "saveAsTitle": "HTML dosyası olarak kaydet",
+      "saved": "{name} kaydedildi",
+      "saveFailed": "HTML dosyası kaydedilemedi",
+      "missed": "{count} yerel kaynak gömülemedi ({reasons}); sayfa eksik görünebilir",
+      "exportHeavy": "Büyük HTML ({size}) dışa aktarmada işlenmez; ilgili .html dosyasına bakın."
+    },
+    "htmlTab": {
+      "readOnly": "Salt okunur HTML sayfası",
+      "changedOnDisk": "{name} diskte değişti. Yeniden yüklensin mi?",
+      "removedOnDisk": "{name} diskten silindi; son yüklenen içerik gösteriliyor",
+      "reload": "Yeniden yükle",
+      "openExternal": "Tarayıcıda aç",
+      "showInFolder": "Klasörde göster",
+      "turboTitle": "Turbo modu web sayfalarını işlemez",
+      "turboHint": "Sayfayı burada görmek için Ayarlar → Genel bölümünden turbo modunu kapatın veya tarayıcıda açın.",
+      "zoomIn": "Yakınlaştır",
+      "zoomOut": "Uzaklaştır",
+      "zoomReset": "Yakınlaştırmayı sıfırla",
+      "snapshotOf": "{name} içindeki bir HTML bloğunun anlık görüntüsü (salt okunur)"
+    },
+    "htmlInline": {
+      "outside": "HTML dosyasının klasörü dışında {count}",
+      "missing": "bulunamayan {count}",
+      "tooLarge": "boyut sınırını aşan {count}",
+      "unreadable": "okunamayan {count}",
+      "separator": ", "
     }
   }
 }

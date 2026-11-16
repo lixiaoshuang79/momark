@@ -6,14 +6,17 @@
     <!-- 标签栏 + 面包屑已上移到 app.vue 的 .win-body 之上（PHASE2-SPEC §1：
          全宽行；主体三栏从面包屑行之下开始）。本组件只负责编辑内容区。 -->
     <div class="container">
+      <!-- html 标签不进引擎：编辑器只隐藏不卸载，切回 md 时引擎与其状态都还在。 -->
       <editor
+        v-show="!htmlTabId"
         :markdown="markdown"
         :cursor="cursor"
         :text-direction="textDirection"
         :platform="platform"
       />
+      <html-tab-view v-if="htmlTabId" :tab-id="htmlTabId" />
       <source-code
-        v-if="sourceCode"
+        v-if="sourceCode && !htmlTabId"
         :markdown="markdown"
         :muya-index-cursor="muyaIndexCursor"
         :text-direction="textDirection"
@@ -24,11 +27,15 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
+import { isHtmlTab } from '@/store/help'
 import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
 import TabNotifications from './notifications.vue'
+import HtmlTabView from '../htmlTab/HtmlTabView.vue'
 
 defineProps<{
   markdown: string
@@ -44,6 +51,10 @@ defineProps<{
 
 const layoutStore = useLayoutStore()
 const { effectiveSideBarWidth } = storeToRefs(layoutStore)
+const editorStore = useEditorStore()
+const htmlTabId = computed(() =>
+  isHtmlTab(editorStore.currentFile) ? editorStore.currentFile!.id : null
+)
 </script>
 
 <style scoped>

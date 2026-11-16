@@ -110,5 +110,13 @@ export const fr = {
         'Input Front Matter...': 'Saisir le Front Matter...',
         'Invalid Mathematical Formula': 'Formule mathématique invalide',
         'Empty Mathematical Formula': 'Formule mathématique vide',
+        // heavy html block
+        'Large HTML is not rendered inline': 'Le HTML volumineux n’est pas affiché en ligne',
+        'Longest line': 'Ligne la plus longue',
+        'characters': 'caractères',
+        'Contains scripts': 'Contient des scripts',
+        'Inline rendering is for lightweight HTML such as charts. Save full-page prototypes as .html files and review them side by side.': 'Seul le HTML léger (graphiques, etc.) est affiché en ligne. Enregistrez les prototypes pleine page en fichiers .html et comparez-les côte à côte.',
+        'Open Side by Side': 'Afficher côte à côte',
+        'Save as HTML File…': 'Enregistrer en fichier HTML…',
     },
 };

@@ -1,6 +1,12 @@
 import type { IHtmlFrameTarget, Muya } from '@muyajs/core'
-import { collectHtmlFrameTargets, findHtmlBlockSpans } from '@muyajs/core'
+import {
+  collectHtmlFrameTargets,
+  findHtmlBlockSpans,
+  formatHtmlSize,
+  isHeavyHtml
+} from '@muyajs/core'
 import log from 'electron-log'
+import { t } from '../i18n'
 import { buildLiveFrame, buildLivePlaceholder, LIVE_FRAME_CLASS_PREFIX } from './exportLiveFrame'
 
 // 导出前，把「带沙箱帧的内嵌 HTML 块」换成它在导出物里的样子。
@@ -80,9 +86,35 @@ const rasterizeAll = async (
   return failed ? null : dataUrls
 }
 
+/** 大体积 HTML 块在 PDF / 打印 / docx 里的占位（编辑器里也只显示降级卡片，没有帧可截）。 */
+const buildHeavyNote = (html: string): string =>
+  '<div style="padding:12px 16px;border:1px dashed #b8b8b8;border-radius:6px;color:#666;' +
+  'font-size:13px;break-inside:avoid">' +
+  escapeText(t('editor.htmlFile.exportHeavy', { size: formatHtmlSize(html) })) +
+  '</div>'
+
+const TEXT_ENTITIES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;'
+}
+const escapeText = (text: string): string =>
+  text.replace(/[&<>"]/g, (ch) => TEXT_ENTITIES[ch] ?? ch)
+
+/** 大体积脚本块在 HTML 导出里的高度：编辑器里没有帧，没有显示尺寸可照搬。 */
+const HEAVY_LIVE_HEIGHT = 800
+
 /**
  * 返回可直接交给导出渲染的 markdown，以及 live 形态要注入的 iframe 片段。
- * 任何一步对不上（帧与源码数量不符、截图失败）都宁可原样导出，绝不猜。
+ *
+ * 两类块分开处理：
+ *   · 轻量脚本块：编辑器里挂着帧，按帧的显示尺寸截图 / 转活帧。帧与源码数量对不上、
+ *     截图失败时这部分宁可原样导出，绝不猜。
+ *   · 大体积脚本块（`isHeavyHtml`，编辑器里只显示降级卡片、没有帧）：HTML 导出照样
+ *     保留成活帧（源码进 srcdoc，跟随页面宽度）；PDF / 打印 / docx 换成一行说明，
+ *     不把几 MB 的源码当静态 HTML 塞进纸面。
+ *   不含脚本的大块原样导出（静态 HTML，与改动前一致）。
  */
 export const inlineFramedHtmlBlocks = async (
   muya: Muya,
@@ -91,46 +123,72 @@ export const inlineFramedHtmlBlocks = async (
 ): Promise<IInlineHtmlBlocksResult> => {
   const unchanged: IInlineHtmlBlocksResult = { markdown, frames: [] }
   const targets = collectHtmlFrameTargets(muya?.domNode)
-  if (!targets.length) return unchanged
-
-  // 只有块内含脚本的块才在编辑器里挂了帧；按同一条件筛源码，顺序即文档顺序。
   const spans = findHtmlBlockSpans(markdown).filter((span) => SCRIPT_TAG_REG.test(span.text))
-  if (spans.length !== targets.length) {
-    log.warn(
-      `[export] 内嵌 HTML 块数量对不上（帧 ${targets.length} / 源码 ${spans.length}），本块按原样导出`
-    )
-    return unchanged
-  }
+  if (!targets.length && !spans.length) return unchanged
 
-  const replacements: string[] = []
+  // 只有轻量脚本块在编辑器里挂了帧；按同一条件筛源码，顺序即文档顺序。
+  const heavy = spans.map((span) => isHeavyHtml(span.text))
+  const framed = spans.filter((_, index) => !heavy[index])
+  const replacements = new Map<number, string>()
   const frames: string[] = []
 
-  if (options.live) {
-    // 活的：不需要截图，源码直接进 srcdoc。
-    targets.forEach((target, index) => {
-      replacements.push(buildLivePlaceholder(index, target.width, target.height, target.auto))
-      frames.push(buildLiveFrame(target.html))
-    })
-  } else {
+  let framedReplacements: string[] | null = null
+  if (framed.length !== targets.length) {
+    log.warn(
+      `[export] 内嵌 HTML 块数量对不上（帧 ${targets.length} / 源码 ${framed.length}），本块按原样导出`
+    )
+  } else if (targets.length && options.live) {
+    framedReplacements = []
+  } else if (targets.length) {
     const shellUrl = new URL('html-frame.html', document.baseURI).href
     const dataUrls = await rasterizeAll(targets, shellUrl)
-    if (!dataUrls) {
+    if (dataUrls) {
+      // 用编辑器里的显示尺寸展示：导出物看到的和屏幕上一样大。
+      framedReplacements = targets.map((target, index) =>
+        buildImageBlock(target.width, dataUrls[index])
+      )
+    } else {
       log.warn('[export] 内嵌 HTML 块截图失败，本块按原样导出')
-      return unchanged
     }
-
-    // 用编辑器里的显示尺寸展示：导出物看到的和屏幕上一样大。
-    targets.forEach((target, index) => {
-      replacements.push(buildImageBlock(target.width, dataUrls[index]))
-    })
   }
+
+  let framedIndex = 0
+  spans.forEach((span, index) => {
+    if (heavy[index]) {
+      if (options.live) {
+        replacements.set(index, buildLivePlaceholder(frames.length, 0, HEAVY_LIVE_HEIGHT, true))
+        frames.push(buildLiveFrame(span.text))
+      } else {
+        replacements.set(index, buildHeavyNote(span.text))
+      }
+      return
+    }
+    const target = targets[framedIndex]
+    const image = framedReplacements?.[framedIndex]
+    framedIndex++
+    if (!framedReplacements) return
+    if (options.live) {
+      // 活的：不需要截图，源码直接进 srcdoc。
+      replacements.set(
+        index,
+        buildLivePlaceholder(frames.length, target.width, target.height, target.auto)
+      )
+      frames.push(buildLiveFrame(target.html))
+    } else if (image) {
+      replacements.set(index, image)
+    }
+  })
+
+  if (!replacements.size) return unchanged
 
   const lines = markdown.split('\n')
   const kept: string[] = []
   let cursor = 0
 
   spans.forEach((span, index) => {
-    kept.push(...lines.slice(cursor, span.start), replacements[index], '')
+    const replacement = replacements.get(index)
+    if (replacement === undefined) return
+    kept.push(...lines.slice(cursor, span.start), replacement, '')
     cursor = span.blankTerminated ? span.end + 1 : span.end
   })
   kept.push(...lines.slice(cursor))

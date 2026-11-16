@@ -149,6 +149,8 @@ import { storeToRefs } from 'pinia'
 import { minimizePath, restorePath, maximizePath, closePath } from '../../assets/window-controls.js'
 import { isOsx as isOsxPlatform } from '@/util'
 import { shouldShowInAppTitleBar } from './visibility'
+import { getTabLabels } from '@/util/tabLabels'
+import { isHtmlTab } from '@/store/help'
 import { t } from '../../i18n'
 import bus from '../../bus'
 import MoIcon from '@/components/icons/MoIcon.vue'
@@ -236,18 +238,19 @@ const compactPathLabel = (pathname: string): string => {
 // 无独立预览文档路径）。round9：与左侧共用 collapsed——完整态显示缩略路径。
 // feat/annotations：标注 tab 激活时整段隐藏——此时右栏显示的不是文档，
 // 顶栏挂一个「文档名 + ×」会让 × 被误解成「关闭标注」（方案 §3.6）。
+const tabLabels = computed(() => getTabLabels(editorStore.tabs))
+
 const rightDocName = computed(() => {
   if (bpStore.activeTab === 'annotation') return ''
   if (splitStore.active) {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     if (!tab) return ''
-    // 未落盘文档（新建 Untitled.md，pathname 为空）直接显示文件名——
+    // 未落盘文档（新建 Untitled.md、内嵌块快照，pathname 为空）显示标签名——
     // compactPathLabel('') 返回空串会让顶栏右文档名消失。
-    if (!tab.pathname) return tab.filename
-    return collapsed.value ? tab.filename : compactPathLabel(tab.pathname)
+    const label = tabLabels.value.get(tab.id) ?? tab.filename
+    if (!tab.pathname) return label
+    return collapsed.value ? label : compactPathLabel(tab.pathname)
   }
-  // HTML 渲染页（编辑器内嵌 html「在侧栏打开」）：右文档名槽位显示页面标题。
-  if (bpStore.htmlDoc) return bpStore.htmlDoc.title
   return ''
 })
 
@@ -257,7 +260,6 @@ const rightDocTitle = computed(() => {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     return tab?.pathname ?? rightDocName.value
   }
-  if (bpStore.htmlDoc) return bpStore.htmlDoc.src
   return ''
 })
 
@@ -285,14 +287,8 @@ const onRightDragEnd = () => {
   bus.emit('split:return-drag-end')
 }
 
-// × 关闭右栏：分屏 = 文档回左侧标签集合；HTML 渲染页 = 直接关掉整个
-// 右侧栏（round26 用户拍板：不落「空白文档」态）。
+// × 关闭右栏：分屏 = 文档回左侧标签集合。
 const closeRightDoc = () => {
-  if (bpStore.htmlDoc) {
-    bpStore.CLOSE_HTML_DOC()
-    bpStore.SET_OPEN(false)
-    return
-  }
   if (splitStore.active) {
     splitStore.RETURN_SPLIT_TO_TABS()
   }
@@ -420,6 +416,7 @@ const baseNameWithoutExt = (name: string): string => {
 
 const startRename = () => {
   if (props.platform !== 'darwin') return
+  if (isHtmlTab(editorStore.currentFile)) return
   if (!props.pathname) {
     rename()
     return
@@ -470,7 +467,7 @@ const revealRightDocInFinder = () => {
 const renameRightDoc = () => {
   if (props.platform !== 'darwin' || !splitStore.active) return
   const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
-  if (tab) {
+  if (tab && !isHtmlTab(tab)) {
     editorStore.RENAME_FILE(tab)
   }
 }

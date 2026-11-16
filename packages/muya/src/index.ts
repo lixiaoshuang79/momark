@@ -33,6 +33,15 @@ export type { IHtmlBlockSpan } from './utils/htmlBlock';
 export { findHtmlBlockSpans } from './utils/htmlBlock';
 export type { IHtmlFrameTarget } from './utils/htmlFrameTargets';
 export { collectHtmlFrameTargets } from './utils/htmlFrameTargets';
+export type { IHtmlWeight, THtmlHeavyReason } from './utils/htmlWeight';
+export {
+    classifyHtmlWeight,
+    extractHtmlTitle,
+    formatHtmlSize,
+    HTML_LITE_MAX_CHARS,
+    HTML_LITE_MAX_LINE,
+    isHeavyHtml,
+} from './utils/htmlWeight';
 export type { IImageInfo } from './utils/image';
 export { getImageInfo } from './utils/image';
 export { escapeHTML, sanitize, unescapeHTML, wordCount } from './utils/index';

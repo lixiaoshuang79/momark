@@ -5,7 +5,7 @@ import iconv from 'iconv-lite'
 import { getEncodingName } from 'common/encoding'
 import { LINE_ENDING_REG, LF_LINE_ENDING_REG, CRLF_LINE_ENDING_REG } from '../config'
 import { isDirectory2 } from 'common/filesystem'
-import { isMarkdownFile } from 'common/filesystem/paths'
+import { isHtmlFile, isMarkdownFile } from 'common/filesystem/paths'
 import { normalizeAndResolvePath, writeFile } from '../filesystem'
 import { guessEncoding, encodeLosslessly } from './encoding'
 import type { Encoding } from 'common/encoding'
@@ -45,15 +45,15 @@ const convertLineEndings = (text: string, lineEnding: LineEnding): string => {
 }
 
 /**
- * Special function to normalize directory and markdown file paths.
- * Returns the normalized path and a directory hint, or null if it's not a
- * directory or markdown file.
+ * Normalize a path the editor can open: a directory, a markdown file, or a
+ * local HTML file (opened as a read-only tab). Returns the normalized path and
+ * a directory hint, or null for anything else.
  */
-export const normalizeMarkdownPath = (
+export const normalizeDocumentPath = (
   pathname: string
 ): { isDir: boolean; path: string } | null => {
   const isDir = isDirectory2(pathname)
-  if (isDir || isMarkdownFile(pathname)) {
+  if (isDir || isMarkdownFile(pathname) || isHtmlFile(pathname)) {
     const resolved = normalizeAndResolvePath(pathname)
     if (resolved) {
       return { isDir, path: resolved }

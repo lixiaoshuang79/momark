@@ -110,5 +110,13 @@ export const tr = {
         'Input Front Matter...': 'Ön Bilgiyi girin...',
         'Invalid Mathematical Formula': 'Geçersiz Matematiksel Formül',
         'Empty Mathematical Formula': 'Boş Matematiksel Formül',
+        // heavy html block
+        'Large HTML is not rendered inline': 'Büyük HTML belge içinde gösterilmez',
+        'Longest line': 'En uzun satır',
+        'characters': 'karakter',
+        'Contains scripts': 'Betik içerir',
+        'Inline rendering is for lightweight HTML such as charts. Save full-page prototypes as .html files and review them side by side.': 'Belge içinde yalnızca grafik gibi hafif HTML gösterilir. Tam sayfa prototipleri .html dosyası olarak kaydedip yan yana inceleyin.',
+        'Open Side by Side': 'Yan yana görüntüle',
+        'Save as HTML File…': 'HTML dosyası olarak kaydet…',
     },
 };

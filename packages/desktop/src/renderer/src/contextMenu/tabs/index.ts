@@ -33,6 +33,7 @@ interface ContextMenuClickEvent {
 
 interface TabLike {
   id: string
+  kind?: string
   pathname?: string | null
 }
 
@@ -49,6 +50,8 @@ export const showContextMenu = (event: ContextMenuClickEvent, tab: TabLike): voi
   ;([rename, copyPath, showInFolder] as MenuItemShape[]).forEach((item) => {
     item.enabled = !!pathname
   })
+  // html 标签只读，不提供改名。
+  if (tab.kind === 'html') (rename as MenuItemShape).enabled = false
 
   const items = [
     closeThis,

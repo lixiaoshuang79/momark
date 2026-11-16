@@ -80,7 +80,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   const deviceMode = ref<'pc' | 'mobile'>('pc')
 
   // 极速模式（偏好 turboMode）：网页模式整体停用——不建任何 <webview>、不进网页
-  // 模式、不开侧栏 HTML 渲染页。文档分屏与标注 tab 不受影响。
+  // 模式。文档分屏与标注 tab 不受影响。
   const preferencesStore = usePreferencesStore()
   const turboMode = computed(() => preferencesStore.turboMode === true)
 
@@ -268,35 +268,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     SHOW_ZOOM_HINT(page.fitWidth ? '适应宽度' : '适应宽度 · 关')
   }
 
-  // ── 文档模式的 HTML 渲染页 ────────────────────────────────────────────
-  // 编辑器内嵌 HTML 块的工具条「在侧栏打开」落点：右栏文档模式下以
-  // sandbox iframe（与编辑器内嵌同一隔离等级，不透明源）渲染该页面。
-  // 与分屏 md 文档互斥（docMode 内容区同一时刻只显示一种内容），
-  // 打开/新建文档时由 docMode 清空。
-  interface HtmlDocView {
-    src: string
-    title: string
-    // 块源码：侧栏 iframe 与编辑器内嵌用的是同一个引导页空壳，必须由父窗口
-    // 投递源码（协议另一端在 src/renderer/public/html-frame.html）。
-    html?: string
-  }
-
-  const htmlDoc = ref<HtmlDocView | null>(null)
-
-  function OPEN_HTML_DOC(src: string, title: string, html = ''): void {
-    if (turboMode.value) return
-    SET_OPEN(true)
-    // 用户显式要看页面 → 优先满足：自动离开标注 tab（标注数据不受影响，
-    // 切回标注 tab 即原样恢复）。
-    annotationsTab.value = false
-    SET_MODE('doc')
-    htmlDoc.value = { src, title, html }
-  }
-
-  function CLOSE_HTML_DOC(): void {
-    htmlDoc.value = null
-  }
-
   function SET_DRAG_STATE(value: BpDragState): void {
     dragState.value = value
   }
@@ -321,23 +292,19 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   }
 
   // 进入极速模式：关掉全部网页（页面数组清空 → 对应 <webview> 随之卸载，guest
-  // 由主进程 closePage 关闭）和侧栏 HTML 渲染页。面板正在展示的正是这些内容时：
+  // 由主进程 closePage 关闭）。面板正在展示的正是网页时：
   // 有分屏文档就落回文档模式（URL 分屏降级为文档分屏），没有就收起面板，免得
   // 留一个用户没要过的「最近文档」空态。标注 tab 叠在上面时只把底层模式换成文档。
   // 退出极速模式不做任何恢复：已关掉的网页不自动重开。
   function DROP_WEB_CONTENT(): void {
     const splitStore = useSplitStore()
-    const showingDropped =
-      open.value &&
-      !annotationsTab.value &&
-      (mode.value === 'url' || (htmlDoc.value !== null && !splitStore.active))
+    const showingDropped = open.value && !annotationsTab.value && mode.value === 'url'
 
     for (const page of urlPages.value) window.bp.closePage(page.id)
     urlPages.value = []
     activePageId.value = null
     dockAddrOpen.value = false
     zoomHint.value = null
-    htmlDoc.value = null
 
     if (mode.value === 'url') SET_MODE('doc')
     if (showingDropped && !splitStore.active) SET_OPEN(false)
@@ -419,7 +386,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     dockAddrOpen,
     dragState,
     urlWidth,
-    htmlDoc,
     deviceMode,
     turboMode,
     SET_OPEN,
@@ -439,8 +405,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     zoomHint,
     SET_DRAG_STATE,
     SET_URL_WIDTH,
-    OPEN_HTML_DOC,
-    CLOSE_HTML_DOC,
     OPEN_EXTERNAL,
     OPEN_LINK,
     DROP_WEB_CONTENT,

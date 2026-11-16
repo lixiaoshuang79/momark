@@ -3,6 +3,7 @@ import type { IHtmlBlockState, IHtmlFrameMeta } from '../../../state/types';
 import type { TBlockPath } from '../../types';
 import { CLASS_NAMES } from '../../../config';
 import { asDoc } from '../../../state';
+import { isHeavyHtml } from '../../../utils/htmlWeight';
 import Parent from '../../base/parent';
 import { ScrollPage } from '../../scrollPage';
 
@@ -45,9 +46,21 @@ class HTMLBlock extends Parent {
         const { disableHtml } = muya.options;
         if (disableHtml)
             this.classList.push(CLASS_NAMES.MU_DISABLE_HTML_RENDER);
+        if (state && isHeavyHtml(state.text))
+            this.classList.push(CLASS_NAMES.MU_HTML_HEAVY);
 
         this._frameMeta = { ...state?.meta };
         this.createDomNode();
+    }
+
+    /** 重量标记（未激活时隐藏源码视图，见 blockSyntax.css）；源码被编辑跨过阈值时由预览同步。 */
+    setHeavy(heavy: boolean) {
+        const cls = CLASS_NAMES.MU_HTML_HEAVY;
+
+        this.classList = this.classList.filter(name => name !== cls);
+        if (heavy)
+            this.classList.push(cls);
+        this.domNode?.classList.toggle(cls, heavy);
     }
 
     /**

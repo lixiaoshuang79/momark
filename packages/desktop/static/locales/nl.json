@@ -955,6 +955,36 @@
       "languageMissing": "Spellingcontroletaal ontbreekt {languageCode}",
       "switchError": "Spellingcontrole wisselfout voor {languageCode}, {error}",
       "title": "Spellingcontrole"
+    },
+    "htmlFile": {
+      "cannotOpen": "Kan HTML-bestand niet openen",
+      "tooLarge": "HTML-bestand is te groot ({size}); de limiet is 32 MB",
+      "saveAsTitle": "Opslaan als HTML-bestand",
+      "saved": "{name} opgeslagen",
+      "saveFailed": "Opslaan van HTML-bestand mislukt",
+      "missed": "{count} lokale bronnen zijn niet ingesloten ({reasons}); de pagina is mogelijk onvolledig",
+      "exportHeavy": "Grote HTML ({size}) wordt niet gerenderd bij exporteren; zie het bijbehorende .html-bestand."
+    },
+    "htmlTab": {
+      "readOnly": "Alleen-lezen HTML-pagina",
+      "changedOnDisk": "{name} is op schijf gewijzigd. Opnieuw laden?",
+      "removedOnDisk": "{name} is van schijf verwijderd; de laatst geladen inhoud wordt getoond",
+      "reload": "Opnieuw laden",
+      "openExternal": "Openen in browser",
+      "showInFolder": "Tonen in map",
+      "turboTitle": "Turbomodus geeft geen webpagina's weer",
+      "turboHint": "Schakel turbomodus uit via Instellingen → Algemeen om de pagina hier te bekijken, of open haar in je browser.",
+      "zoomIn": "Inzoomen",
+      "zoomOut": "Uitzoomen",
+      "zoomReset": "Zoom herstellen",
+      "snapshotOf": "Momentopname van een HTML-blok in {name} (alleen-lezen)"
+    },
+    "htmlInline": {
+      "outside": "{count} buiten de map van het HTML-bestand",
+      "missing": "{count} niet gevonden",
+      "tooLarge": "{count} boven de groottelimiet",
+      "unreadable": "{count} niet leesbaar",
+      "separator": ", "
     }
   }
 }

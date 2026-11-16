@@ -110,5 +110,13 @@ export const en = {
         'Input Front Matter...': 'Input Front Matter...',
         'Invalid Mathematical Formula': 'Invalid Mathematical Formula',
         'Empty Mathematical Formula': 'Empty Mathematical Formula',
+        // heavy html block
+        'Large HTML is not rendered inline': 'Large HTML is not rendered inline',
+        'Longest line': 'Longest line',
+        'characters': 'characters',
+        'Contains scripts': 'Contains scripts',
+        'Inline rendering is for lightweight HTML such as charts. Save full-page prototypes as .html files and review them side by side.': 'Inline rendering is for lightweight HTML such as charts. Save full-page prototypes as .html files and review them side by side.',
+        'Open Side by Side': 'Open Side by Side',
+        'Save as HTML File…': 'Save as HTML File…',
     },
 };
