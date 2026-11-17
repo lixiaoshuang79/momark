@@ -43,6 +43,9 @@ const defaultOptions = {
         alignmentAxis: 0,
     },
     showArrow: false,
+    // 卡片比选区宽得多，居中贴在贴近窗口边缘的选区上时会有一半伸到窗口外
+    // （用户实测）。留 8px 内边距把它夹回视口内。
+    shiftPadding: 8,
 };
 
 /** ⌥ 按住这么久之后浮出数字角标（原型 §3.2 #26）。 */

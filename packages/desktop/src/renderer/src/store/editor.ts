@@ -5,6 +5,7 @@ import { isSameToc } from '../util/tocKeys'
 import {
   createDocumentState,
   createHtmlDocumentState,
+  ensureHtmlExtension,
   getOptionsFromState,
   getBlankFileState,
   defaultFileState,
@@ -1601,7 +1602,7 @@ export const useEditorStore = defineStore('editor', {
 
       const state = createHtmlDocumentState({
         pathname,
-        filename: title || doc.filename || 'HTML'
+        filename: ensureHtmlExtension(title || doc.filename || 'HTML')
       })
       useHtmlTabsStore().SET_SOURCE(state.id, doc, origin)
 

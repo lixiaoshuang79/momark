@@ -245,11 +245,10 @@ const rightDocName = computed(() => {
   if (splitStore.active) {
     const tab = editorStore.tabs.find((item) => item.id === splitStore.tabId)
     if (!tab) return ''
-    // 未落盘文档（新建 Untitled.md、内嵌块快照，pathname 为空）显示标签名——
-    // compactPathLabel('') 返回空串会让顶栏右文档名消失。
-    const label = tabLabels.value.get(tab.id) ?? tab.filename
-    if (!tab.pathname) return label
-    return collapsed.value ? label : compactPathLabel(tab.pathname)
+    // 顶栏右半侧宽度有限：缩略路径会先被 CSS 截断，截掉的恰好是文件名和后缀
+    // （用户实测：只看到 `…/zhiyuantong/2026-10-23/xuexi-yali-ces…`）。这里固定
+    // 显示文件名（含 .md/.html 后缀），完整路径放 title 提示与双击重命名。
+    return tabLabels.value.get(tab.id) ?? tab.filename
   }
   return ''
 })

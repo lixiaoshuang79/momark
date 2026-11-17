@@ -96,7 +96,8 @@ describe('NEW_HTML_TAB', () => {
     const a = store.NEW_HTML_TAB({ doc: snap, selected: false, title: 'Demo', origin: 'prd.md' })
     const b = store.NEW_HTML_TAB({ doc: snap, selected: false, title: 'Demo', origin: 'prd.md' })
     expect(a).not.toBe(b)
-    expect(store.tabs.find((t) => t.id === a)?.filename).toBe('Demo')
+    // 快照标题来自页面 <title>，没有后缀；与同排的 .md 标签对齐，统一补 .html。
+    expect(store.tabs.find((t) => t.id === a)?.filename).toBe('Demo.html')
     expect(htmlTabs.SET_SOURCE).toHaveBeenCalledWith(a, snap, 'prd.md')
     expect(ipc.send).not.toHaveBeenCalledWith('mt::window-add-file-path', '')
   })
