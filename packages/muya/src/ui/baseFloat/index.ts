@@ -116,13 +116,26 @@ abstract class BaseFloat {
             }
         };
 
-        eventCenter.attachDOMEvent(document, 'click', this.hide.bind(this));
+        eventCenter.attachDOMEvent(document, 'click', () => {
+            // 浮层可以否决「点到别处就收起」：拖选收尾的 mouseup 会补发一次
+            // click，此时选区仍然有效，据此收起会把刚弹出的工具条吞掉。
+            if (this._hideOnDocumentClick())
+                this.hide();
+        });
         eventCenter.attachDOMEvent(floatBox!, 'click', (event) => {
             event.stopPropagation();
             event.preventDefault();
         });
         eventCenter.attachDOMEvent(domNode, 'keydown', keydownHandler);
         eventCenter.attachDOMEvent(findScrollContainer(domNode), 'scroll', scrollHandler);
+    }
+
+    /**
+     * 文档级 click 是否应该收起本浮层。默认收起；需要「点在选区上不算点到别处」
+     * 的浮层（格式工具条）用自己的选区状态否决。
+     */
+    protected _hideOnDocumentClick(): boolean {
+        return true;
     }
 
     hide() {
