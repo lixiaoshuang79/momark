@@ -230,6 +230,41 @@ describe('inlineFormatToolbar · cross-block channel', () => {
         expect(toolbar.container!.querySelector('li.item.strong')).toBeNull();
         // 单独一项没有可分组的对象，竖线不出现。
         expect(toolbar.container!.querySelector('li.divider')).toBeNull();
+
+        // 跨块态收成自适应宽度的胶囊，按钮图标旁带「标注」文字——固定 265px 宽
+        // 里只剩一枚图标会看起来像工具条没渲染完（用户实报）。
+        expect(toolbar.container!.classList.contains('is-cross-block')).toBe(true);
+        expect(items(toolbar)[0].classList.contains('with-label')).toBe(true);
+        expect(items(toolbar)[0].querySelector('.label')?.textContent?.trim()).toBeTruthy();
+    });
+
+    it('survives the click browsers fire at the end of a drag-selection', () => {
+        const muya = bootMuya();
+        stubAnnotationModule(muya);
+        stubDocumentSelection();
+        const toolbar = new InlineFormatToolbar(muya);
+
+        emitSelectionChange(muya, { isSelectionInSameBlock: false });
+        expect(toolbar.status).toBe(true);
+
+        // 拖选收尾会补发一次 click；此刻选区还在编辑器内且非折叠，不能收起。
+        const anchorNode = muya.domNode.querySelector('span') ?? muya.domNode;
+        vi.spyOn(document, 'getSelection').mockReturnValue({
+            isCollapsed: false,
+            anchorNode,
+            removeAllRanges: () => {},
+        } as unknown as Selection);
+        document.dispatchEvent(new Event('click'));
+        expect(toolbar.status).toBe(true);
+
+        // 真正点到别处时选区已经塌陷，照常收起。
+        vi.spyOn(document, 'getSelection').mockReturnValue({
+            isCollapsed: true,
+            anchorNode,
+            removeAllRanges: () => {},
+        } as unknown as Selection);
+        document.dispatchEvent(new Event('click'));
+        expect(toolbar.status).toBe(false);
     });
 
     it('collapses the cross-block render when the selection returns to one block', () => {

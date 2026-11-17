@@ -63,10 +63,35 @@
     flex: 0 0 auto;
 }
 
+/* 跨块选区只剩这一项：外壳改成自适应宽度的胶囊，按钮图标 + 文字并排。
+   固定 265px 的宽会让这一枚图标孤零零挂在左边，看起来像工具条没渲染完。 */
+.mu-format-picker.is-cross-block {
+    width: auto;
+}
+
+.mu-format-picker.is-cross-block ul {
+    padding: 0 6px;
+}
+
+.mu-format-picker li.item.with-label {
+    gap: 6px;
+    justify-content: center;
+    width: auto;
+    padding: 0 8px;
+
+    white-space: nowrap;
+}
+
+.mu-format-picker li.item.with-label .label {
+    color: var(--editor-color-8, var(--editor-color-10));
+    font-size: 12px;
+    line-height: 28px;
+}
+
 /* 「标注」前的分组竖线（方案 §3.3：1px × 16px、--line-strong、左右各 4px 间距）。 */
 .mu-format-picker li.divider {
-    align-self: center;
     flex: 0 0 auto;
+    align-self: center;
     width: 1px;
     height: 16px;
     margin: 0 4px;

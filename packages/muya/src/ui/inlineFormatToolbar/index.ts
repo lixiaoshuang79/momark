@@ -23,6 +23,9 @@ const defaultOptions = {
         alignmentAxis: 0,
     },
     showArrow: false,
+    // 工具条以选区首行为锚点居中；选区靠近窗口左右边缘时整条会被顶到窗口外
+    // （用户实测：拖选几段后气泡飞到屏幕外）。留 8px 内边距夹回视口。
+    shiftPadding: 8,
 };
 
 /** Format keyboard shortcuts without shift modifier */
@@ -108,6 +111,22 @@ export class InlineFormatToolbar extends BaseFloat {
         this.container!.appendChild(this._formatContainer);
         this.floatBox!.classList.add('mu-format-picker-container');
         this.listen();
+    }
+
+    /**
+     * 拖选收尾时浏览器会补发一次 `click`（mousedown / mouseup 落在同一子树里）。
+     * 跨块选区没有块的 clickHandler 去重新弹出工具条，这条 click 若按「点到别处」
+     * 收起，就成了「选的时候有气泡、松手就消失」（用户实测）。选区还在编辑器内
+     * 且非折叠，说明这次 click 属于选区手势本身，不收起；真正的点击（折叠选区）
+     * 在 click 事件阶段选区已经塌陷，照常收起。
+     */
+    protected override _hideOnDocumentClick(): boolean {
+        const selection = document.getSelection();
+
+        if (!selection || selection.isCollapsed || !selection.anchorNode)
+            return true;
+
+        return !this.muya.domNode.contains(selection.anchorNode);
     }
 
     /**
@@ -373,6 +392,10 @@ export class InlineFormatToolbar extends BaseFloat {
         const { _oldVNode: oldVNode, _formatContainer: formatContainer, _formats: formats } = this;
         const { i18n } = this.muya;
 
+        // 跨块时整条工具条只剩「标注」：把外壳收成自适应宽度的胶囊，按钮带文字，
+        // 免得在 265px 的固定宽里孤零零一枚图标，看起来像其余按钮没渲染出来。
+        this.container?.classList.toggle('is-cross-block', this._crossBlock);
+
         const children: VNode[] = [];
 
         this._visibleIcons().forEach((icon) => {
@@ -425,8 +448,15 @@ export class InlineFormatToolbar extends BaseFloat {
         const shortcut = 'shortcut' in icon ? icon.shortcut : '';
         const label = i18n.t(icon.tooltip);
 
+        // 跨块态只剩这一项：图标旁带上文字，读起来是一个明确的「标注」动作，
+        // 而不是一排按钮残了九枚。
+        const withLabel = this._crossBlock && icon.type === 'annotation';
+        const children: VNode[] = [iconWrapper];
+        if (withLabel)
+            children.push(h('span.label', label));
+
         return h(
-            itemSelector,
+            `${itemSelector}${withLabel ? '.with-label' : ''}`,
             {
                 attrs: {
                     title: shortcut ? `${label}\n${shortcut}` : label,
@@ -435,7 +465,7 @@ export class InlineFormatToolbar extends BaseFloat {
                     click: event => this._selectItem(event, icon),
                 },
             },
-            [iconWrapper],
+            children,
         );
     }
 
