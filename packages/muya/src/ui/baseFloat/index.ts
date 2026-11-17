@@ -1,7 +1,7 @@
-import type { Placement, ReferenceElement } from '@floating-ui/dom';
+import type { Middleware, Placement, ReferenceElement } from '@floating-ui/dom';
 import type { Muya } from '../../index';
 import type { IBaseOptions } from '../types';
-import { autoUpdate, computePosition, flip, offset } from '@floating-ui/dom';
+import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 import { EVENT_KEYS } from '../../config';
 
 import { isHTMLElement, isKeyboardEvent, noop } from '../../utils';
@@ -210,7 +210,7 @@ abstract class BaseFloat {
     show(reference: ReferenceElement, cb: (...args: never[]) => void = noop) {
         const { floatBox } = this;
         const { eventCenter } = this.muya;
-        const { placement, offsetOptions } = this.options;
+        const { placement, offsetOptions, shiftPadding } = this.options;
         if (!floatBox) {
             throw new Error('The float box is not existed.');
         }
@@ -226,10 +226,17 @@ abstract class BaseFloat {
         // `unknown[]` so internal call sites can forward arbitrary args.
         this.cb = cb as (...args: unknown[]) => void;
 
+        // `flip` 只在 placement 的候选边之间换（上/下），居中放置的卡片在贴边时
+        // 照样有一半伸出窗口；给了 `shiftPadding` 的浮层再叠一层 `shift`，把卡片
+        // 沿交叉轴夹回视口内。默认不开，避免影响其他浮层既有落位。
+        const middleware: Middleware[] = [offset(offsetOptions), flip()];
+        if (typeof shiftPadding === 'number')
+            middleware.push(shift({ padding: shiftPadding, crossAxis: true }));
+
         const cleanup = autoUpdate(reference, floatBox, () => {
             computePosition(reference, floatBox, {
                 placement,
-                middleware: [offset(offsetOptions), flip()],
+                middleware,
             }).then(({ x, y }) => {
                 // `computePosition` is async: a `hide()` (or a newer `show()`)
                 // can land before this resolves. Applying it then would set

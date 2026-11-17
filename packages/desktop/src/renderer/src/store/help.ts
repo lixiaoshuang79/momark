@@ -176,5 +176,13 @@ export const createHtmlDocumentState = ({
 }): IFileState =>
   createDocumentState({ kind: 'html', isSaved: true, markdown: '', pathname, filename })
 
+/**
+ * html 标签一律显示扩展名。内嵌块快照的标题来自页面 `<title>`，本身没有后缀，
+ * 与同排的 `.md` 标签并列时显得不一致（用户实测）；真文件本来就是 `x.html`，
+ * 这里只补齐缺后缀的情况，不重复拼接。
+ */
+export const ensureHtmlExtension = (name: string): string =>
+  /\.html?$/i.test(name) ? name : `${name}.html`
+
 export const isHtmlTab = (tab: Pick<IFileState, 'kind'> | null | undefined): boolean =>
   tab?.kind === 'html'
