@@ -23,7 +23,14 @@ import {
   QUICK_PHRASE_MAX_COUNT,
   QUICK_PHRASE_MAX_LEN
 } from '@muyajs/core/annotation/quickPhrase'
-import { useBrowserPanelStore } from './browserPanel'
+import { useBrowserPanelStore, type BpMode } from './browserPanel'
+import {
+  decideAutoHistory,
+  inspectionFingerprint,
+  pickCandidateRounds,
+  type AutoHistoryDecision,
+  type AutoHistoryRound
+} from './annotationAutoHistory'
 import { usePreferencesStore } from './preferences'
 import { motionReduced } from '../util/motion'
 
@@ -364,6 +371,26 @@ export function buildHistoryCompare(
   })
 }
 
+/** 标注面板的子视图（组件本地状态；store 只经 panelViewRequest 发请求）。 */
+export type AnnotationPanelView = 'current' | 'history'
+
+/** 自动切到历史之前的右栏状态（横幅「返回」按它恢复）。 */
+export interface AutoHistoryPrevious {
+  open: boolean
+  annotationsTab: boolean
+  mode: BpMode
+  view: AnnotationPanelView
+}
+
+/** 已自动切过去、横幅正显示的那一次。 */
+export interface AutoHistoryShown extends AutoHistoryDecision {
+  key: string
+  previous: AutoHistoryPrevious
+  /** 切之前不在「标注 → 历史」：横幅给「返回」。 */
+  restorable: boolean
+  seq: number
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Store
 // ═══════════════════════════════════════════════════════════════════
@@ -668,6 +695,7 @@ export const useAnnotationStore = defineStore('annotation', () => {
         if (nowMs() - started >= HISTORY_SLICE_BUDGET) break
       }
       historyNow.value = { ...next }
+      if (cursor >= ids.length) rememberSeen(activeKey.value, fingerprintsOf(Object.values(next)))
       if (cursor < ids.length && historyVisible.value) {
         historySliceTimer = setTimeout(step, 0)
       }
@@ -766,6 +794,422 @@ export const useAnnotationStore = defineStore('annotation', () => {
   const historyCompareGroups = computed(() =>
     buildHistoryCompare(historyGroups.value, historyNow.value)
   )
+
+  // ── 外部批量改动后自动切到历史那一轮（第三轮）────────────────────────────
+  //
+  // 流程：外部重载（editor.ts loadChange）→ NOTE_EXTERNAL_RELOAD 在正文被替换**之前**
+  // 检视最近几轮、记下指纹做基线 → 停 1.2s 没有新的重载（agent 连续保存）再检视一次
+  // → 与基线比对、按阈值判定（annotationAutoHistory.ts）→ 达标就等用户「空下来」
+  // （窗口在前台、1.5s 内没有按键 / 按住鼠标 / 输入法组字）再切右栏。
+  //
+  // 成本：只在外部重载后跑，只检视最近 3 轮（≤ 60 条），引擎侧检视只读带缓存；
+  // 历史不可见时不会因此开始周期性检视（refreshHistoryNow 的可见性规则不变）。
+
+  /** 偏好里的自动切换开关（标注总开关关掉时一并失效）。 */
+  const autoHistoryEnabled = computed(
+    () => enabled.value && preferencesStore.annotationAutoHistory !== false
+  )
+
+  /** 停这么久没有新的外部重载，才算 agent 这一下改完了。 */
+  const EXTERNAL_SETTLE_MS = 1200
+  /** 同一篇文档两次外部重载间隔不超过它，算同一次「agent 修改会话」，基线不换。 */
+  const EXTERNAL_SESSION_MS = 10 * 60_000
+  /** 用户最后一次按键 / 点按之后要空这么久才切（不在打字、拖选中途动右栏）。 */
+  const AUTO_HISTORY_IDLE_MS = 1500
+  /** 判定结果最多等这么久（窗口一直在后台 / 一直没切回那篇文档就作废）。 */
+  const AUTO_HISTORY_HOLD_MS = 2 * 3600_000
+
+  interface ExternalSession {
+    /** 会话开始前的指纹（id → fingerprint）；null = 没有基线（后台文档且没检视过）。 */
+    baseline: Record<string, string> | null
+    lastAt: number
+    /** 最近一次评估完成的时间（之后没有新重载就不必再评估）。 */
+    evaluatedAt: number
+    /** 本次会话已经自动切过的轮次：同一会话不对同一轮再切第二次。 */
+    shown: Set<number>
+  }
+  const externalSessions = new Map<string, ExternalSession>()
+  /** 每篇文档最近一次检视到的指纹（只在内存）：后台文档被外部修改时拿它当基线。 */
+  const lastSeen = new Map<string, Record<string, string>>()
+
+  /** 已经切过去、横幅正显示的那一次（面板渲染横幅 / 卡片「本次」标记用）。 */
+  const autoHistory = ref<AutoHistoryShown | null>(null)
+  let autoHistorySeq = 0
+  /** 判定达标、还在等用户空下来 / 切回这篇文档 / 窗口回到前台。 */
+  let pendingSwitch: { key: string; decision: AutoHistoryDecision; at: number } | null = null
+
+  /**
+   * 面板子视图的外部请求（annotationMode.vue 监听）：面板的「当前 / 历史」与轮次
+   * 展开是组件本地状态，store 只发请求、不接管。
+   */
+  const panelViewRequest = ref<{
+    seq: number
+    view: AnnotationPanelView
+    expandRounds?: number[]
+    focusRound?: number
+  } | null>(null)
+  let panelViewSeq = 0
+  function requestPanelView(
+    request: Omit<NonNullable<typeof panelViewRequest.value>, 'seq'>
+  ): void {
+    panelViewRequest.value = { ...request, seq: ++panelViewSeq }
+  }
+
+  let settleTimer: ReturnType<typeof setTimeout> | null = null
+  let evalTimer: ReturnType<typeof setTimeout> | null = null
+  let applyTimer: ReturnType<typeof setTimeout> | null = null
+  let evalPass = 0
+
+  // 交互观察：只在有外部修改待处理时挂监听（记时间戳，没有别的开销）。
+  let lastInputAt = 0
+  let pointerHeld = false
+  let composing = false
+  let interactionWatched = false
+  const onInput = (): void => {
+    lastInputAt = Date.now()
+  }
+  const onPointerDown = (): void => {
+    pointerHeld = true
+    onInput()
+  }
+  const onPointerUp = (): void => {
+    pointerHeld = false
+    onInput()
+  }
+  const onCompositionStart = (): void => {
+    composing = true
+    onInput()
+  }
+  const onCompositionEnd = (): void => {
+    composing = false
+    onInput()
+  }
+  const onWindowFocus = (): void => {
+    // 回到墨记的那一下（多半伴随一次点击）不算「正在操作」：用户就是回来看结果的。
+    tryApplyAutoHistory()
+  }
+  const INTERACTION_EVENTS: Array<[string, EventListener, EventTarget | null]> = []
+  function watchInteraction(on: boolean): void {
+    if (typeof window === 'undefined' || on === interactionWatched) return
+    interactionWatched = on
+    if (!INTERACTION_EVENTS.length) {
+      INTERACTION_EVENTS.push(
+        ['keydown', onInput, null],
+        ['pointerdown', onPointerDown, null],
+        ['pointerup', onPointerUp, null],
+        ['pointercancel', onPointerUp, null],
+        ['compositionstart', onCompositionStart, null],
+        ['compositionend', onCompositionEnd, null],
+        ['focus', onWindowFocus, null]
+      )
+    }
+    for (const [event, listener] of INTERACTION_EVENTS) {
+      if (on) window.addEventListener(event, listener, true)
+      else window.removeEventListener(event, listener, true)
+    }
+    if (!on) {
+      pointerHeld = false
+      composing = false
+    }
+  }
+  /** 没有待评估 / 待切换的外部修改了 → 撤掉交互监听。 */
+  function releaseInteractionWatch(): void {
+    if (!pendingSwitch && !settleTimer && !evalTimer) watchInteraction(false)
+  }
+
+  const windowFocused = (): boolean =>
+    typeof document === 'undefined' ||
+    typeof document.hasFocus !== 'function' ||
+    document.hasFocus()
+
+  function fingerprintsOf(
+    results: Iterable<IAnnotationInspection | undefined>
+  ): Record<string, string> {
+    const out: Record<string, string> = {}
+    for (const result of results) {
+      if (result && typeof result.id === 'string') out[result.id] = inspectionFingerprint(result)
+    }
+    return out
+  }
+
+  function rememberSeen(key: string | null, fingerprints: Record<string, string>): void {
+    if (!isRealPath(key) || !Object.keys(fingerprints).length) return
+    lastSeen.set(key, { ...lastSeen.get(key), ...fingerprints })
+  }
+
+  /** 正文被替换之前，同步检视候选条目做基线（≤ 60 条，引擎检视只读带缓存）。 */
+  function captureBaseline(): Record<string, string> | null {
+    const module = annotationModule()
+    const ids = pickCandidateRounds(historyGroups.value).flatMap((round) =>
+      round.items.map((a) => a.id)
+    )
+    if (!module?.inspect || !ids.length) return null
+    try {
+      const results = (module.inspect(ids) as IAnnotationInspection[] | undefined) ?? []
+      const fingerprints = fingerprintsOf(results)
+      rememberSeen(activeKey.value, fingerprints)
+      return fingerprints
+    } catch (error) {
+      console.error('[annotation] Failed to inspect history before reload.', error)
+      return null
+    }
+  }
+
+  function cancelExternalEval(): void {
+    evalPass++
+    if (settleTimer) {
+      clearTimeout(settleTimer)
+      settleTimer = null
+    }
+    if (evalTimer) {
+      clearTimeout(evalTimer)
+      evalTimer = null
+    }
+  }
+
+  function scheduleExternalEval(key: string): void {
+    cancelExternalEval()
+    watchInteraction(true)
+    settleTimer = setTimeout(() => {
+      settleTimer = null
+      evaluateExternal(key)
+    }, EXTERNAL_SETTLE_MS)
+  }
+
+  /**
+   * 外部重载（editor.ts `loadChange`）**在正文被替换之前**调用。
+   *
+   * 当前文档：立即检视候选轮次做基线；后台文档：用这篇文档上次检视到的指纹做基线
+   * （没有就按「标注时 vs 现在」兜底），等它被切到前台时再评估。agent 连续保存多次
+   * 算同一个会话：基线保持会话开始前的样子，每次停下来都与它比，累计判定。
+   */
+  function NOTE_EXTERNAL_RELOAD(pathname: string): void {
+    if (!autoHistoryEnabled.value || !isRealPath(pathname)) return
+    const now = Date.now()
+    let session = externalSessions.get(pathname)
+    if (session && now - session.lastAt > EXTERNAL_SESSION_MS) session = undefined
+    if (!session) {
+      const isActive = pathname === activeKey.value
+      const seen = lastSeen.get(pathname)
+      session = {
+        baseline: isActive ? captureBaseline() : seen ? { ...seen } : null,
+        lastAt: now,
+        evaluatedAt: 0,
+        shown: new Set()
+      }
+      externalSessions.set(pathname, session)
+    }
+    session.lastAt = now
+    if (pathname === activeKey.value) scheduleExternalEval(pathname)
+  }
+
+  /** 外部修改停下来之后：检视候选条目、与基线比对、判定（分片，不长时间占主线程）。 */
+  function evaluateExternal(key: string): void {
+    cancelExternalEval()
+    const session = externalSessions.get(key)
+    const module = annotationModule()
+    if (!session || key !== activeKey.value || !autoHistoryEnabled.value || !module?.inspect) {
+      releaseInteractionWatch()
+      return
+    }
+    const rounds = pickCandidateRounds(historyGroups.value)
+    const ids = rounds.flatMap((round) => round.items.map((a) => a.id))
+    if (!ids.length) {
+      releaseInteractionWatch()
+      return
+    }
+    const pass = evalPass
+    const results: Record<string, IAnnotationInspection> = {}
+    let cursor = 0
+
+    const step = (): void => {
+      evalTimer = null
+      if (pass !== evalPass || key !== activeKey.value) return
+      const started = nowMs()
+      while (cursor < ids.length) {
+        const slice = ids.slice(cursor, cursor + HISTORY_SLICE_SIZE)
+        cursor += slice.length
+        try {
+          const found = (module.inspect(slice) as IAnnotationInspection[] | undefined) ?? []
+          for (const result of found) {
+            if (result && typeof result.id === 'string') results[result.id] = markRaw(result)
+          }
+        } catch (error) {
+          console.error('[annotation] Failed to inspect history after reload.', error)
+        }
+        if (nowMs() - started >= HISTORY_SLICE_BUDGET) break
+      }
+      if (cursor < ids.length) {
+        evalTimer = setTimeout(step, 0)
+        return
+      }
+      finishExternalEval(key, session, rounds, results)
+    }
+    step()
+  }
+
+  function finishExternalEval(
+    key: string,
+    session: ExternalSession,
+    rounds: AutoHistoryRound[],
+    results: Record<string, IAnnotationInspection>
+  ): void {
+    session.evaluatedAt = Date.now()
+    const fingerprints = fingerprintsOf(Object.values(results))
+    rememberSeen(key, fingerprints)
+    // 顺手把检视结果交给历史：切过去时卡片直接有「现在」，不先闪「待比对」。
+    historyNow.value = { ...historyNow.value, ...results }
+
+    const decision = decideAutoHistory(
+      rounds.map((round) => ({
+        round: round.round,
+        items: round.items.map((annotation) => ({
+          id: annotation.id,
+          status: compareHistoryItemMemo(annotation, results[annotation.id]).status,
+          before: session.baseline ? session.baseline[annotation.id] : undefined,
+          after: fingerprints[annotation.id] ?? ''
+        }))
+      }))
+    )
+    if (decision) {
+      const shownNow = autoHistory.value
+      if (session.shown.has(decision.round)) {
+        // 同一会话已经切过这一轮：不再动面板，横幅还在就只更新计数。
+        if (shownNow && shownNow.key === key && shownNow.round === decision.round) {
+          autoHistory.value = { ...shownNow, ...decision, rounds: shownNow.rounds }
+        }
+      } else {
+        pendingSwitch = { key, decision, at: Date.now() }
+      }
+    }
+    tryApplyAutoHistory()
+  }
+
+  /** 还要等多久才算「用户空下来」（0 = 现在就可以切）。 */
+  function interactionWait(): number {
+    if (pointerHeld || composing || quickPhraseSettingsOpen.value) return AUTO_HISTORY_IDLE_MS
+    return Math.max(0, lastInputAt + AUTO_HISTORY_IDLE_MS - Date.now())
+  }
+
+  /**
+   * 判定达标后的「什么时候切」：
+   * - 不是当前文档（用户在看别的文档）→ 等 SWITCH_DOC 切回来；
+   * - 窗口在后台（用户还在终端里看 agent）→ 等窗口 focus，回来那一刻切；
+   * - 正在打字 / 拖选 / 组字 / 开着常用语设置 → 等空下来 1.5s。
+   */
+  function tryApplyAutoHistory(): void {
+    if (applyTimer) {
+      clearTimeout(applyTimer)
+      applyTimer = null
+    }
+    const pending = pendingSwitch
+    if (!pending) {
+      releaseInteractionWatch()
+      return
+    }
+    if (!autoHistoryEnabled.value || Date.now() - pending.at > AUTO_HISTORY_HOLD_MS) {
+      pendingSwitch = null
+      releaseInteractionWatch()
+      return
+    }
+    if (pending.key !== activeKey.value) return
+    watchInteraction(true)
+    if (!windowFocused()) return
+    const wait = interactionWait()
+    if (wait > 0) {
+      applyTimer = setTimeout(() => {
+        applyTimer = null
+        tryApplyAutoHistory()
+      }, wait)
+      return
+    }
+    pendingSwitch = null
+    releaseInteractionWatch()
+    applyAutoHistory(pending.key, pending.decision)
+  }
+
+  /** 切过去：打开右栏 → 标注 tab → 历史 → 展开达标轮次、滚到目标轮并闪一下组头。 */
+  function applyAutoHistory(key: string, decision: AutoHistoryDecision): void {
+    if (!historyGroups.value.some((group) => group.round === decision.round)) return
+    const panel = useBrowserPanelStore()
+    const previous: AutoHistoryPrevious = {
+      open: panel.open !== false,
+      annotationsTab: panel.activeTab === 'annotation',
+      mode: panel.mode,
+      view: historyViewOpen.value ? 'history' : 'current'
+    }
+    externalSessions.get(key)?.shown.add(decision.round)
+    panel.SET_TAB('annotation')
+    autoHistory.value = {
+      ...decision,
+      key,
+      previous,
+      restorable: !(previous.open && previous.annotationsTab && previous.view === 'history'),
+      seq: ++autoHistorySeq
+    }
+    requestPanelView({
+      view: 'history',
+      expandRounds: decision.rounds,
+      focusRound: decision.round
+    })
+  }
+
+  /** 横幅「返回」：把右栏恢复到自动切换之前（开合 / tab / 当前或历史）。 */
+  function RESTORE_AUTO_HISTORY(): void {
+    const current = autoHistory.value
+    if (!current) return
+    autoHistory.value = null
+    const panel = useBrowserPanelStore()
+    const previous = current.previous
+    if (previous.view !== 'history') requestPanelView({ view: previous.view })
+    if (!previous.annotationsTab) panel.SET_TAB(previous.mode)
+    if (!previous.open) panel.SET_OPEN(false)
+  }
+
+  /** 横幅 ×：只收起横幅，停在历史。 */
+  function DISMISS_AUTO_HISTORY(): void {
+    autoHistory.value = null
+  }
+
+  /** 横幅「不再自动切换」：写偏好（偏好设置 → 通用 → 内容标注 可以再打开）。 */
+  function DISABLE_AUTO_HISTORY(): void {
+    autoHistory.value = null
+    preferencesStore.SET_SINGLE_PREFERENCE({ type: 'annotationAutoHistory', value: false })
+    notice.notify({ message: t('annotation.autoHistory.disabled'), type: 'info', time: 4000 })
+  }
+
+  function resetAutoHistory(): void {
+    cancelExternalEval()
+    if (applyTimer) {
+      clearTimeout(applyTimer)
+      applyTimer = null
+    }
+    externalSessions.clear()
+    pendingSwitch = null
+    autoHistory.value = null
+    watchInteraction(false)
+  }
+  watch(autoHistoryEnabled, (on) => {
+    if (!on) resetAutoHistory()
+  })
+  // 用户自己离开历史视图：横幅的使命结束（「返回」也没有意义了）。
+  watch(historyViewOpen, (open) => {
+    if (!open) autoHistory.value = null
+  })
+
+  /** 切到某篇文档后：它在后台被外部改过就补上评估；有等着切的判定就再试一次。 */
+  function resumeExternalFor(key: string | null): void {
+    if (!isRealPath(key)) return
+    const session = externalSessions.get(key)
+    if (
+      session &&
+      session.lastAt > session.evaluatedAt &&
+      Date.now() - session.lastAt <= AUTO_HISTORY_HOLD_MS
+    ) {
+      scheduleExternalEval(key)
+    }
+    if (pendingSwitch?.key === key) tryApplyAutoHistory()
+  }
 
   /** 条目在文档里的序号（1 起）：优先引擎给的文档序号，退化为创建顺序。 */
   const orderOf = (id: string): number => {
@@ -1041,6 +1485,8 @@ export const useAnnotationStore = defineStore('annotation', () => {
       docs.value[key] = { round: 1, annotations: [], loaded: true }
     }
     pushToEngine()
+    // 这篇在后台被外部改过 / 有等着切的判定：切回来时补上。
+    resumeExternalFor(key)
   }
 
   /**
@@ -1386,10 +1832,13 @@ export const useAnnotationStore = defineStore('annotation', () => {
   // 标注表整体换过（回读引擎 / 外部重载 / 切文档 / 归档恢复）→ 历史的「现在」重算。
   // syncFromEngine 每次都换新数组，所以浅 watch 足够；切文档先清空，避免短暂
   // 显示上一篇文档的检视结果。
-  watch(activeKey, () => {
+  watch(activeKey, (key) => {
     historyNow.value = {}
     historyFocusId.value = null
     annotationModule()?.clearReveal?.()
+    // 外部修改的评估只针对当时的文档：换文档即作废在途的（切回来由 resumeExternalFor 补上）。
+    cancelExternalEval()
+    if (autoHistory.value && autoHistory.value.key !== key) autoHistory.value = null
   })
   watch(annotations, () => scheduleHistoryRefresh())
 
@@ -1484,6 +1933,14 @@ export const useAnnotationStore = defineStore('annotation', () => {
     revealHistory,
     SET_HISTORY_VIEW,
     SET_HISTORY_OPEN_ROUNDS,
+    // 外部批量改动后自动切到历史（第三轮）
+    autoHistoryEnabled,
+    autoHistory,
+    panelViewRequest,
+    NOTE_EXTERNAL_RELOAD,
+    RESTORE_AUTO_HISTORY,
+    DISMISS_AUTO_HISTORY,
+    DISABLE_AUTO_HISTORY,
     // 常用语（feat/quick-phrases）：设置弹窗开关 / 保存信号 / 徽标弹跳脉冲
     quickPhraseSettingsOpen,
     savedPulse,

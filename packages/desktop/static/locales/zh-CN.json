@@ -495,7 +495,9 @@
       "annotation": {
         "title": "内容标注",
         "enabled": "启用内容标注",
-        "enabledNotes": "选中正文即可写备注；右栏第三个 tab 是标注面板"
+        "enabledNotes": "选中正文即可写备注；右栏第三个 tab 是标注面板",
+        "autoHistory": "外部批量修改后自动切到历史对照",
+        "autoHistoryNotes": "agent 改完文档、墨记重新载入后，如果最近复制的某一轮里有多处标注的内容被改动，右栏自动切到「标注 → 历史」的那一轮"
       },
       "turbo": {
         "title": "极速模式",
@@ -1299,6 +1301,15 @@
         "other": "其他",
         "inQuote": "引用 › {kind}"
       }
+    },
+    "autoHistory": {
+      "banner": "外部修改改动了第 {round} 轮的 {n} 处标注",
+      "restore": "返回",
+      "restoreTitle": "把右栏恢复到自动切换之前",
+      "disable": "不再自动切换",
+      "disabled": "已关闭自动切到历史。可在 偏好设置 → 通用 → 内容标注 中重新打开",
+      "fresh": "本次",
+      "freshTitle": "这次外部修改改动了这一条"
     }
   },
   "welcome": {

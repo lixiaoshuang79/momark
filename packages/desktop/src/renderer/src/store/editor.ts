@@ -446,6 +446,11 @@ export const useEditorStore = defineStore('editor', {
         })
       }
 
+      // 外部修改后自动切到标注历史（第三轮）：必须在正文被替换**之前**告知——
+      // 当前文档要趁引擎还是旧内容时记下历史条目的基线；后台文档只记一笔，
+      // 等它被切到前台时再评估。
+      useAnnotationStore().NOTE_EXTERNAL_RELOAD(tab.pathname)
+
       // Reload the editor if the tab is currently opened.
       if (currentFile && pathname === currentFile.pathname) {
         // save current state first

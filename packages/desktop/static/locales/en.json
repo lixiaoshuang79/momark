@@ -493,7 +493,9 @@
       "annotation": {
         "title": "Annotations",
         "enabled": "Enable content annotations",
-        "enabledNotes": "Select text to add a note; the third tab of the right panel lists them"
+        "enabledNotes": "Select text to add a note; the third tab of the right panel lists them",
+        "autoHistory": "Show history after external batch edits",
+        "autoHistoryNotes": "When an agent edits the document and Momark reloads it, switch the right panel to the annotation history round whose annotated passages were changed"
       },
       "turbo": {
         "title": "Turbo Mode",
@@ -1297,6 +1299,15 @@
         "other": "Other",
         "inQuote": "Quote › {kind}"
       }
+    },
+    "autoHistory": {
+      "banner": "The external edit changed {n} annotations in round {round}",
+      "restore": "Back",
+      "restoreTitle": "Return the right panel to where it was",
+      "disable": "Don't switch automatically",
+      "disabled": "Automatic switching to history is off. Turn it back on in Preferences → General → Annotations.",
+      "fresh": "This edit",
+      "freshTitle": "Changed by the latest external edit"
     }
   },
   "welcome": {

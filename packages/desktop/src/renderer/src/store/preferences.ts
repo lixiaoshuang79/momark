@@ -46,6 +46,9 @@ export interface PreferencesState {
   // 标注卡片的常用语（feat/quick-phrases）：顺序即 ⌥1–⌥9 的键位顺序，
   // 最多 9 条、每条 ≤24 字。应用级一份（不随文档存），`[]` 是合法值。
   annotationQuickPhrases: string[]
+  // agent 批量改完、外部重载后，右栏自动切到「标注 → 历史」里对应的那一轮
+  // （feat/annotation-history-compare 第三轮）。关 = 只在用户自己打开历史时对照。
+  annotationAutoHistory: boolean
   // 极速模式：关掉右栏网页（链接改走系统浏览器）与内嵌 HTML 渲染，省内存。
   // 与 isHtmlEnabled 叠加时它优先，但不改写 isHtmlEnabled——关掉即按原偏好恢复。
   turboMode: boolean
@@ -172,6 +175,7 @@ export const usePreferencesStore = defineStore('preferences', {
     autoSaveDelay: 5000,
     annotationEnabled: true,
     annotationQuickPhrases: [...DEFAULT_QUICK_PHRASES],
+    annotationAutoHistory: true,
     turboMode: false,
     titleBarStyle: 'custom',
     openFilesInNewWindow: false,
