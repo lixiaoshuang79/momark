@@ -420,13 +420,29 @@ const summaryParts = (
     text: t(`annotation.compare.summary.${status}`, { n: summary[status] })
   }))
 
-// 历史视图可见时才做「现在」的检视（引擎重定位归档条目 + 拍快照）。
+// 告诉 store 面板停在哪个子视图；真正是否检视还要看右栏是否展开、tab 是否是
+// 标注（store.historyVisible）——本组件 v-show 常驻，切走 / 收起都不会卸载。
 watch(
   view,
   (next) => {
-    store.SET_HISTORY_VISIBLE(next === 'history')
+    store.SET_HISTORY_VIEW(next === 'history')
   },
   { immediate: true }
+)
+
+// 展开着的轮次交给 store：检视时先做用户正看着的那几轮。
+watch(
+  () => store.historyCompareGroups.map((group) => group.round).filter(isHistoryOpen),
+  (rounds) => store.SET_HISTORY_OPEN_ROUNDS(rounds),
+  { immediate: true }
+)
+
+// 换文档：上一篇的展开 / 收起不带过来（否则新文档最新一轮可能默认折叠）。
+watch(
+  () => store.activeKey,
+  () => {
+    openRounds.value = {}
+  }
 )
 
 /**
@@ -602,7 +618,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  store.SET_HISTORY_VISIBLE(false)
+  store.SET_HISTORY_VIEW(false)
   document.removeEventListener('click', onDocumentClick)
   stopUnloadFlush?.()
   stopUnloadFlush = null

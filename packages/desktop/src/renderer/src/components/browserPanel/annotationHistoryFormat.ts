@@ -1,6 +1,7 @@
 import { t } from '../../i18n'
 import type { IAnnotationSnapshot } from '@shared/types/ipc'
 import type { IDiffSegment } from '@muyajs/core/annotation/snapshotCompare'
+import { renderSnapshotHtml } from '@muyajs/core/annotation/snapshotRender'
 
 /**
  * 历史对比的展示文案（纯函数，便于单测）：块类型标签、逐字差异压缩。
@@ -96,4 +97,32 @@ export function compactDiff(segments: IDiffSegment[] | null): IDiffSegment[] {
     }
     return segment
   })
+}
+
+// ── 快照渲染缓存（模块级，所有历史卡片共用）──────────────────────────
+// 第一轮每个卡片实例各自一份 Map：切「当前 / 历史」或「只看有变化」重建实例时
+// 缓存跟着销毁，全部重新 marked + DOMPurify。放到模块级后上限才真正有意义。
+const HTML_CACHE_MAX = 600
+const htmlCache = new Map<string, string>()
+
+/** 渲染一张快照（DOMPurify 清洗后的 HTML），同一份内容只渲染一次。 */
+export const renderSnapshotCached = (snapshot: IAnnotationSnapshot | null): string => {
+  if (!snapshot?.markdown) return ''
+  const key = `${snapshot.kind}:${snapshot.markStart}:${snapshot.markEnd}:${snapshot.markdown}`
+  const hit = htmlCache.get(key)
+  if (hit !== undefined) {
+    // LRU：命中的挪到队尾
+    htmlCache.delete(key)
+    htmlCache.set(key, hit)
+    return hit
+  }
+  let html = ''
+  try {
+    html = renderSnapshotHtml(snapshot)
+  } catch (error) {
+    console.error('[annotation] Failed to render snapshot.', error)
+  }
+  if (htmlCache.size >= HTML_CACHE_MAX) htmlCache.delete(htmlCache.keys().next().value as string)
+  htmlCache.set(key, html)
+  return html
 }

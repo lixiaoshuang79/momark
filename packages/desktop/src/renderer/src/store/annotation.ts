@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, markRaw, ref, shallowRef, toRaw, watch } from 'vue'
 import { defineStore } from 'pinia'
 import notice from '../services/notification'
 import { t } from '../i18n'
@@ -7,7 +7,9 @@ import type {
   IAnnotation,
   IAnnotationExportItem,
   IAnnotationInspection,
-  IAnnotationSnapshot
+  IAnnotationReveal,
+  IAnnotationSnapshot,
+  TAnnotationRevealStatus
 } from '@shared/types/ipc'
 import { originSnapshotOf } from '@muyajs/core/annotation/snapshot'
 import {
@@ -300,6 +302,51 @@ export function sortRoundItems<T extends { annotation: IAnnotation }>(items: T[]
     )
 }
 
+/**
+ * 比对结果的记忆（P2：历史每刷新一次就对所有条目重跑 legacySnapshot 与 fast-diff）。
+ *
+ * 引擎对没变的条目返回**同一个**检视结果对象（见 AnnotationModule 的检视缓存），
+ * 所以按检视结果对象记忆即可：同一条目、同一份「标注时」、同一份「现在」只比一次。
+ * 旧条目（无 origin）的反推快照按锚点对象记忆，避免每次重新分词。
+ */
+const compareMemo = new WeakMap<
+  object,
+  { annotation: IAnnotation; origin: IAnnotationSnapshot | null; item: HistoryCompareItem }
+>()
+const legacyMemo = new WeakMap<object, { key: string; origin: IAnnotationSnapshot | null }>()
+
+function memoOriginOf(annotation: IAnnotation): IAnnotationSnapshot | null {
+  if (annotation.origin || annotation.global || !annotation.anchor) {
+    return originSnapshotOf(annotation)
+  }
+  const anchor = toRaw(annotation.anchor)
+  const key = `${annotation.createdAt}|${anchor.ranges?.[0]?.blockName ?? ''}`
+  const hit = legacyMemo.get(anchor)
+  if (hit && hit.key === key) return hit.origin
+  const origin = originSnapshotOf(annotation)
+  legacyMemo.set(anchor, { key, origin })
+  return origin
+}
+
+function compareHistoryItemMemo(
+  annotation: IAnnotation,
+  inspection: IAnnotationInspection | undefined
+): HistoryCompareItem {
+  if (!inspection || annotation.global) return compareHistoryItem(annotation, inspection)
+  const raw = toRaw(inspection)
+  const origin = memoOriginOf(annotation)
+  const hit = compareMemo.get(raw)
+  if (hit && toRaw(hit.annotation) === toRaw(annotation) && hit.origin === origin) return hit.item
+  const item = compareHistoryItem(
+    origin && !annotation.origin ? { ...annotation, origin } : annotation,
+    inspection
+  )
+  // 视图里仍要用原条目对象（备注 / 序号等字段的响应式读取）
+  const result: HistoryCompareItem = { ...item, annotation }
+  compareMemo.set(raw, { annotation, origin, item: result })
+  return result
+}
+
 /** 历史分组 + 对比态 + 每轮摘要（纯函数，面板与单测共用）。 */
 export function buildHistoryCompare(
   groups: Array<{ round: number; at: number; items: IAnnotation[] }>,
@@ -307,7 +354,9 @@ export function buildHistoryCompare(
 ): HistoryCompareGroup[] {
   return groups.map((group) => {
     const items = sortRoundItems(
-      group.items.map((annotation) => compareHistoryItem(annotation, inspections[annotation.id]))
+      group.items.map((annotation) =>
+        compareHistoryItemMemo(annotation, inspections[annotation.id])
+      )
     )
     const summary = emptySummary()
     for (const item of items) summary[item.status] += 1
@@ -506,42 +555,128 @@ export const useAnnotationStore = defineStore('annotation', () => {
   // ── 历史对比：「现在」的样子（feat/annotation-history-compare）──────────
   /**
    * id → 引擎 `inspect()` 的结果。只在内存里、不落盘：「现在」随文档实时变化，
-   * 存下来反而会过期。切文档时清空，打开历史视图 / 文档变化时重算。
+   * 存下来反而会过期。切文档时清空，历史真正可见时按需重算。
+   *
+   * shallowRef + markRaw：检视结果里带整张快照，深层响应式代理既无必要又慢；
+   * 引擎对没变的条目返回同一个对象，原样保留引用才能让比对记忆命中。
    */
-  const historyNow = ref<Record<string, IAnnotationInspection>>({})
-  /** 历史视图是否可见（不可见时不做检视，省掉无谓的全表快照）。 */
-  const historyVisible = ref(false)
-  let historyTimer: ReturnType<typeof setTimeout> | null = null
-
+  const historyNow = shallowRef<Record<string, IAnnotationInspection>>({})
+  /** 面板停在「历史」子视图（由 annotationMode 告知；不等于用户看得见）。 */
+  const historyViewOpen = ref(false)
+  /** 窗口是否在前台（最小化 / 切到别的桌面时不检视）。 */
+  const pageVisible = ref(
+    typeof document === 'undefined' ? true : document.visibilityState !== 'hidden'
+  )
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      pageVisible.value = document.visibilityState !== 'hidden'
+    })
+  }
   /**
-   * 立即检视当前文档的所有历史条目。引擎会先重定位归档条目（它们不参与打字时的
-   * 增量重定位），位置有变化时广播 `relocate` → `syncFromEngine` 落盘 currentText。
+   * 历史**真正可见**：停在历史子视图 + 右栏展开 + 当前 tab 是标注 + 窗口在前台。
+   *
+   * 标注面板是 v-show 常驻挂载（browserPanel/index.vue），切到网页 / 文档 tab 或
+   * 收起右栏都不会卸载组件——只看子视图会在用户根本看不到历史时继续每次停键
+   * 全量检视（深审 P1）。
    */
-  function refreshHistoryNow(): void {
+  const historyVisible = computed(() => {
+    if (!historyViewOpen.value || !pageVisible.value) return false
+    const panel = useBrowserPanelStore()
+    return panel.open !== false && panel.activeTab === 'annotation'
+  })
+  /** 用户展开着的轮次（检视时优先处理）；null = 还没告知，按「最新一轮」处理。 */
+  let historyOpenRounds: number[] | null = null
+  let historyTimer: ReturnType<typeof setTimeout> | null = null
+  let historySliceTimer: ReturnType<typeof setTimeout> | null = null
+  let historyPass = 0
+
+  /** 一次主线程连续检视的时间预算（ms），超出就让出主线程、下一拍接着做。 */
+  const HISTORY_SLICE_BUDGET = 12
+  /** 每次调用 inspect 的条数（预算按批检查）。 */
+  const HISTORY_SLICE_SIZE = 4
+
+  const nowMs = (): number =>
+    typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now()
+
+  /** 检视顺序：展开着的轮次在前（用户正看着），其余在后台补齐（组头摘要要用）。 */
+  function historyQueue(): string[] {
+    const groups = historyGroups.value
+    const latest = groups[0]?.round
+    const isOpen = (round: number): boolean =>
+      historyOpenRounds ? historyOpenRounds.includes(round) : round === latest
+    const first: string[] = []
+    const rest: string[] = []
+    for (const group of groups) {
+      const bucket = isOpen(group.round) ? first : rest
+      for (const annotation of group.items) if (!annotation.global) bucket.push(annotation.id)
+    }
+    return [...first, ...rest]
+  }
+
+  function cancelHistoryRefresh(): void {
+    historyPass++
     if (historyTimer) {
       clearTimeout(historyTimer)
       historyTimer = null
     }
+    if (historySliceTimer) {
+      clearTimeout(historySliceTimer)
+      historySliceTimer = null
+    }
+  }
+
+  /**
+   * 检视当前文档的历史条目（引擎侧只读、带缓存，见 AnnotationModule.inspect）。
+   *
+   * 分片：每片最多占用主线程 ~12ms，做不完就 setTimeout(0) 让出，下一片接着做；
+   * 期间文档又变 / 历史被隐藏，整轮作废。上一轮已有的结果保留到被新结果覆盖，
+   * 面板不会先闪成「待比对」。
+   */
+  function refreshHistoryNow(): void {
+    cancelHistoryRefresh()
     const module = annotationModule()
-    const ids = historyList.value.filter((a) => !a.global).map((a) => a.id)
+    const ids = historyQueue()
     if (!module?.inspect || !ids.length) {
       if (Object.keys(historyNow.value).length) historyNow.value = {}
       return
     }
-    let results: IAnnotationInspection[] = []
-    try {
-      results = (module.inspect(ids) as IAnnotationInspection[] | undefined) ?? []
-    } catch (error) {
-      console.error('[annotation] Failed to inspect history.', error)
-    }
+    const pass = historyPass
+    const wanted = new Set(ids)
     const next: Record<string, IAnnotationInspection> = {}
-    for (const result of results) {
-      if (result && typeof result.id === 'string') next[result.id] = result
+    for (const [id, result] of Object.entries(historyNow.value)) {
+      if (wanted.has(id)) next[id] = result
     }
-    historyNow.value = next
+    let cursor = 0
+
+    const step = (): void => {
+      historySliceTimer = null
+      if (pass !== historyPass) return
+      const started = nowMs()
+      while (cursor < ids.length) {
+        const slice = ids.slice(cursor, cursor + HISTORY_SLICE_SIZE)
+        cursor += slice.length
+        try {
+          const results = (module.inspect(slice) as IAnnotationInspection[] | undefined) ?? []
+          for (const result of results) {
+            if (result && typeof result.id === 'string') next[result.id] = markRaw(result)
+          }
+        } catch (error) {
+          console.error('[annotation] Failed to inspect history.', error)
+        }
+        if (nowMs() - started >= HISTORY_SLICE_BUDGET) break
+      }
+      historyNow.value = { ...next }
+      if (cursor < ids.length && historyVisible.value) {
+        historySliceTimer = setTimeout(step, 0)
+      }
+    }
+
+    step()
   }
 
-  /** 节流版：文档每次变化都会触发，攒一下再检视。 */
+  /** 节流版：文档每次变化都会触发，攒一下再检视。不可见时什么都不做。 */
   function scheduleHistoryRefresh(delay = 150): void {
     if (!historyVisible.value) return
     if (historyTimer) clearTimeout(historyTimer)
@@ -551,18 +686,81 @@ export const useAnnotationStore = defineStore('annotation', () => {
     }, delay)
   }
 
-  /** 面板切到 / 离开历史视图时调用。 */
-  function SET_HISTORY_VISIBLE(visible: boolean): void {
-    historyVisible.value = visible
+  let historyWasVisible = false
+  /** 可见性变化的唯一出口：变可见立即检视一次，变不可见撤掉所有计时器与在途分片。 */
+  function syncHistoryVisibility(): void {
+    const visible = historyVisible.value
+    if (visible === historyWasVisible) return
+    historyWasVisible = visible
     if (visible) refreshHistoryNow()
-    else if (historyTimer) {
-      clearTimeout(historyTimer)
-      historyTimer = null
-    }
+    else cancelHistoryRefresh()
+  }
+  watch(historyVisible, syncHistoryVisibility)
+
+  /** 面板切到 / 离开「历史」子视图（真正的可见性还要看右栏与 tab，见 historyVisible）。 */
+  function SET_HISTORY_VIEW(open: boolean): void {
+    historyViewOpen.value = open
+    syncHistoryVisibility()
+  }
+
+  /** 面板告知用户展开着的轮次：下一次检视优先处理它们。 */
+  function SET_HISTORY_OPEN_ROUNDS(rounds: number[]): void {
+    historyOpenRounds = [...rounds]
   }
 
   // 应用内编辑：正文变了就重算（外部重载 / 切文档走下面的 annotations watch）。
   onEngineEvent('json-change', () => scheduleHistoryRefresh(600))
+
+  // ── 历史定位（第二轮：点一条历史记录，跳到它现在在正文里的位置）──────────
+  /** 刚被定位过的历史条目（卡片短暂高亮，与正文闪烁同步消失）。 */
+  const historyFocusId = ref<string | null>(null)
+  let historyFocusTimer: ReturnType<typeof setTimeout> | null = null
+  const HISTORY_FOCUS_MS = 3600
+
+  /**
+   * 在正文里定位一条历史标注**现在**的位置：引擎滚动主编辑器并一次性闪烁该处
+   * （不移动光标、不改条目、不落盘）。没有精确位置时按情况给出明确提示：
+   * 整句改写 / 这一句被删 → 已指到原段落；连段落也没了 → 已指到原位置附近；
+   * 都找不到 → 说明找不到；全局备注 → 没有正文位置。从不静默。
+   */
+  function revealHistory(id: string): TAnnotationRevealStatus | null {
+    const target = findById(id)
+    if (!target) return null
+    const say = (key: string): void => {
+      notice.notify({ message: t(key), type: 'info', time: 3000 })
+    }
+    if (target.global) {
+      say('annotation.locate.global')
+      return 'global'
+    }
+    const module = annotationModule()
+    if (!module?.reveal) {
+      say('annotation.toast.engineMissing')
+      return null
+    }
+    let result: IAnnotationReveal | null = null
+    try {
+      result = (module.reveal(id, { smooth: !prefersReducedMotion() }) as IAnnotationReveal) ?? null
+    } catch (error) {
+      console.error('[annotation] Failed to reveal history item.', error)
+    }
+    if (!result) {
+      say('annotation.toast.engineMissing')
+      return null
+    }
+    // 顺带刷新这一条的「现在」：卡片与正文看到的是同一个位置。
+    if (result.inspection) {
+      historyNow.value = { ...historyNow.value, [id]: markRaw(result.inspection) }
+    }
+    historyFocusId.value = id
+    if (historyFocusTimer) clearTimeout(historyFocusTimer)
+    historyFocusTimer = setTimeout(() => {
+      historyFocusTimer = null
+      if (historyFocusId.value === id) historyFocusId.value = null
+    }, HISTORY_FOCUS_MS)
+    if (result.status !== 'range') say(`annotation.locate.${result.status}`)
+    return result.status
+  }
 
   /** 历史分组 + 对比态（面板直接渲染它）。 */
   const historyCompareGroups = computed(() =>
@@ -1120,7 +1318,8 @@ export const useAnnotationStore = defineStore('annotation', () => {
     const target = findById(id)
     if (!target) return
     if (target.archived) {
-      notice.notify({ message: t('annotation.toast.archived'), type: 'info', time: 2500 })
+      // 历史条目没有正文高亮 span（不进序号表）：交给引擎按「现在」的位置定位。
+      revealHistory(id)
       return
     }
     // 全局备注没有正文位置，点击不做定位。
@@ -1189,6 +1388,8 @@ export const useAnnotationStore = defineStore('annotation', () => {
   // 显示上一篇文档的检视结果。
   watch(activeKey, () => {
     historyNow.value = {}
+    historyFocusId.value = null
+    annotationModule()?.clearReveal?.()
   })
   watch(annotations, () => scheduleHistoryRefresh())
 
@@ -1278,7 +1479,11 @@ export const useAnnotationStore = defineStore('annotation', () => {
     installUnloadFlush,
     // 历史对比
     refreshHistoryNow,
-    SET_HISTORY_VISIBLE,
+    historyVisible,
+    historyFocusId,
+    revealHistory,
+    SET_HISTORY_VIEW,
+    SET_HISTORY_OPEN_ROUNDS,
     // 常用语（feat/quick-phrases）：设置弹窗开关 / 保存信号 / 徽标弹跳脉冲
     quickPhraseSettingsOpen,
     savedPulse,

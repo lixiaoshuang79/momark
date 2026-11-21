@@ -523,6 +523,23 @@ export interface IAnnotationInspection {
   /** located = 按原锚点命中；block = 原句被整句改写，对应到原段落；missing = 原文已删除（段落还在时附带该段落快照）。 */
   match: 'located' | 'block' | 'missing'
   snapshot: IAnnotationSnapshot | null
+  /** located：标注段现在的区间（只是检视结果，不落盘）。 */
+  ranges?: IAnnotationRange[]
+  /** block / missing（段落还在）：原来所在段落现在的块路径。 */
+  blockPath?: unknown
+}
+
+/**
+ * 引擎 `reveal()` 的结果（历史条目点击定位）：range = 闪烁标注段；block = 整句改写，
+ * 指到原段落；context = 这一句被删，指到原段落；near = 连段落也没了，指到原位置
+ * 附近；none = 找不到任何位置；global = 全局备注。
+ */
+export type TAnnotationRevealStatus = 'range' | 'block' | 'context' | 'near' | 'none' | 'global'
+
+export interface IAnnotationReveal {
+  id: string
+  status: TAnnotationRevealStatus
+  inspection: IAnnotationInspection | null
 }
 
 export interface IAnnotation {

@@ -49,7 +49,7 @@ vi.mock('@/store/preferences', () => ({
   usePreferencesStore: () => ({ annotationEnabled: true })
 }))
 vi.mock('@/store/browserPanel', () => ({
-  useBrowserPanelStore: () => ({ activeTab: 'annotation', SET_TAB: vi.fn() })
+  useBrowserPanelStore: () => ({ open: true, activeTab: 'annotation', SET_TAB: vi.fn() })
 }))
 
 import AnnotationStore, {
@@ -383,25 +383,25 @@ describe('历史对比视图模型', () => {
 
     // 不可见时不检视
     expect(inspect).not.toHaveBeenCalled()
-    store.SET_HISTORY_VISIBLE(true)
+    store.SET_HISTORY_VIEW(true)
     expect(inspect).toHaveBeenCalledWith(['h1'])
 
     const items = store.historyCompareGroups.flatMap((g) => g.items)
     expect(items.find((i) => i.annotation.id === 'h1')!.status).toBe('changed')
     expect(items.find((i) => i.annotation.id === 'h2')!.status).toBe('global')
 
-    store.SET_HISTORY_VISIBLE(false)
+    store.SET_HISTORY_VIEW(false)
   })
 
   it('引擎没挂载 → 待比对（面板仍能显示标注时的样子）', async () => {
     const store = useAnnotationStore()
     await store.SWITCH_DOC({ pathname: DOC, tabId: 't1' })
     store.docs[DOC]!.annotations = [ann('h1', { origin: snap() })]
-    store.SET_HISTORY_VISIBLE(true)
+    store.SET_HISTORY_VIEW(true)
     const [item] = store.historyCompareGroups[0]!.items
     expect(item!.status).toBe('pending')
     expect(item!.origin).toEqual(snap())
-    store.SET_HISTORY_VISIBLE(false)
+    store.SET_HISTORY_VIEW(false)
   })
 })
 

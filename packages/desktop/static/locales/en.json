@@ -1206,7 +1206,6 @@
     },
     "toast": {
       "copied": "Copied to the clipboard",
-      "archived": "This annotation is archived; located it in the history",
       "orphan": "The source text of this annotation is gone",
       "engineMissing": "The editor is not ready yet, try again in a moment",
       "archiveCount": "Archived {n} annotation(s); find them in History",
@@ -1234,6 +1233,16 @@
       "undo": "Undo",
       "exists": "Already exists",
       "tooLong": "Up to {n} characters"
+    },
+    "locate": {
+      "action": "Locate",
+      "title": "Show where this annotation is in the document now",
+      "cardTitle": "Click to locate in the document",
+      "block": "The sentence was rewritten; showing the paragraph it was in",
+      "context": "This sentence was removed; showing the paragraph it was in",
+      "near": "The text and its paragraph were removed; showing where it used to be",
+      "none": "The text was removed; there is no matching place in the document",
+      "global": "Global notes apply to the whole document and have no position in it"
     },
     "compare": {
       "before": "When annotated",

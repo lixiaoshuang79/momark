@@ -1,5 +1,11 @@
 <template>
-  <article class="hc-item" :class="`is-${item.status}`">
+  <article
+    ref="cardEl"
+    class="hc-item"
+    :class="[`is-${item.status}`, { focused }]"
+    :title="item.status === 'global' ? undefined : t('annotation.locate.cardTitle')"
+    @click="onCardClick"
+  >
     <header class="hc-top">
       <span v-if="sentIndex" class="hc-idx" :title="t('annotation.compare.indexTitle')"
         >[{{ sentIndex }}]</span
@@ -74,6 +80,27 @@
     </div>
 
     <footer class="hc-foot">
+      <button
+        v-if="item.status !== 'global'"
+        class="mini locate"
+        :title="t('annotation.locate.title')"
+        @click.stop="locate"
+      >
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <circle cx="8" cy="8" r="4.2" />
+          <path d="M8 1.5v2.3M8 12.2v2.3M1.5 8h2.3M12.2 8h2.3" />
+        </svg>
+        {{ t('annotation.locate.action') }}
+      </button>
       <button class="mini" @click.stop="store.restore(annotation.id)">
         {{ t('annotation.action.restore') }}
       </button>
@@ -88,9 +115,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { t } from '../../i18n'
 import { useAnnotationStore, type HistoryCompareItem } from '@/store/annotation'
-import type { IAnnotationSnapshot } from '@shared/types/ipc'
-import { renderSnapshotHtml } from '@muyajs/core/annotation/snapshotRender'
-import { compactDiff, snapshotKindLabel } from './annotationHistoryFormat'
+import { compactDiff, renderSnapshotCached, snapshotKindLabel } from './annotationHistoryFormat'
 
 /**
  * 历史里的一条标注：「标注时」与「现在」对照（feat/annotation-history-compare）。
@@ -137,28 +162,34 @@ const facets = computed<string[]>(() => {
 
 const diffSegments = computed(() => compactDiff(props.item.comparison?.diff ?? null))
 
-// ── 渲染（同一份 markdown 只渲染一次：历史里最多 500 条，切视图不重复解析）──
-const HTML_CACHE_MAX = 600
-const htmlCache = new Map<string, string>()
+// 渲染走模块级共享缓存：切视图 / 过滤重建卡片实例时不重新解析。
+const beforeHtml = computed(() => renderSnapshotCached(props.item.origin))
+const nowHtml = computed(() => renderSnapshotCached(props.item.now))
 
-const renderCached = (snapshot: IAnnotationSnapshot | null): string => {
-  if (!snapshot?.markdown) return ''
-  const key = `${snapshot.kind}:${snapshot.markStart}:${snapshot.markEnd}:${snapshot.markdown}`
-  const hit = htmlCache.get(key)
-  if (hit !== undefined) return hit
-  let html = ''
-  try {
-    html = renderSnapshotHtml(snapshot)
-  } catch (error) {
-    console.error('[annotation] Failed to render snapshot.', error)
-  }
-  if (htmlCache.size >= HTML_CACHE_MAX) htmlCache.delete(htmlCache.keys().next().value as string)
-  htmlCache.set(key, html)
-  return html
+// ── 点击定位（第二轮）：卡片任意处点一下 → 主编辑器滚到这条标注现在的位置 ──
+const cardEl = ref<HTMLElement | null>(null)
+const focused = computed(() => store.historyFocusId === annotation.value.id)
+const locate = (): void => {
+  store.revealHistory(annotation.value.id)
 }
-
-const beforeHtml = computed(() => renderCached(props.item.origin))
-const nowHtml = computed(() => renderCached(props.item.now))
+/**
+ * 卡片点击：按钮自己处理（恢复 / 删除 / 定位都 stop 了冒泡）；用户是在拖选文字
+ * （松手时选区不是折叠的、且落在这张卡片里）时不定位，复制引文 / 备注不受影响。
+ */
+const onCardClick = (event: MouseEvent): void => {
+  const target = event.target as Element | null
+  if (target?.closest?.('button')) return
+  const selection = window.getSelection?.()
+  if (
+    selection &&
+    !selection.isCollapsed &&
+    selection.anchorNode &&
+    cardEl.value?.contains(selection.anchorNode)
+  ) {
+    return
+  }
+  locate()
+}
 
 /** 快照里的链接只是外观，点了不能把整个窗口导航走。 */
 const blockLinks = (event: MouseEvent): void => {
@@ -185,7 +216,30 @@ watch([beforeHtml, nowHtml], revealAll)
 
 <style scoped>
 .hc-item {
+  position: relative;
   padding: 10px 12px 10px 26px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.hc-item:hover {
+  background: color-mix(in oklab, var(--hover) 60%, transparent);
+}
+.hc-item.is-global {
+  cursor: default;
+}
+.hc-item.is-global:hover {
+  background: transparent;
+}
+/* 刚定位过的那条：左侧一道暖色竖条，与正文里的闪烁同色、同时消失。 */
+.hc-item.focused::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 12px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--warn);
 }
 .hc-item + .hc-item {
   border-top: 1px solid var(--line);
@@ -486,5 +540,10 @@ watch([beforeHtml, nowHtml], revealAll)
 }
 .mini.danger:hover {
   color: var(--danger);
+}
+.mini.locate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>
