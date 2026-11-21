@@ -1,7 +1,7 @@
 /** Minimal CodeMirror surface `scrollSourceEditorToLine` needs. */
 interface ISourceEditor {
   setCursor: (
-    pos: { line: number, ch: number },
+    pos: { line: number; ch: number },
     ch?: number | null,
     options?: { scroll?: boolean }
   ) => void
@@ -80,4 +80,70 @@ export function findMarkdownHeadingLine(markdown: string, headingIndex: number):
   }
 
   return -1
+}
+
+export interface IMarkdownHeading {
+  /** 0-based line of the heading text (for setext, the text line, not the underline). */
+  line: number
+  level: number
+  text: string
+}
+
+const stripInlineMarks = (text: string): string =>
+  text
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|__|~~|`)(.+?)\1/g, '$2')
+    .replace(/(^|[^\w*])[*_]([^*_\s][^*_]*?)[*_](?=[^\w*]|$)/g, '$1$2')
+    .trim()
+
+/**
+ * Every markdown heading with its line, level and plain text, using the same
+ * rules as `findMarkdownHeadingLine` (fenced code skipped, ATX + setext) so the
+ * N-th entry here is the N-th heading `findMarkdownHeadingLine` resolves.
+ * A leading front-matter block is skipped as well — its closing `---` would
+ * otherwise read as a setext underline. Source Code mode feeds the heading rail
+ * from this, since the engine TOC is not refreshed while CodeMirror is editing.
+ */
+export function listMarkdownHeadings(markdown: string): IMarkdownHeading[] {
+  const lines = markdown.split('\n')
+  const out: IMarkdownHeading[] = []
+  let fence: string | null = null
+  let start = 0
+
+  if (/^(---|\+\+\+)\s*$/.test(lines[0] ?? '')) {
+    const marker = lines[0]!.trim()
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i]!.trim() === marker || (marker === '---' && lines[i]!.trim() === '...')) {
+        start = i + 1
+        break
+      }
+    }
+  }
+
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i]!
+
+    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})/)
+    if (fenceMatch) {
+      const marker = fenceMatch[1]![0]!
+      if (fence === null) fence = marker
+      else if (marker === fence) fence = null
+      continue
+    }
+    if (fence !== null) continue
+
+    const atx = line.match(/^ {0,3}(#{1,6})(?:\s+(.*?))?\s*$/)
+    if (atx) {
+      const text = (atx[2] ?? '').replace(/\s+#+\s*$/, '').replace(/^#+$/, '')
+      out.push({ line: i, level: atx[1]!.length, text: stripInlineMarks(text) })
+      continue
+    }
+
+    const next = lines[i + 1]
+    if (line.trim() !== '' && next !== undefined && /^ {0,3}(?:=+|-+)\s*$/.test(next)) {
+      out.push({ line: i, level: next.trim()[0] === '=' ? 1 : 2, text: stripInlineMarks(line) })
+      i++
+    }
+  }
+  return out
 }
