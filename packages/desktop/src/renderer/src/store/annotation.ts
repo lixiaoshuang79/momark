@@ -2,7 +2,19 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import notice from '../services/notification'
 import { t } from '../i18n'
-import type { AnnotationDocument, IAnnotation, IAnnotationExportItem } from '@shared/types/ipc'
+import type {
+  AnnotationDocument,
+  IAnnotation,
+  IAnnotationExportItem,
+  IAnnotationInspection,
+  IAnnotationSnapshot
+} from '@shared/types/ipc'
+import { originSnapshotOf } from '@muyajs/core/annotation/snapshot'
+import {
+  compareSnapshots,
+  type ISnapshotComparison,
+  type TCompareStatus
+} from '@muyajs/core/annotation/snapshotCompare'
 import {
   normalizePhrase,
   normalizePhraseList,
@@ -212,6 +224,98 @@ export const buildCopyText = (items: IAnnotationExportItem[], pathname: string):
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// 历史对比（feat/annotation-history-compare）
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * 历史条目的对比态：
+ * - `unchanged / changed / rewritten / deleted` 来自引擎比对（见 snapshotCompare）；
+ * - `pending`：还没拿到「现在」（引擎未挂载 / 尚未检视）；
+ * - `global`：全局备注，没有正文可比。
+ */
+export type THistoryStatus = TCompareStatus | 'pending' | 'global'
+
+export interface HistoryCompareItem {
+  annotation: IAnnotation
+  status: THistoryStatus
+  /** 标注时的样子（真快照或 v2 反推）。 */
+  origin: IAnnotationSnapshot | null
+  /** 现在的样子（located / block 才有）。 */
+  now: IAnnotationSnapshot | null
+  match: IAnnotationInspection['match'] | null
+  comparison: ISnapshotComparison | null
+}
+
+export interface HistoryCompareGroup {
+  round: number
+  at: number
+  items: HistoryCompareItem[]
+  summary: Record<THistoryStatus, number>
+}
+
+/** 一条历史标注的对比态（纯函数）。 */
+export function compareHistoryItem(
+  annotation: IAnnotation,
+  inspection: IAnnotationInspection | undefined
+): HistoryCompareItem {
+  const base = { annotation, origin: null, now: null, match: null, comparison: null }
+  if (annotation.global) return { ...base, status: 'global' }
+
+  const origin = originSnapshotOf(annotation)
+  if (!origin || !inspection) return { ...base, origin, status: 'pending' }
+
+  const comparison = compareSnapshots(origin, inspection.match, inspection.snapshot)
+  return {
+    annotation,
+    origin,
+    now: inspection.snapshot,
+    match: inspection.match,
+    comparison,
+    status: comparison.status
+  }
+}
+
+const emptySummary = (): Record<THistoryStatus, number> => ({
+  unchanged: 0,
+  changed: 0,
+  rewritten: 0,
+  deleted: 0,
+  pending: 0,
+  global: 0
+})
+
+/**
+ * 一轮里的条目排序：按复制文本里的序号（`[n]`，与发给 agent 的编号一致），
+ * 旧数据没有序号的排在后面、按创建时间。
+ */
+export function sortRoundItems<T extends { annotation: IAnnotation }>(items: T[]): T[] {
+  const indexOf = (a: IAnnotation): number =>
+    typeof a.sentIndex === 'number' ? a.sentIndex : Number.MAX_SAFE_INTEGER
+  return items
+    .slice()
+    .sort(
+      (a, b) =>
+        indexOf(a.annotation) - indexOf(b.annotation) ||
+        a.annotation.createdAt - b.annotation.createdAt
+    )
+}
+
+/** 历史分组 + 对比态 + 每轮摘要（纯函数，面板与单测共用）。 */
+export function buildHistoryCompare(
+  groups: Array<{ round: number; at: number; items: IAnnotation[] }>,
+  inspections: Record<string, IAnnotationInspection>
+): HistoryCompareGroup[] {
+  return groups.map((group) => {
+    const items = sortRoundItems(
+      group.items.map((annotation) => compareHistoryItem(annotation, inspections[annotation.id]))
+    )
+    const summary = emptySummary()
+    for (const item of items) summary[item.status] += 1
+    return { round: group.round, at: group.at, items, summary }
+  })
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Store
 // ═══════════════════════════════════════════════════════════════════
 
@@ -398,6 +502,72 @@ export const useAnnotationStore = defineStore('annotation', () => {
       }))
       .sort((a, b) => b.round - a.round)
   })
+
+  // ── 历史对比：「现在」的样子（feat/annotation-history-compare）──────────
+  /**
+   * id → 引擎 `inspect()` 的结果。只在内存里、不落盘：「现在」随文档实时变化，
+   * 存下来反而会过期。切文档时清空，打开历史视图 / 文档变化时重算。
+   */
+  const historyNow = ref<Record<string, IAnnotationInspection>>({})
+  /** 历史视图是否可见（不可见时不做检视，省掉无谓的全表快照）。 */
+  const historyVisible = ref(false)
+  let historyTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * 立即检视当前文档的所有历史条目。引擎会先重定位归档条目（它们不参与打字时的
+   * 增量重定位），位置有变化时广播 `relocate` → `syncFromEngine` 落盘 currentText。
+   */
+  function refreshHistoryNow(): void {
+    if (historyTimer) {
+      clearTimeout(historyTimer)
+      historyTimer = null
+    }
+    const module = annotationModule()
+    const ids = historyList.value.filter((a) => !a.global).map((a) => a.id)
+    if (!module?.inspect || !ids.length) {
+      if (Object.keys(historyNow.value).length) historyNow.value = {}
+      return
+    }
+    let results: IAnnotationInspection[] = []
+    try {
+      results = (module.inspect(ids) as IAnnotationInspection[] | undefined) ?? []
+    } catch (error) {
+      console.error('[annotation] Failed to inspect history.', error)
+    }
+    const next: Record<string, IAnnotationInspection> = {}
+    for (const result of results) {
+      if (result && typeof result.id === 'string') next[result.id] = result
+    }
+    historyNow.value = next
+  }
+
+  /** 节流版：文档每次变化都会触发，攒一下再检视。 */
+  function scheduleHistoryRefresh(delay = 150): void {
+    if (!historyVisible.value) return
+    if (historyTimer) clearTimeout(historyTimer)
+    historyTimer = setTimeout(() => {
+      historyTimer = null
+      if (historyVisible.value) refreshHistoryNow()
+    }, delay)
+  }
+
+  /** 面板切到 / 离开历史视图时调用。 */
+  function SET_HISTORY_VISIBLE(visible: boolean): void {
+    historyVisible.value = visible
+    if (visible) refreshHistoryNow()
+    else if (historyTimer) {
+      clearTimeout(historyTimer)
+      historyTimer = null
+    }
+  }
+
+  // 应用内编辑：正文变了就重算（外部重载 / 切文档走下面的 annotations watch）。
+  onEngineEvent('json-change', () => scheduleHistoryRefresh(600))
+
+  /** 历史分组 + 对比态（面板直接渲染它）。 */
+  const historyCompareGroups = computed(() =>
+    buildHistoryCompare(historyGroups.value, historyNow.value)
+  )
 
   /** 条目在文档里的序号（1 起）：优先引擎给的文档序号，退化为创建顺序。 */
   const orderOf = (id: string): number => {
@@ -873,6 +1043,9 @@ export const useAnnotationStore = defineStore('annotation', () => {
       return false
     }
 
+    // 旧版本建的条目没有「标注时」快照：趁复制这一刻补拍（只在原样命中时补，
+    // 文字已被改过的留空，历史里按 v2 字段反推）。
+    module.ensureOrigins?.(ids)
     const items = (module.getExport?.(ids) as IAnnotationExportItem[] | undefined) ?? []
     // 导出条目数与要复制的 id 数不符 = 引擎表与面板表不同步（典型：切标签后
     // `load` 还没回来就点了复制，引擎表里还是上一个文档的 id）。这时**不能**照样
@@ -889,10 +1062,17 @@ export const useAnnotationStore = defineStore('annotation', () => {
 
     const round = doc.round
     const now = Date.now()
+    // 复制文本里的 [n]：历史按它排序、显示，便于对照 agent 的逐条回复。
+    const sentIndexById = new Map<string, number>()
+    for (const item of items) {
+      if (typeof item.id === 'string') sentIndexById.set(item.id, item.index)
+    }
     for (const annotation of pending) {
       annotation.copied = true
       annotation.round = round
       annotation.sentQuote = annotation.anchor.quote
+      const sentIndex = sentIndexById.get(annotation.id)
+      if (typeof sentIndex === 'number') annotation.sentIndex = sentIndex
       annotation.updatedAt = now
       // 用户拍板：复制过的条目直接移入历史（不再留在当前列表等手动归档）。
       annotation.archived = true
@@ -1004,6 +1184,14 @@ export const useAnnotationStore = defineStore('annotation', () => {
     }
   )
 
+  // 标注表整体换过（回读引擎 / 外部重载 / 切文档 / 归档恢复）→ 历史的「现在」重算。
+  // syncFromEngine 每次都换新数组，所以浅 watch 足够；切文档先清空，避免短暂
+  // 显示上一篇文档的检视结果。
+  watch(activeKey, () => {
+    historyNow.value = {}
+  })
+  watch(annotations, () => scheduleHistoryRefresh())
+
   // 偏好开关变化即时同步给引擎（关 = 不画高亮；数据保留）。
   watch(enabled, (value) => {
     annotationModule()?.setEnabled?.(value)
@@ -1052,6 +1240,8 @@ export const useAnnotationStore = defineStore('annotation', () => {
     uncopiedCount,
     isUntitled,
     historyGroups,
+    historyCompareGroups,
+    historyNow,
     archivableAfterCopy,
     // engine
     attachEngine,
@@ -1086,6 +1276,9 @@ export const useAnnotationStore = defineStore('annotation', () => {
     orderOf,
     findById,
     installUnloadFlush,
+    // 历史对比
+    refreshHistoryNow,
+    SET_HISTORY_VISIBLE,
     // 常用语（feat/quick-phrases）：设置弹窗开关 / 保存信号 / 徽标弹跳脉冲
     quickPhraseSettingsOpen,
     savedPulse,

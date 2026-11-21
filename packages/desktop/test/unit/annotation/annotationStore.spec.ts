@@ -79,14 +79,15 @@ describe('AnnotationStore — 读写往返', () => {
   it('文件不存在时返回空结构而不是报错', () => {
     const store = new AnnotationStore({ annotationStorePath: tempDir() })
     expect(store.load(DOC)).toMatchObject({
-      version: 2,
+      // 1.7.3 起落盘结构为 v3（feat/annotation-history-compare，v2 读入即升级）
+      version: 3,
       pathname: DOC,
       round: 0,
       annotations: []
     })
   })
 
-  it('save → load 往返保留条目与轮次，并落盘 version 2', () => {
+  it('save → load 往返保留条目与轮次，并落盘 version 3', () => {
     const dir = tempDir()
     const store = new AnnotationStore({ annotationStorePath: dir })
     store.save({
@@ -97,7 +98,7 @@ describe('AnnotationStore — 读写往返', () => {
     })
 
     const loaded = store.load(DOC)
-    expect(loaded.version).toBe(2)
+    expect(loaded.version).toBe(3)
     expect(loaded.round).toBe(3)
     expect(loaded.docHash).toBe('abc')
     expect(loaded.annotations.map((a) => a.id)).toEqual(['a1', 'a2'])

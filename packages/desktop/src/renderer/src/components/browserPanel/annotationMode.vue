@@ -107,16 +107,40 @@
       </template>
     </div>
 
-    <!-- ── 历史视图 ── -->
-    <div v-else class="ann-list">
-      <div v-if="!store.historyGroups.length" class="empty">
+    <!-- ── 历史视图：每条「标注时 ↔ 现在」对照（feat/annotation-history-compare）── -->
+    <div v-else class="ann-list hist-list">
+      <div v-if="!store.historyCompareGroups.length" class="empty">
         {{ t('annotation.empty.history') }}<br />{{ t('annotation.empty.historySub') }}
       </div>
       <template v-else>
-        <section v-for="group in store.historyGroups" :key="group.round" class="hist-group">
+        <div class="hist-tools">
+          <button
+            class="hist-filter"
+            :class="{ on: onlyChanged }"
+            :aria-pressed="onlyChanged"
+            @click="onlyChanged = !onlyChanged"
+          >
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2V8.5z" />
+            </svg>
+            {{ t('annotation.compare.onlyChanged') }}
+          </button>
+        </div>
+        <section v-for="group in store.historyCompareGroups" :key="group.round" class="hist-group">
           <button
             class="hg-head"
             :class="{ open: isHistoryOpen(group.round) }"
+            :aria-expanded="isHistoryOpen(group.round)"
             @click="toggleHistory(group.round)"
           >
             <svg
@@ -137,26 +161,27 @@
               >· {{ formatTime(group.at) }} ·
               {{ t('annotation.historyCount', { n: group.items.length }) }}</span
             >
-            <span class="del" @click.stop="deleteRound(group)">{{
+            <span class="del" @click.stop="deleteRound(roundRef(group))">{{
               t('annotation.deleteRound')
             }}</span>
           </button>
+          <div v-if="summaryParts(group.summary).length" class="hg-summary">
+            <span
+              v-for="part in summaryParts(group.summary)"
+              :key="part.status"
+              class="hg-chip"
+              :class="part.status"
+              ><i class="dot" />{{ part.text }}</span
+            >
+          </div>
           <template v-if="isHistoryOpen(group.round)">
-            <div v-for="item in group.items" :key="item.id" class="hist-item">
-              <div class="hi-quote" :title="item.anchor.quote">
-                {{ inline(item.anchor.quote) }}
-              </div>
-              <div class="hi-note">
-                {{ item.note }}
-              </div>
-              <div class="hi-foot">
-                <button class="mini" @click.stop="store.restore(item.id)">
-                  {{ t('annotation.action.restore') }}
-                </button>
-                <button class="mini danger" @click.stop="store.deleteArchived([item.id])">
-                  {{ t('annotation.action.delete') }}
-                </button>
-              </div>
+            <annotation-history-item
+              v-for="entry in visibleItems(group.items)"
+              :key="entry.annotation.id"
+              :item="entry"
+            />
+            <div v-if="!visibleItems(group.items).length" class="hist-none">
+              {{ t('annotation.compare.noneChanged') }}
             </div>
           </template>
         </section>
@@ -283,7 +308,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import notice from '@/services/notification'
 import { t } from '../../i18n'
 import AnnotationCard from './annotationCard.vue'
-import { useAnnotationStore } from '@/store/annotation'
+import AnnotationHistoryItem from './annotationHistoryItem.vue'
+import {
+  useAnnotationStore,
+  type HistoryCompareItem,
+  type THistoryStatus
+} from '@/store/annotation'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 
 /**
@@ -347,8 +377,6 @@ const copyButtonTitle = computed(() => {
   return t('annotation.copyAllHint', { n: counts.value.pending })
 })
 
-const inline = (text: string): string => text.replace(/\s+/g, ' ').trim()
-
 const formatTime = (at: number): string => {
   if (!at) return ''
   const date = new Date(at)
@@ -364,10 +392,42 @@ const setView = (next: AnnView): void => {
   archiveMenuOpen.value = false
 }
 
-const isHistoryOpen = (round: number): boolean => openRounds.value[round] !== false
+/**
+ * 默认只展开最新一轮：每条历史现在带两块渲染出来的对照，20 轮全开会很长，
+ * 也会一次渲染上百个片段。用户展开 / 收起过的轮次按用户的来。
+ */
+const latestRound = computed(() => store.historyCompareGroups[0]?.round ?? null)
+const isHistoryOpen = (round: number): boolean =>
+  openRounds.value[round] ?? round === latestRound.value
 const toggleHistory = (round: number): void => {
   openRounds.value = { ...openRounds.value, [round]: !isHistoryOpen(round) }
 }
+
+// ── 历史对比：只看有变化 / 每轮摘要 ──────────────────────────────────
+const onlyChanged = ref(false)
+/** 「只看有变化」隐藏的是「未改动」——删除、改写、待比对都要留着。 */
+const visibleItems = (items: HistoryCompareItem[]): HistoryCompareItem[] =>
+  onlyChanged.value ? items.filter((item) => item.status !== 'unchanged') : items
+
+const SUMMARY_ORDER: Array<
+  Extract<THistoryStatus, 'changed' | 'rewritten' | 'unchanged' | 'deleted'>
+> = ['changed', 'rewritten', 'unchanged', 'deleted']
+const summaryParts = (
+  summary: Record<THistoryStatus, number>
+): Array<{ status: string; text: string }> =>
+  SUMMARY_ORDER.filter((status) => summary[status] > 0).map((status) => ({
+    status,
+    text: t(`annotation.compare.summary.${status}`, { n: summary[status] })
+  }))
+
+// 历史视图可见时才做「现在」的检视（引擎重定位归档条目 + 拍快照）。
+watch(
+  view,
+  (next) => {
+    store.SET_HISTORY_VISIBLE(next === 'history')
+  },
+  { immediate: true }
+)
 
 /**
  * 归档 / 清空这类不可撤销的动作走一次确认（方案 §3.4）。
@@ -395,6 +455,15 @@ const confirmDialog = async (
     return false
   }
 }
+
+/** 整组删除只需要轮次与条目 id（对比视图的条目包了一层）。 */
+const roundRef = (group: {
+  round: number
+  items: HistoryCompareItem[]
+}): { round: number; items: { id: string }[] } => ({
+  round: group.round,
+  items: group.items.map((entry) => ({ id: entry.annotation.id }))
+})
 
 const deleteRound = async (group: { round: number; items: { id: string }[] }): Promise<void> => {
   const ok = await confirmDialog(
@@ -533,6 +602,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  store.SET_HISTORY_VISIBLE(false)
   document.removeEventListener('click', onDocumentClick)
   stopUnloadFlush?.()
   stopUnloadFlush = null
@@ -659,6 +729,76 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   padding: 4px 0;
 }
+/* 历史条目的「标注时 / 现在」在宽栏下并排：按列表宽度（而不是窗口宽度）判断。 */
+.hist-list {
+  container: ann-list / inline-size;
+}
+.hist-tools {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 10px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.hist-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 21px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-family: inherit;
+  color: var(--muted);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  cursor: pointer;
+}
+.hist-filter:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.hist-filter.on {
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 55%, transparent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+.hg-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 0 12px 8px 28px;
+  margin-top: -4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.hg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.hg-chip .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.hg-chip.changed .dot,
+.hg-chip.rewritten .dot {
+  background: var(--success);
+}
+.hg-chip.unchanged .dot {
+  background: var(--warn);
+}
+.hg-chip.deleted .dot {
+  background: var(--danger);
+}
+.hist-none {
+  padding: 8px 12px 12px 26px;
+  font-size: 11.5px;
+  color: var(--faint);
+}
 .empty {
   padding: 38px 28px;
   text-align: center;
@@ -739,32 +879,6 @@ onBeforeUnmount(() => {
 }
 .hg-head .del:hover {
   color: var(--danger);
-}
-.hist-item {
-  padding: 9px 12px 9px 26px;
-}
-.hist-item + .hist-item {
-  border-top: 1px solid var(--line);
-}
-.hi-quote {
-  font: 11.5px/1.5 var(--font-mono);
-  color: var(--faint);
-  padding-left: 8px;
-  border-left: 3px solid var(--line-strong);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 4px;
-}
-.hi-note {
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
-.hi-foot {
-  display: flex;
-  gap: 6px;
 }
 .retention {
   padding: 12px;

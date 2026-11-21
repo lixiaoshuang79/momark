@@ -1236,6 +1236,59 @@
       "undo": "撤销",
       "exists": "已存在",
       "tooLong": "最多 {n} 字"
+    },
+    "compare": {
+      "before": "标注时",
+      "now": "现在",
+      "same": "标注时 = 现在",
+      "nowBlock": "现在 · 原位置的段落",
+      "deletedBody": "这段原文已从文档中删除",
+      "pending": "打开这篇文档后显示现在的样子",
+      "legacy": "旧版标注，按原文还原",
+      "diff": "改动",
+      "onlyChanged": "只看有变化",
+      "noneChanged": "这一轮没有变化的条目",
+      "indexTitle": "复制文本里的序号（与发给 agent 的编号一致）",
+      "status": {
+        "unchanged": "未改动",
+        "changed": "已修改",
+        "rewritten": "整句改写",
+        "deleted": "原文已删除",
+        "pending": "待比对",
+        "global": "全局备注"
+      },
+      "facet": {
+        "text": "文字",
+        "format": "格式",
+        "block": "{from} → {to}",
+        "context": "仅上下文有改动"
+      },
+      "summary": {
+        "changed": "改 {n}",
+        "rewritten": "改写 {n}",
+        "unchanged": "未改 {n}",
+        "deleted": "删 {n}"
+      },
+      "kind": {
+        "paragraph": "段落",
+        "heading": "标题 H{level}",
+        "list": "列表",
+        "orderedList": "有序列表",
+        "task": "任务项",
+        "taskDone": "任务项 · 已完成",
+        "tableHead": "表格 · 表头",
+        "tableRow": "表格 · 第 {row} 行",
+        "quote": "引用",
+        "code": "代码块",
+        "codeLang": "代码块 · {lang}",
+        "math": "公式",
+        "html": "HTML",
+        "diagram": "图表",
+        "frontmatter": "文档属性",
+        "footnote": "脚注",
+        "other": "其他",
+        "inQuote": "引用 › {kind}"
+      }
     }
   },
   "welcome": {

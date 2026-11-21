@@ -1234,6 +1234,59 @@
       "undo": "Undo",
       "exists": "Already exists",
       "tooLong": "Up to {n} characters"
+    },
+    "compare": {
+      "before": "When annotated",
+      "now": "Now",
+      "same": "When annotated = Now",
+      "nowBlock": "Now · paragraph at the original spot",
+      "deletedBody": "This text has been removed from the document",
+      "pending": "Open this document to see how it looks now",
+      "legacy": "Older annotation, rebuilt from the quote",
+      "diff": "Changes",
+      "onlyChanged": "Changed only",
+      "noneChanged": "Nothing changed in this round",
+      "indexTitle": "Number in the copied text (matches what the agent received)",
+      "status": {
+        "unchanged": "Unchanged",
+        "changed": "Modified",
+        "rewritten": "Rewritten",
+        "deleted": "Text deleted",
+        "pending": "Not compared",
+        "global": "Global note"
+      },
+      "facet": {
+        "text": "Text",
+        "format": "Format",
+        "block": "{from} → {to}",
+        "context": "Only surrounding text changed"
+      },
+      "summary": {
+        "changed": "{n} modified",
+        "rewritten": "{n} rewritten",
+        "unchanged": "{n} unchanged",
+        "deleted": "{n} deleted"
+      },
+      "kind": {
+        "paragraph": "Paragraph",
+        "heading": "Heading H{level}",
+        "list": "List",
+        "orderedList": "Numbered list",
+        "task": "Task",
+        "taskDone": "Task · done",
+        "tableHead": "Table · header",
+        "tableRow": "Table · row {row}",
+        "quote": "Quote",
+        "code": "Code block",
+        "codeLang": "Code block · {lang}",
+        "math": "Math",
+        "html": "HTML",
+        "diagram": "Diagram",
+        "frontmatter": "Front matter",
+        "footnote": "Footnote",
+        "other": "Other",
+        "inQuote": "Quote › {kind}"
+      }
     }
   },
   "welcome": {
