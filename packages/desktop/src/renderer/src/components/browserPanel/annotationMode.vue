@@ -57,6 +57,54 @@
       </button>
     </div>
 
+    <!-- 外部批量修改后自动切到历史（第三轮）：说明为什么切过来、可一键返回 -->
+    <div v-if="view === 'history' && autoBanner" class="ann-hint-bar auto-hist" role="status">
+      <div class="ah-body">
+        <span class="ah-text">{{
+          t('annotation.autoHistory.banner', { round: autoBanner.round, n: autoBannerCount })
+        }}</span>
+        <span class="ah-row">
+          <span
+            v-for="part in summaryParts(autoBannerSummary)"
+            :key="part.status"
+            class="hg-chip"
+            :class="part.status"
+            ><i class="dot" />{{ part.text }}</span
+          >
+          <span class="ah-actions">
+            <button
+              v-if="autoBanner.restorable"
+              class="mini"
+              :title="t('annotation.autoHistory.restoreTitle')"
+              @click="store.RESTORE_AUTO_HISTORY()"
+            >
+              {{ t('annotation.autoHistory.restore') }}
+            </button>
+            <button class="ah-link" @click="store.DISABLE_AUTO_HISTORY()">
+              {{ t('annotation.autoHistory.disable') }}
+            </button>
+          </span>
+        </span>
+      </div>
+      <button
+        class="hint-close"
+        :title="t('annotation.action.close')"
+        @click="store.DISMISS_AUTO_HISTORY()"
+      >
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        >
+          <path d="M4 4l8 8M12 4l-8 8" />
+        </svg>
+      </button>
+    </div>
+
     <!-- ── 当前视图 ── -->
     <div v-if="view === 'current'" class="ann-list">
       <div v-if="!currentList.length && !orphanList.length" class="empty">
@@ -108,7 +156,7 @@
     </div>
 
     <!-- ── 历史视图：每条「标注时 ↔ 现在」对照（feat/annotation-history-compare）── -->
-    <div v-else class="ann-list hist-list">
+    <div v-else ref="histListRef" class="ann-list hist-list">
       <div v-if="!store.historyCompareGroups.length" class="empty">
         {{ t('annotation.empty.history') }}<br />{{ t('annotation.empty.historySub') }}
       </div>
@@ -136,10 +184,15 @@
             {{ t('annotation.compare.onlyChanged') }}
           </button>
         </div>
-        <section v-for="group in store.historyCompareGroups" :key="group.round" class="hist-group">
+        <section
+          v-for="group in store.historyCompareGroups"
+          :key="group.round"
+          class="hist-group"
+          :data-round="group.round"
+        >
           <button
             class="hg-head"
-            :class="{ open: isHistoryOpen(group.round) }"
+            :class="{ open: isHistoryOpen(group.round), 'auto-hit': flashRound === group.round }"
             :aria-expanded="isHistoryOpen(group.round)"
             @click="toggleHistory(group.round)"
           >
@@ -310,6 +363,7 @@ import { t } from '../../i18n'
 import AnnotationCard from './annotationCard.vue'
 import AnnotationHistoryItem from './annotationHistoryItem.vue'
 import {
+  prefersReducedMotion,
   useAnnotationStore,
   type HistoryCompareItem,
   type THistoryStatus
@@ -436,6 +490,59 @@ watch(
   (rounds) => store.SET_HISTORY_OPEN_ROUNDS(rounds),
   { immediate: true }
 )
+
+// ── 外部批量修改后自动切到历史（第三轮）──────────────────────────────
+// store 发请求（panelViewRequest），这里落到组件本地状态：切子视图、展开达标的
+// 轮次、把目标轮滚到列表顶部并闪一下组头。展开是「加」不是「换」：用户已展开的
+// 轮次保持展开。
+const histListRef = ref<HTMLElement | null>(null)
+const flashRound = ref<number | null>(null)
+let flashTimer: ReturnType<typeof setTimeout> | null = null
+const AUTO_FLASH_MS = 3600
+
+watch(
+  () => store.panelViewRequest?.seq,
+  async () => {
+    const request = store.panelViewRequest
+    if (!request) return
+    setView(request.view)
+    if (request.expandRounds?.length) {
+      const next = { ...openRounds.value }
+      for (const round of request.expandRounds) next[round] = true
+      openRounds.value = next
+    }
+    const round = request.focusRound
+    if (typeof round !== 'number') return
+    await nextTick()
+    const list = histListRef.value
+    const section = list?.querySelector<HTMLElement>(`[data-round="${round}"]`)
+    if (list && section) {
+      const top =
+        list.scrollTop + section.getBoundingClientRect().top - list.getBoundingClientRect().top
+      list.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+    }
+    flashRound.value = round
+    if (flashTimer) clearTimeout(flashTimer)
+    flashTimer = setTimeout(() => {
+      flashTimer = null
+      flashRound.value = null
+    }, AUTO_FLASH_MS)
+  }
+)
+
+/** 横幅只属于它那篇文档（切到别的文档就不显示）。 */
+const autoBanner = computed(() =>
+  store.autoHistory && store.autoHistory.key === store.activeKey ? store.autoHistory : null
+)
+const autoBannerCount = computed(() => autoBanner.value?.affectedIds.length ?? 0)
+const autoBannerSummary = computed<Record<THistoryStatus, number>>(() => ({
+  changed: autoBanner.value?.counts.changed ?? 0,
+  rewritten: autoBanner.value?.counts.rewritten ?? 0,
+  deleted: autoBanner.value?.counts.deleted ?? 0,
+  unchanged: 0,
+  pending: 0,
+  global: 0
+}))
 
 // 换文档：上一篇的展开 / 收起不带过来（否则新文档最新一轮可能默认折叠）。
 watch(
@@ -623,6 +730,7 @@ onBeforeUnmount(() => {
   stopUnloadFlush?.()
   stopUnloadFlush = null
   if (copyDoneTimer) clearTimeout(copyDoneTimer)
+  if (flashTimer) clearTimeout(flashTimer)
 })
 </script>
 
@@ -737,6 +845,49 @@ onBeforeUnmount(() => {
 }
 .ann-hint-bar .hint-close:hover {
   background: var(--hover);
+  color: var(--ink);
+}
+/* 自动切到历史的说明条：两行（说明 / 计数 + 操作），窄栏下自动换行。 */
+.ann-hint-bar.auto-hist {
+  align-items: flex-start;
+  background: color-mix(in oklab, var(--warn) 10%, transparent);
+}
+.auto-hist .ah-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.auto-hist .ah-text {
+  color: var(--ink);
+  line-height: 1.5;
+}
+.auto-hist .ah-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 11px;
+}
+.auto-hist .ah-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.auto-hist .ah-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--faint);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.auto-hist .ah-link:hover {
   color: var(--ink);
 }
 .ann-list {
@@ -877,6 +1028,32 @@ onBeforeUnmount(() => {
 }
 .hg-head.open .chev {
   transform: rotate(90deg);
+}
+/* 自动切过来的那一轮：组头用暖色底闪两下后淡出（与历史定位的暖黄同一语义）。 */
+.hg-head.auto-hit {
+  animation: hg-auto-hit 3.6s ease-out both;
+}
+@keyframes hg-auto-hit {
+  0%,
+  30% {
+    background: color-mix(in oklab, var(--warn) 22%, transparent);
+  }
+  15%,
+  45% {
+    background: color-mix(in oklab, var(--warn) 8%, transparent);
+  }
+  60% {
+    background: color-mix(in oklab, var(--warn) 18%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hg-head.auto-hit {
+    animation: none;
+    background: color-mix(in oklab, var(--warn) 14%, transparent);
+  }
 }
 .hg-head .rname {
   color: var(--ink);

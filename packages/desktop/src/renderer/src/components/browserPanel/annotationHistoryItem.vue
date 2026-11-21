@@ -11,6 +11,9 @@
         >[{{ sentIndex }}]</span
       >
       <span class="hc-status" :class="item.status"><i class="dot" />{{ statusText }}</span>
+      <span v-if="fresh" class="hc-fresh" :title="t('annotation.autoHistory.freshTitle')">{{
+        t('annotation.autoHistory.fresh')
+      }}</span>
       <span v-for="facet in facets" :key="facet" class="hc-facet">{{ facet }}</span>
     </header>
     <div v-if="pathText" class="hc-path" :title="pathText">
@@ -169,6 +172,12 @@ const nowHtml = computed(() => renderSnapshotCached(props.item.now))
 // ── 点击定位（第二轮）：卡片任意处点一下 → 主编辑器滚到这条标注现在的位置 ──
 const cardEl = ref<HTMLElement | null>(null)
 const focused = computed(() => store.historyFocusId === annotation.value.id)
+/** 自动切到历史时，这条正是这次外部修改改动的（横幅收起后标记随之消失）。 */
+const fresh = computed(
+  () =>
+    store.autoHistory?.key === store.activeKey &&
+    !!store.autoHistory?.affectedIds.includes(annotation.value.id)
+)
 const locate = (): void => {
   store.revealHistory(annotation.value.id)
 }
@@ -289,6 +298,14 @@ watch([beforeHtml, nowHtml], revealAll)
 }
 .hc-status.global .dot {
   background: var(--accent);
+}
+.hc-fresh {
+  padding: 0 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  color: color-mix(in oklab, var(--warn) 70%, var(--ink));
+  background: color-mix(in oklab, var(--warn) 16%, transparent);
+  white-space: nowrap;
 }
 .hc-facet {
   padding: 0 6px;

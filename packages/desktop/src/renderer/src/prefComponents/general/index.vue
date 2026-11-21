@@ -38,6 +38,13 @@
           :bool="annotationEnabled"
           :on-change="(value) => onSelectChange('annotationEnabled', value)"
         />
+        <bool
+          :description="t('preferences.general.annotation.autoHistory')"
+          :notes="t('preferences.general.annotation.autoHistoryNotes')"
+          :bool="annotationAutoHistory"
+          :disable="!annotationEnabled"
+          :on-change="(value) => onSelectChange('annotationAutoHistory', value)"
+        />
       </template>
     </compound>
 
@@ -238,6 +245,7 @@ const {
   autoSave,
   autoSaveDelay,
   annotationEnabled,
+  annotationAutoHistory,
   turboMode,
   titleBarStyle,
   defaultDirectoryToOpen,
