@@ -154,3 +154,49 @@ declare module '@muyajs/core/annotation/quickPhrase' {
   export function normalizePhrase(value: unknown): string
   export function normalizePhraseList(list: unknown, maxCount?: number): string[]
 }
+
+/**
+ * 标注历史对比（feat/annotation-history-compare）：快照反推 / 比对 / 渲染。
+ * 唯一实现在 `packages/muya/src/annotation/snapshot*.ts`，桌面只消费；子路径
+ * 引用的理由同上（包根导出表未收录、副作用更小）。类型取自 `@shared/types/ipc`
+ * 的镜像定义（与引擎字段逐一对齐）。
+ */
+declare module '@muyajs/core/annotation/snapshot' {
+  import type { IAnnotation, IAnnotationSnapshot } from '@shared/types/ipc'
+  export function legacySnapshot(annotation: IAnnotation): IAnnotationSnapshot | null
+  export function originSnapshotOf(annotation: IAnnotation): IAnnotationSnapshot | null
+}
+
+declare module '@muyajs/core/annotation/snapshotCompare' {
+  import type { IAnnotationInspection, IAnnotationSnapshot } from '@shared/types/ipc'
+  export type TDiffOp = -1 | 0 | 1
+  export interface IDiffSegment {
+    op: TDiffOp
+    text: string
+  }
+  export type TCompareStatus = 'unchanged' | 'changed' | 'rewritten' | 'deleted'
+  export interface ISnapshotComparison {
+    status: TCompareStatus
+    text: boolean
+    format: boolean
+    block: boolean
+    context: boolean
+    diff: IDiffSegment[] | null
+  }
+  export function styleKeyOf(snapshot: IAnnotationSnapshot, coarse?: boolean): string
+  export function diffText(before: string, after: string): IDiffSegment[]
+  export function compareSnapshots(
+    origin: IAnnotationSnapshot,
+    match: IAnnotationInspection['match'],
+    now: IAnnotationSnapshot | null
+  ): ISnapshotComparison
+}
+
+declare module '@muyajs/core/annotation/snapshotRender' {
+  import type { IAnnotationSnapshot } from '@shared/types/ipc'
+  export const SNAPSHOT_MARK_CLASS: string
+  export function renderSnapshotHtml(
+    snapshot: Pick<IAnnotationSnapshot, 'markdown' | 'markStart' | 'markEnd' | 'kind'>,
+    options?: { math?: boolean; superSubScript?: boolean; footnote?: boolean }
+  ): string
+}

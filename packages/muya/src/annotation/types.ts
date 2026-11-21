@@ -8,7 +8,7 @@ import type { Nullable } from '../types';
  * `annotation` = 常规标注，`annotation-active` = 当前激活条（卡片编辑中 / 面板定位）。
  * 重叠时按 `annotation-active > annotation > search` 取高优先级。
  */
-export type THighlightType = 'search' | 'annotation' | 'annotation-active' | 'annotation-pending';
+export type THighlightType = 'search' | 'annotation' | 'annotation-active' | 'annotation-pending' | 'annotation-flash';
 
 /**
  * 标注高亮 span 的 class 名，与 `assets/styles/index.css` 中的规则一一对应。
@@ -21,6 +21,10 @@ export const ANNOTATION_CLASS_NAMES = {
     MU_ANNOTATION_ACTIVE: 'mu-annotation-active',
     /** 卡片打开期间「正在标注的选区」：选中态观感（用户拍板）。 */
     MU_ANNOTATION_PENDING: 'mu-annotation-pending',
+    /** 从历史定位过来时，标注「现在」位置的一次性闪烁（几秒后自动消失，不落盘）。 */
+    MU_ANNOTATION_FLASH: 'mu-annotation-flash',
+    /** 同上，画在整个块上（整句改写 / 原文已删除时只能指到段落）。 */
+    MU_ANNOTATION_FLASH_BLOCK: 'mu-annotation-flash-block',
 } as const;
 
 /** 一段（块内）定位；跨块标注有多段，按文档顺序。 */
@@ -48,6 +52,104 @@ export interface IAnnotationAnchor {
 /** 锚点健康度：内部技术维度，只以一行辅助提示露出。 */
 export type TAnchorState = 'anchored' | 'relocated' | 'orphaned';
 
+/**
+ * 标注处所在块的「样子」归类（历史对比用）。由块的 state 链推出：
+ * 最内层叶子 + 最近的列表/表格/引用容器。
+ */
+export type TSnapshotKind
+    = | 'paragraph'
+        | 'heading'
+        | 'list'
+        | 'task'
+        | 'table'
+        | 'quote'
+        | 'code'
+        | 'math'
+        | 'html'
+        | 'diagram'
+        | 'frontmatter'
+        | 'footnote'
+        | 'other';
+
+/**
+ * 标注处的样式快照（feat/annotation-history-compare）。
+ *
+ * 不是像素截图，而是「能重新渲染出同样样子的最小 markdown」：从标注所在的
+ * 顶层块 state 出发，只保留通向标注段的那条子树（列表只留命中的那一项、表格
+ * 留表头 + 命中行、引用只留命中的子块），序列化成 markdown；`markStart/markEnd`
+ * 是标注段在这份 markdown 里的位置（渲染时据此画高亮）。
+ *
+ * 快照是只读的：`IAnnotation.origin` 在新建时写一次、永不回写；「现在」的快照
+ * 每次查看历史时现算（`AnnotationModule.inspect`），不落盘。
+ */
+export interface IAnnotationSnapshot {
+    kind: TSnapshotKind;
+    /** 顶层 → 叶子的 state 名链，如 `['block-quote', 'bullet-list', 'list-item', 'paragraph']`。 */
+    trail: string[];
+    /** 标题级别（kind=heading）。 */
+    level?: number;
+    /** 代码块语言（kind=code，取 info string 首词）。 */
+    lang?: string;
+    /** 任务项勾选态（kind=task）。 */
+    checked?: boolean;
+    /** 表格坐标（kind=table；row=0 为表头）。 */
+    cell?: { row: number; col: number };
+    /** 可渲染的上下文 markdown（已剪枝）。 */
+    markdown: string;
+    /** 标注段在 `markdown` 内的区间；-1 = 无法定位（只渲染、不画高亮）。 */
+    markStart: number;
+    markEnd: number;
+    /** 标注段源码（raw markdown，跨块按 `\n` 拼接）。 */
+    text: string;
+    /** 标注段渲染后的纯文本（去行内标记、去标题井号）——判断「改了字」用。 */
+    plain: string;
+    capturedAt: number;
+    /** 由旧版（v2）锚点字段反推出的近似快照：没有真实块结构，只是尽力还原。 */
+    legacy?: boolean;
+}
+
+/** `inspect()` 的「现在」：按原锚点命中 / 按原位置对应到段落 / 已删除。 */
+export type TInspectMatch = 'located' | 'block' | 'missing';
+
+export interface IAnnotationInspection {
+    id: string;
+    match: TInspectMatch;
+    /** located / block：现在的样子；missing：引文所在段落还在时为该段落（不画区间），否则 null。 */
+    snapshot: IAnnotationSnapshot | null;
+    /**
+     * located：标注段**现在**在正文里的区间（历史「定位」据此滚动并闪烁）。
+     * 只是检视结果，不回写条目锚点、不落盘；文档一变就可能过期，用前须重新检视。
+     */
+    ranges?: IAnnotationRange[];
+    /** block / missing（段落还在）：原来所在的那个段落现在的块路径。 */
+    blockPath?: TBlockPath;
+}
+
+/**
+ * `reveal()` 的结果（历史条目点击定位）：
+ * - `range`：滚到标注段现在的位置并闪烁该段；
+ * - `block`：原句被整句改写，滚到原来所在的段落并闪烁整段；
+ * - `context`：这一句已从段落中删除，滚到原来所在的段落；
+ * - `near`：原文连同段落都没了，滚到它原来的相邻段落（原位置附近）；
+ * - `none`：正文里找不到任何可用位置，没有滚动；
+ * - `global`：全局备注，没有正文位置。
+ */
+export type TRevealStatus = 'range' | 'block' | 'context' | 'near' | 'none' | 'global';
+
+export interface IAnnotationReveal {
+    id: string;
+    status: TRevealStatus;
+    /** 定位时顺带算出的「现在」（与 `inspect([id])` 同源），宿主可直接拿来刷新面板。 */
+    inspection: IAnnotationInspection | null;
+}
+
+export interface IAnnotationRevealOptions {
+    /** 平滑滚动（宿主按「减少动态效果」偏好决定），缺省 true。 */
+    smooth?: boolean;
+    /** 闪烁持续时间（ms），缺省 3600，与样式里的动画时长一致。 */
+    duration?: number;
+}
+
 export interface IAnnotation {
     id: string;
     anchor: IAnnotationAnchor;
@@ -62,6 +164,10 @@ export interface IAnnotation {
     copied: boolean;
     round?: number;
     sentQuote?: string;
+    /** 复制那一轮里它在复制文本中的序号（`[n]`），历史里按它排序、与 agent 回复对照。 */
+    sentIndex?: number;
+    /** 标注时的样式快照（新建时写一次，永不回写；v2 旧数据没有）。 */
+    origin?: IAnnotationSnapshot;
 
     // ── 归档：移出当前列表、进入历史 ──
     archived: boolean;
@@ -78,6 +184,8 @@ export interface IAnnotation {
 
 /** 导出给宿主生成复制文本的结构化数据（引擎出数据，桌面出文案）。 */
 export interface IAnnotationExportItem {
+    /** 条目 id（复制后据此记录 `sentIndex`）。 */
+    id: string;
     index: number;
     headingPath: string[];
     lineStart?: number;

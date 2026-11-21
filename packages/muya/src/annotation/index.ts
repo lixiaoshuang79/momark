@@ -1,4 +1,5 @@
 import type Content from '../block/base/content';
+import type TreeNode from '../block/base/treeNode';
 import type { TBlockPath } from '../block/types';
 import type { IHighlight } from '../inlineRenderer/types';
 import type { Muya } from '../muya';
@@ -6,8 +7,12 @@ import type { Nullable } from '../types';
 import type {
     IAnnotation,
     IAnnotationExportItem,
+    IAnnotationInspection,
     IAnnotationRange,
+    IAnnotationReveal,
+    IAnnotationRevealOptions,
     TAnnotationChangeType,
+    TRevealStatus,
     TSelectionSnapshot,
 } from './types';
 import { getLongUniqueId } from '../utils';
@@ -23,17 +28,88 @@ import {
     relocateAnnotation,
     selectionToRanges,
 } from './anchor';
+import { DocIndex } from './docIndex';
 import { normalizePhraseList } from './quickPhrase';
+import { bridgeRange, captureSnapshot, findReplacementBlock, isQuoteRemoved } from './snapshot';
+import { ANNOTATION_CLASS_NAMES } from './types';
 
 /** `json-change` 后的重定位节流窗口（方案 §2.3）。 */
 const RELOCATE_DEBOUNCE = 400;
+
+/** 历史定位的闪烁时长（ms），与 `.mu-annotation-flash` 动画时长一致。 */
+const FLASH_DURATION = 3600;
+
+/**
+ * 画「整块闪烁」时向上穿过的内层容器：代码块 / 公式 / HTML / 图表的内容块外面
+ * 还包着一层只负责排版的容器，框要画在真正的块（`pre` / figure）上。
+ */
+const OUTLINE_PASSTHROUGH = new Set(['code', 'html-container', 'math-container', 'diagram-container']);
+const LIST_ITEMS = new Set(['list-item', 'task-list-item']);
 
 interface IBlockHighlightEntry {
     path: TBlockPath;
     highlights: IHighlight[];
 }
 
+/**
+ * 一条条目最近一次检视的结果（只在内存里，不落盘）。
+ *
+ * 命中条件：同一棵块树、条目锚点没变（对象引用 + 区间指纹）、归档态没变，且
+ *   - 文档版本（`jsonState.revision`）没变 → 直接复用；
+ *   - 文档变了但结果是 `located`，并且「现在」所在的顶层块 state 仍是同一个
+ *     对象（json1 只浅拷贝被编辑的容器，没被动过的子树引用不变）→ 仍然复用。
+ *     这样正文别处打字时，已定位的历史条目不必重新全文检索。
+ */
+interface IInspectCacheEntry {
+    revision: number;
+    scrollPage: unknown;
+    anchor: IAnnotation['anchor'];
+    rangesKey: string;
+    archived: boolean;
+    result: IAnnotationInspection;
+    witness: Nullable<Array<{ top: number; ref: unknown }>>;
+}
+
 const NO_HIGHLIGHTS: IHighlight[] = [];
+
+/**
+ * 检视用的条目副本：只复制会被重定位改写的字段（区间、状态、当前文本），
+ * 历史检视因此**不再回写归档条目的锚点**——「现在」只是读出来的，不该把打字中途
+ * 的模糊命中、或重复文本里挑错的那一处写进盘里。
+ */
+function probeOf(annotation: IAnnotation): IAnnotation {
+    return {
+        ...annotation,
+        anchor: {
+            ...annotation.anchor,
+            ranges: annotation.anchor.ranges.map(range => ({ ...range, blockPath: [...range.blockPath] })),
+        },
+    };
+}
+
+/** 从 `highlights` 里挖掉 `holes` 覆盖的部分（闪烁段压过同处的其它高亮）。 */
+function carveHighlights(highlights: IHighlight[], holes: Array<{ start: number; end: number }>): IHighlight[] {
+    let out = highlights;
+    for (const hole of holes) {
+        const next: IHighlight[] = [];
+        for (const light of out) {
+            if (light.type === 'annotation-flash' || light.end <= hole.start || light.start >= hole.end) {
+                next.push(light);
+                continue;
+            }
+            const hasLeft = light.start < hole.start;
+            if (hasLeft)
+                next.push({ ...light, end: hole.start });
+            if (light.end > hole.end) {
+                // 序号角标只留在最前面那一段。
+                const data = hasLeft && light.data ? { ...light.data, index: undefined } : light.data;
+                next.push({ ...light, start: hole.end, data });
+            }
+        }
+        out = next;
+    }
+    return out;
+}
 
 /**
  * 标注模块（对标 `src/search/index.ts` 的模块形态）：持有标注表、由选区快照
@@ -59,10 +135,24 @@ export class AnnotationModule {
      * 自己的渲染层，块重渲染也稳。
      */
     private _pendingRanges: IAnnotationRange[] = [];
+    /** 历史定位的闪烁段（一次性，到时自动清掉；不进标注表、不落盘）。 */
+    private _flashRanges: IAnnotationRange[] = [];
+    private _flashTimer: Nullable<ReturnType<typeof setTimeout>> = null;
+    private _flashBlockEl: Nullable<HTMLElement> = null;
+    /** 历史检视结果缓存（见 `IInspectCacheEntry`）。 */
+    private _inspectCache = new Map<string, IInspectCacheEntry>();
+    /** 同一版本文档共用的检索索引（见 docIndex.ts）。 */
+    private _index: Nullable<DocIndex> = null;
+    private _indexRevision = -1;
 
     constructor(private _muya: Muya) {
         const { eventCenter } = _muya;
-        eventCenter.subscribe('json-change', () => this._scheduleRelocate());
+        eventCenter.subscribe('json-change', () => {
+            // 正文一改，闪烁段的偏移就可能对不上了：直接收掉，不画在错字上。
+            if (this._flashRanges.length || this._flashBlockEl)
+                this._clearFlash();
+            this._scheduleRelocate();
+        });
         eventCenter.subscribe('content-change', () => this._scheduleRelocate());
         // 光标离开被跳过的块时补做（方案 §2.3：blur / 选区离开该块两个时机都要）。
         // 只在确实有被跳过的条目时才跑，避免每次移动光标都做一遍重定位。
@@ -103,8 +193,9 @@ export class AnnotationModule {
         if (
             next.length === this._quickPhrases.length
             && next.every((phrase, index) => phrase === this._quickPhrases[index])
-        )
+        ) {
             return;
+        }
 
         this._quickPhrases = next;
         this._muya.eventCenter.emit('annotation-quick-phrases-change', this.quickPhrases);
@@ -216,6 +307,15 @@ export class AnnotationModule {
             return null;
 
         const now = Date.now();
+        // 标注时的样子（历史对比的「标注时」）：拍不到快照不影响新建，
+        // 历史里会按 v2 字段反推一张近似快照。
+        let origin: IAnnotation['origin'];
+        try {
+            origin = captureSnapshot(anchor.ranges, this._muya, { capturedAt: now }) ?? undefined;
+        }
+        catch {
+            origin = undefined;
+        }
         const annotation: IAnnotation = {
             id: getLongUniqueId(),
             anchor,
@@ -224,6 +324,7 @@ export class AnnotationModule {
             archived: false,
             anchorState: 'anchored',
             currentText: anchor.quote,
+            ...(origin ? { origin } : {}),
             createdAt: now,
             updatedAt: now,
         };
@@ -311,6 +412,11 @@ export class AnnotationModule {
         this._annotations = Array.isArray(list) ? [...list] : [];
         this._activeId = null;
         this._deferred.clear();
+        const ids = new Set(this._annotations.map(annotation => annotation.id));
+        for (const id of [...this._inspectCache.keys()]) {
+            if (!ids.has(id))
+                this._inspectCache.delete(id);
+        }
         this._relocateAll();
         this._invalidate();
         this._repaint([...before, ...this._highlightedPaths()]);
@@ -348,6 +454,7 @@ export class AnnotationModule {
             const line = lines.get(annotation.id);
 
             return {
+                id: annotation.id,
                 index: index + 1,
                 headingPath: [...annotation.anchor.headingPath],
                 lineStart: line?.start,
@@ -360,6 +467,400 @@ export class AnnotationModule {
                 global: !!annotation.global,
             };
         });
+    }
+
+    /**
+     * 给还没有「标注时」快照的条目补拍一张（旧版本建的、尚未复制的条目在复制
+     * 那一刻补）。只在锚点仍**原样命中**（当前文本 === 引文）时补——文字已经被改过
+     * 的话，此刻的样子已经不是标注时的样子，宁可留空走 v2 反推。返回补拍条数。
+     */
+    ensureOrigins(ids: string[]): number {
+        let count = 0;
+
+        for (const id of ids ?? []) {
+            const annotation = this._find(id);
+            if (!annotation || annotation.origin || annotation.global)
+                continue;
+            if (annotation.anchorState === 'orphaned' || annotation.currentText !== annotation.anchor.quote)
+                continue;
+
+            try {
+                const origin = captureSnapshot(annotation.anchor.ranges, this._muya);
+                if (origin) {
+                    annotation.origin = origin;
+                    count++;
+                }
+            }
+            catch {
+                // 拍不到就算了：历史里走 v2 反推，不影响复制。
+            }
+        }
+
+        return count;
+    }
+
+    /**
+     * 历史对比的「现在」（feat/annotation-history-compare）。
+     *
+     * 归档条目不参与打字时的增量重定位，所以这里对它们的**副本**按四段式重定位
+     * 一遍，拿到它们此刻的位置，再拍一张「现在」的快照：
+     *   - 锚点命中（含移动、模糊命中）→ `located`，快照画出命中的那一段，`ranges`
+     *     是这一段现在的区间（历史「定位」用）；
+     *   - 引文找不到、但原段落按邻接块 / 相似度还能对上 → `block`（整句被改写），
+     *     快照是那个段落、不画区间，`blockPath` 指向它；
+     *   - 都找不到 → `missing`（原文已删除）；段落还在、只是这一句被删掉时也是
+     *     `missing`，但附带该段落的快照与 `blockPath` 供面板展示语境、供定位。
+     *
+     * 只读：**不改写**条目锚点、不广播、不触发落盘（第一轮会把检视结果写回归档
+     * 锚点并落盘，打字中途的模糊命中会把原始落点永久替换掉）。
+     *
+     * 成本：同一版本文档共用一份检索索引（docIndex.ts）；结果按条目缓存，文档
+     * 没变直接复用，变了的话已定位且所在顶层块没被编辑的条目也复用。全局备注
+     * 不在返回值里。
+     */
+    inspect(ids?: string[]): IAnnotationInspection[] {
+        const pool = ids?.length
+            ? ids.map(id => this._find(id)).filter((item): item is IAnnotation => !!item)
+            : this._annotations.filter(annotation => annotation.archived);
+
+        this._flushState();
+        const results: IAnnotationInspection[] = [];
+
+        for (const annotation of pool) {
+            if (annotation.global)
+                continue;
+            results.push(this._inspectCached(annotation));
+        }
+
+        return results;
+    }
+
+    /**
+     * 在正文里定位一条标注**现在**的位置（历史条目点击定位）：滚到那里，并用
+     * 一次性的闪烁标出来（几秒后自动消失；不移动光标、不改标注表、不落盘）。
+     *
+     * 位置的口径与 `inspect()` 完全一致（同一份缓存）：命中 → 闪烁那一段；整句
+     * 改写 / 这一句被删 → 闪烁原来的段落；连段落也没了 → 退到原来的相邻段落
+     * （原位置附近）；都找不到 → `none`，不滚动，由宿主给出明确提示。
+     */
+    reveal(id: string, options: IAnnotationRevealOptions = {}): IAnnotationReveal {
+        const annotation = this._find(id);
+        if (!annotation)
+            return { id, status: 'none', inspection: null };
+        if (annotation.global)
+            return { id, status: 'global', inspection: null };
+
+        this._flushState();
+        let inspection: Nullable<IAnnotationInspection> = null;
+        try {
+            inspection = this._inspectCached(annotation);
+        }
+        catch {
+            inspection = null;
+        }
+
+        const target = this._revealTarget(annotation, inspection);
+        if (!target) {
+            this._clearFlash();
+            return { id, status: 'none', inspection };
+        }
+
+        const shown = this._showFlash(target.ranges, target.blockPath, options);
+
+        return { id, status: shown ? target.status : 'none', inspection };
+    }
+
+    /** 宿主侧手动收掉闪烁（例如切换文档）。 */
+    clearReveal() {
+        this._clearFlash();
+    }
+
+    private _revealTarget(
+        annotation: IAnnotation,
+        inspection: Nullable<IAnnotationInspection>,
+    ): Nullable<{ status: TRevealStatus; ranges: IAnnotationRange[]; blockPath: TBlockPath }> {
+        const live = (path: Nullable<TBlockPath> | undefined) =>
+            !!path && !!this._contentAt(path);
+
+        if (inspection?.match === 'located' && inspection.ranges?.length && inspection.ranges.every(range => live(range.blockPath)))
+            return { status: 'range', ranges: inspection.ranges, blockPath: inspection.ranges[0]!.blockPath };
+        if (inspection?.match === 'block' && live(inspection.blockPath))
+            return { status: 'block', ranges: [], blockPath: inspection.blockPath! };
+        if (inspection?.match === 'missing' && live(inspection.blockPath))
+            return { status: 'context', ranges: [], blockPath: inspection.blockPath! };
+
+        const near = this._nearPath(annotation);
+        if (near)
+            return { status: 'near', ranges: [], blockPath: near };
+
+        return null;
+    }
+
+    /**
+     * 原文连同所在段落都没了：按锚点里记下的前 / 后邻接块文本找回「原来的位置」。
+     * 优先找「前邻居的下一块正好是后邻居」的那一处（原段落夹在两者之间被删掉）；
+     * 否则前邻居或后邻居在全文唯一时取它。找不到 / 有歧义返回 null。
+     */
+    private _nearPath(annotation: IAnnotation): Nullable<TBlockPath> {
+        const { beforeBlockText, afterBlockText } = annotation.anchor;
+        const index = this._docIndex();
+        if (!index || (!beforeBlockText && !afterBlockText))
+            return null;
+
+        const startsWith = (text: Nullable<string> | undefined, probe: string) =>
+            text != null && !!probe && text.slice(0, probe.length) === probe;
+        const entries = index.blocks.filter(entry => entry.block.blockName !== 'language-input');
+        const befores = beforeBlockText ? entries.filter(entry => startsWith(entry.block.text, beforeBlockText)) : [];
+        const afters = afterBlockText ? entries.filter(entry => startsWith(entry.block.text, afterBlockText)) : [];
+
+        for (const entry of befores) {
+            const { next } = index.neighbors(entry);
+            if (afterBlockText ? startsWith(next, afterBlockText) : next == null)
+                return [...entry.block.path];
+        }
+        for (const entry of afters) {
+            const { previous } = index.neighbors(entry);
+            if (!beforeBlockText && previous == null)
+                return [...entry.block.path];
+        }
+        if (befores.length === 1)
+            return [...befores[0]!.block.path];
+        if (afters.length === 1)
+            return [...afters[0]!.block.path];
+
+        return null;
+    }
+
+    private _contentAt(path: TBlockPath): Nullable<Content> {
+        const block = this._muya.editor.scrollPage?.queryBlock([...path]);
+        return block && block.isContent() ? block : null;
+    }
+
+    /** 闪烁：区间段走高亮通道，找不到渲染出来的段（代码块等不走行内渲染）或只有块时画整块框。 */
+    private _showFlash(ranges: IAnnotationRange[], blockPath: TBlockPath, options: IAnnotationRevealOptions): boolean {
+        this._clearFlash();
+
+        const block = this._contentAt(blockPath);
+        if (!block)
+            return false;
+
+        const flashable = ranges.filter(range => range.end > range.start);
+        if (flashable.length) {
+            const before = this._highlightedPaths();
+            this._flashRanges = flashable.map(range => ({ ...range, blockPath: [...range.blockPath] }));
+            this._invalidate();
+            this._repaint([...before, ...this._highlightedPaths()]);
+        }
+
+        let spot: Nullable<Element> = flashable.length
+            ? (block.domNode?.querySelector(`.${ANNOTATION_CLASS_NAMES.MU_ANNOTATION_FLASH}`) ?? null)
+            : null;
+
+        if (!spot) {
+            const host = this._outlineHost(block);
+            if (host) {
+                host.classList.add(ANNOTATION_CLASS_NAMES.MU_ANNOTATION_FLASH_BLOCK);
+                this._flashBlockEl = host;
+                spot = host;
+            }
+        }
+
+        if (!spot)
+            return false;
+
+        if (typeof (spot as HTMLElement).scrollIntoView === 'function')
+            (spot as HTMLElement).scrollIntoView({ block: 'center', behavior: options.smooth === false ? 'auto' : 'smooth' });
+
+        this._flashTimer = setTimeout(() => {
+            this._flashTimer = null;
+            this._clearFlash();
+        }, options.duration ?? FLASH_DURATION);
+
+        return true;
+    }
+
+    private _outlineHost(block: Content): Nullable<HTMLElement> {
+        let node: Nullable<TreeNode> = block.parent ?? block;
+        while (node && OUTLINE_PASSTHROUGH.has(node.blockName) && node.parent)
+            node = node.parent;
+        // 列表项里的段落：框画在整条列表项上（把序号 / 圆点也框进去，不从中间切开）。
+        if (node?.blockName === 'paragraph' && node.parent && LIST_ITEMS.has(node.parent.blockName))
+            node = node.parent;
+        return (node?.domNode ?? block.domNode ?? null) as Nullable<HTMLElement>;
+    }
+
+    private _clearFlash() {
+        if (this._flashTimer) {
+            clearTimeout(this._flashTimer);
+            this._flashTimer = null;
+        }
+        if (this._flashBlockEl) {
+            this._flashBlockEl.classList.remove(ANNOTATION_CLASS_NAMES.MU_ANNOTATION_FLASH_BLOCK);
+            this._flashBlockEl = null;
+        }
+        if (this._flashRanges.length) {
+            const before = this._highlightedPaths();
+            this._flashRanges = [];
+            this._invalidate();
+            this._repaint(before);
+        }
+    }
+
+    /** 把还没并进 state 的编辑（rAF 批量）先落进去：检视读 state，块树与 state 要一致。 */
+    private _flushState() {
+        try {
+            this._muya.editor.jsonState?.flush();
+        }
+        catch {
+            // flush 失败时 state 自己会重建；检视按当前块树继续。
+        }
+    }
+
+    private _docIndex(): Nullable<DocIndex> {
+        const { scrollPage, jsonState } = this._muya.editor;
+        if (!scrollPage)
+            return null;
+        const revision = jsonState?.revision ?? -1;
+        if (!this._index || this._index.scrollPage !== scrollPage || this._indexRevision !== revision) {
+            this._index = new DocIndex(scrollPage);
+            this._indexRevision = revision;
+        }
+        return this._index;
+    }
+
+    private _inspectCached(annotation: IAnnotation): IAnnotationInspection {
+        const { scrollPage, jsonState } = this._muya.editor;
+        const revision = jsonState?.revision ?? -1;
+        const rangesKey = JSON.stringify(annotation.anchor.ranges);
+        const archived = !!annotation.archived;
+        const cached = this._inspectCache.get(annotation.id);
+
+        if (
+            cached
+            && cached.scrollPage === scrollPage
+            && cached.anchor === annotation.anchor
+            && cached.rangesKey === rangesKey
+            && cached.archived === archived
+        ) {
+            if (cached.revision === revision)
+                return cached.result;
+            if (cached.witness && this._witnessHolds(cached.witness)) {
+                cached.revision = revision;
+                return cached.result;
+            }
+        }
+
+        const result = this._inspectFresh(annotation);
+        this._inspectCache.set(annotation.id, {
+            revision,
+            scrollPage,
+            anchor: annotation.anchor,
+            rangesKey,
+            archived,
+            result,
+            witness: result.match === 'located' && result.ranges?.length ? this._witnessOf(result.ranges) : null,
+        });
+
+        return result;
+    }
+
+    private _inspectFresh(annotation: IAnnotation): IAnnotationInspection {
+        const index = this._docIndex() ?? undefined;
+        let subject = annotation;
+        if (annotation.archived) {
+            subject = probeOf(annotation);
+            relocateAnnotation(subject, this._muya, index);
+        }
+        return this._inspectOne(subject, index);
+    }
+
+    private _witnessOf(ranges: IAnnotationRange[]): Nullable<Array<{ top: number; ref: unknown }>> {
+        const state = this._muya.editor.jsonState?.getStateRef();
+        if (!state)
+            return null;
+        const tops = [...new Set(ranges.map(range => range.blockPath[0]))];
+        if (tops.some(top => typeof top !== 'number' || !state[top]))
+            return null;
+        return tops.map(top => ({ top: top as number, ref: state[top as number] }));
+    }
+
+    private _witnessHolds(witness: Array<{ top: number; ref: unknown }>): boolean {
+        const state = this._muya.editor.jsonState?.getStateRef();
+        return !!state && witness.every(({ top, ref }) => state[top] === ref);
+    }
+
+    private _inspectOne(annotation: IAnnotation, index?: DocIndex): IAnnotationInspection {
+        const { id } = annotation;
+        const { quote, blockText, prefix, suffix, ranges } = annotation.anchor;
+        const single = ranges.length <= 1 && !quote.includes('\n');
+        // 标的本来就是整块（表格单元格、整条列表项、整个标题…）
+        const whole = single && quote.trim() === (blockText ?? '').trim();
+
+        try {
+            if (annotation.anchorState !== 'orphaned') {
+                const nowRanges = this._refineNowRanges(annotation, whole);
+                const snapshot = captureSnapshot(nowRanges, this._muya);
+                if (snapshot)
+                    return { id, match: 'located', snapshot, ranges: nowRanges.map(range => ({ ...range, blockPath: [...range.blockPath] })) };
+            }
+
+            const block = findReplacementBlock(annotation, this._muya, index);
+            if (block) {
+                // 整块标注：对应到的块就是它现在的样子，按命中处理并整块画区间；
+                // 只标了块里一部分的，先试着用原引文的前后文把「现在的那一段」夹出来，
+                // 夹不出来才是「原句已改写、这是原段落」。
+                // 夹出来的是**空区间**（段首 / 段尾那句被删、前后文在块边界上照样
+                // 命中）不算夹到：那是删除，不是改写成空串。
+                const raw = single && !whole ? bridgeRange(block.text, prefix, suffix) : null;
+                const bridged = raw && raw.end > raw.start ? raw : null;
+                const range = bridged ?? { start: 0, end: block.text.length };
+                const path = [...block.path];
+                const nowRange: IAnnotationRange = { blockPath: path, blockName: block.blockName, ...range };
+                const snapshot = captureSnapshot([nowRange], this._muya, { mark: whole || !!bridged });
+                if (snapshot) {
+                    if (whole || bridged)
+                        return { id, match: 'located', snapshot, ranges: [{ ...nowRange, blockPath: [...path] }] };
+                    // 段落还在、但这一句被删掉了：判删除，同时带上所在段落给面板做语境。
+                    return {
+                        id,
+                        match: isQuoteRemoved(annotation, block.text) ? 'missing' : 'block',
+                        snapshot,
+                        blockPath: path,
+                    };
+                }
+            }
+        }
+        catch {
+            // 快照失败（块树竞态）按「找不到」处理，面板仍能显示标注时的样子。
+        }
+
+        return { id, match: 'missing', snapshot: null };
+    }
+
+    /**
+     * 「现在」该画哪一段：锚点原样命中就用锚点；被模糊匹配挪过的（文字改过），
+     * 模糊窗口只是与原引文等长的近似区间，会把改长 / 改短的文字切掉一截——
+     * 整块标注取整块，局部标注用前后文夹取（与模糊区间有交集才采信）。
+     * 只影响历史里的展示，不回写锚点。
+     */
+    private _refineNowRanges(annotation: IAnnotation, whole: boolean): IAnnotationRange[] {
+        const { ranges, quote, prefix, suffix } = annotation.anchor;
+        if (ranges.length !== 1 || annotation.currentText === quote)
+            return ranges;
+
+        const range = ranges[0]!;
+        const block = this._muya.editor.scrollPage?.queryBlock([...range.blockPath]);
+        if (!block || !block.isContent())
+            return ranges;
+
+        if (whole)
+            return [{ ...range, start: 0, end: block.text.length }];
+
+        const bridged = bridgeRange(block.text, prefix, suffix);
+        if (bridged && bridged.start <= range.end && bridged.end >= range.start)
+            return [{ ...range, ...bridged }];
+
+        return ranges;
     }
 
     /**
@@ -394,7 +895,7 @@ export class AnnotationModule {
      * 偏好关闭、条目已归档 / 已失效时不返回任何高亮。
      */
     highlightsFor(block: Content): IHighlight[] {
-        if (!this._enabled)
+        if (!this._enabled && !this._flashRanges.length)
             return NO_HIGHLIGHTS;
 
         // 块（或其祖先）正在销毁时 `parent` 链会在**中途**断开：`path` getter 抛
@@ -405,8 +906,9 @@ export class AnnotationModule {
         if (!block.parent)
             return NO_HIGHLIGHTS;
 
-        // 卡片打开期间即使一条标注都没有（新建第一张卡片），pending 选区也要画。
-        if (!this._annotations.length && !this._pendingRanges.length)
+        // 卡片打开期间即使一条标注都没有（新建第一张卡片），pending 选区也要画；
+        // 历史定位的闪烁段同理（它指向的是归档条目，表里可能没有一条在画）。
+        if (!this._annotations.length && !this._pendingRanges.length && !this._flashRanges.length)
             return NO_HIGHLIGHTS;
 
         try {
@@ -424,6 +926,14 @@ export class AnnotationModule {
             clearTimeout(this._relocateTimer);
             this._relocateTimer = null;
         }
+        if (this._flashTimer) {
+            clearTimeout(this._flashTimer);
+            this._flashTimer = null;
+        }
+        this._flashRanges = [];
+        this._flashBlockEl = null;
+        this._inspectCache.clear();
+        this._index = null;
         this._deferred.clear();
         this._cache = null;
     }
@@ -524,10 +1034,30 @@ export class AnnotationModule {
                     data: {},
                 });
             }
-
-            for (const entry of cache.values())
-                entry.highlights.sort((a, b) => a.start - b.start || a.end - b.end);
         }
+
+        // 历史定位的闪烁段：与「高亮开关」无关（用户是在面板里主动点的定位），
+        // 并且压过同处的其它高亮——重叠部分从别的高亮里挖掉，否则行内渲染按起点
+        // 先到先得，闪烁段会被更早开始的标注吃掉一截。
+        for (const range of this._flashRanges) {
+            const key = pathKey(range.blockPath);
+            let entry = cache.get(key);
+            if (!entry) {
+                entry = { path: [...range.blockPath], highlights: [] };
+                cache.set(key, entry);
+            }
+            entry.highlights = carveHighlights(entry.highlights, [range]);
+            entry.highlights.push({
+                start: range.start,
+                end: range.end,
+                active: false,
+                type: 'annotation-flash',
+                data: {},
+            });
+        }
+
+        for (const entry of cache.values())
+            entry.highlights.sort((a, b) => a.start - b.start || a.end - b.end);
 
         this._cache = cache;
 

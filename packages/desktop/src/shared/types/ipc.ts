@@ -476,6 +476,72 @@ export interface IAnnotationAnchor {
 /** 锚点健康度：内部技术维度，只以一行辅助提示露出。 */
 export type TAnchorState = 'anchored' | 'relocated' | 'orphaned'
 
+/** 样式快照的块归类（与引擎 `TSnapshotKind` 同义）。 */
+export type TSnapshotKind =
+  | 'paragraph'
+  | 'heading'
+  | 'list'
+  | 'task'
+  | 'table'
+  | 'quote'
+  | 'code'
+  | 'math'
+  | 'html'
+  | 'diagram'
+  | 'frontmatter'
+  | 'footnote'
+  | 'other'
+
+/**
+ * 标注处的样式快照（与引擎 `IAnnotationSnapshot` 字段逐一对齐，改字段两处同改）。
+ * 一份能重新渲染出该处外观的最小 markdown + 标注段区间 + 块类型元信息。
+ */
+export interface IAnnotationSnapshot {
+  kind: TSnapshotKind
+  /** 顶层 → 叶子的 state 名链。 */
+  trail: string[]
+  level?: number
+  lang?: string
+  checked?: boolean
+  cell?: { row: number; col: number }
+  markdown: string
+  /** 标注段在 markdown 内的区间；-1 = 无区间。 */
+  markStart: number
+  markEnd: number
+  /** 标注段源码。 */
+  text: string
+  /** 标注段纯文本（去行内标记）。 */
+  plain: string
+  capturedAt: number
+  /** 由 v2 锚点反推的近似快照。 */
+  legacy?: boolean
+}
+
+/** 引擎 `inspect()` 的结果：「现在」的样子。 */
+export interface IAnnotationInspection {
+  id: string
+  /** located = 按原锚点命中；block = 原句被整句改写，对应到原段落；missing = 原文已删除（段落还在时附带该段落快照）。 */
+  match: 'located' | 'block' | 'missing'
+  snapshot: IAnnotationSnapshot | null
+  /** located：标注段现在的区间（只是检视结果，不落盘）。 */
+  ranges?: IAnnotationRange[]
+  /** block / missing（段落还在）：原来所在段落现在的块路径。 */
+  blockPath?: unknown
+}
+
+/**
+ * 引擎 `reveal()` 的结果（历史条目点击定位）：range = 闪烁标注段；block = 整句改写，
+ * 指到原段落；context = 这一句被删，指到原段落；near = 连段落也没了，指到原位置
+ * 附近；none = 找不到任何位置；global = 全局备注。
+ */
+export type TAnnotationRevealStatus = 'range' | 'block' | 'context' | 'near' | 'none' | 'global'
+
+export interface IAnnotationReveal {
+  id: string
+  status: TAnnotationRevealStatus
+  inspection: IAnnotationInspection | null
+}
+
 export interface IAnnotation {
   id: string
   anchor: IAnnotationAnchor
@@ -489,6 +555,10 @@ export interface IAnnotation {
   round?: number
   /** 复制时的引文快照（核对基线）。 */
   sentQuote?: string
+  /** 复制那一轮里它在复制文本中的序号（`[n]`）。 */
+  sentIndex?: number
+  /** 标注时的样式快照（新建时写一次，永不回写；v2 旧数据没有）。 */
+  origin?: IAnnotationSnapshot
 
   // ── 归档：移出当前列表、进入历史 ──
   archived: boolean
@@ -507,6 +577,8 @@ export interface IAnnotation {
 
 /** 引擎导出给宿主生成复制文本的结构化数据（引擎出数据，桌面出文案）。 */
 export interface IAnnotationExportItem {
+  /** 条目 id（引擎 1.7.3 起提供；复制后据此记录 `sentIndex`）。 */
+  id?: string
   index: number
   headingPath: string[]
   lineStart?: number
@@ -524,7 +596,11 @@ export interface IAnnotationExportItem {
 
 /** `userData/annotations/<sha1(abspath)>.json` 的落盘结构。 */
 export interface AnnotationDocument {
-  version: 2
+  /**
+   * 2 = 1.7.2 及以前；3 = 条目可带 `origin` 样式快照与 `sentIndex`。
+   * 读取时 v2 原样升级为 v3（新增字段都是可选的，不需要改写旧条目）。
+   */
+  version: 2 | 3
   pathname: string
   docHash?: string
   round: number

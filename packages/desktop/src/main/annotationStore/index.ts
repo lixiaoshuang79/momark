@@ -25,8 +25,13 @@ import type {
  * 「文件不存在」不是错误：渲染层据此得到空结构，从零开始。
  */
 
-/** 落盘结构版本（方案 §5.2 冻结）。 */
-export const ANNOTATION_FILE_VERSION = 2
+/**
+ * 落盘结构版本。
+ * - 2：1.7.2 及以前（方案 §5.2）。
+ * - 3：条目可带 `origin`（标注时的样式快照）与 `sentIndex`（复制序号），
+ *   feat/annotation-history-compare。新增字段全部可选，v2 → v3 不改写任何旧条目。
+ */
+export const ANNOTATION_FILE_VERSION = 3
 /** 历史（已归档）保留的轮数上限。 */
 export const MAX_HISTORY_ROUNDS = 20
 /** 历史（已归档）保留的条目数上限。 */
@@ -112,6 +117,63 @@ export const mergeUnion = (source: IAnnotation[], target: IAnnotation[]): IAnnot
   return order.map((id) => byId.get(id)!)
 }
 
+/** 快照的最小形状校验：坏快照（手改 / 截断）丢掉即可，面板会按 v2 字段反推。 */
+const isSnapshotLike = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false
+  const snapshot = value as Record<string, unknown>
+  return (
+    typeof snapshot.markdown === 'string' &&
+    typeof snapshot.kind === 'string' &&
+    typeof snapshot.markStart === 'number' &&
+    typeof snapshot.markEnd === 'number' &&
+    typeof snapshot.text === 'string' &&
+    typeof snapshot.plain === 'string' &&
+    Array.isArray(snapshot.trail)
+  )
+}
+
+/**
+ * 读盘后的版本迁移（纯函数，load 与测试共用）。
+ *
+ * v2 → v3 是**纯加法**：旧条目一个字段都不改（没有 `origin` 的历史条目在面板里
+ * 按 `anchor.blockText / blockName / quote` 反推「标注时」的样子），只把版本号
+ * 抬到 3。同时兜住 v3 新字段的脏数据：`origin` 形状不对就摘掉、`sentIndex`
+ * 不是正整数就摘掉——坏的辅助字段不能让整份历史读不出来。
+ *
+ * 不认识的更高版本照旧读取（与 1.7.2 行为一致：只要 `annotations` 是数组）。
+ */
+export const migrateAnnotationDocument = (
+  parsed: Partial<AnnotationDocument>,
+  pathname: string
+): AnnotationDocument => {
+  const annotations = (parsed.annotations ?? []).map((entry) => {
+    if (!entry || typeof entry !== 'object') return entry
+    let next = entry
+    if ('origin' in entry && entry.origin !== undefined && !isSnapshotLike(entry.origin)) {
+      next = { ...next }
+      delete next.origin
+    }
+    if (
+      'sentIndex' in entry &&
+      entry.sentIndex !== undefined &&
+      !(Number.isInteger(entry.sentIndex) && (entry.sentIndex as number) > 0)
+    ) {
+      next = next === entry ? { ...next } : next
+      delete next.sentIndex
+    }
+    return next
+  })
+
+  return {
+    version: ANNOTATION_FILE_VERSION,
+    pathname,
+    docHash: parsed.docHash,
+    round: typeof parsed.round === 'number' && Number.isFinite(parsed.round) ? parsed.round : 0,
+    updatedAt: parsed.updatedAt,
+    annotations
+  }
+}
+
 /** 轮次计数器的容错取值（缺省 / 非法值 → 0）。 */
 const roundOf = (round: unknown): number =>
   typeof round === 'number' && Number.isFinite(round) ? round : 0
@@ -186,14 +248,7 @@ export default class AnnotationStore {
       if (!content.trim()) return emptyDocument(pathname)
       const parsed = JSON.parse(content) as Partial<AnnotationDocument>
       if (!parsed || !Array.isArray(parsed.annotations)) return emptyDocument(pathname)
-      return {
-        version: ANNOTATION_FILE_VERSION,
-        pathname,
-        docHash: parsed.docHash,
-        round: typeof parsed.round === 'number' && Number.isFinite(parsed.round) ? parsed.round : 0,
-        updatedAt: parsed.updatedAt,
-        annotations: parsed.annotations as IAnnotation[]
-      }
+      return migrateAnnotationDocument(parsed, pathname)
     } catch (error) {
       console.error(
         '[annotationStore] Failed to read annotation file, using empty document.',

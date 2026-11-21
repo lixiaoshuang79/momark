@@ -495,7 +495,9 @@
       "annotation": {
         "title": "内容标注",
         "enabled": "启用内容标注",
-        "enabledNotes": "选中正文即可写备注；右栏第三个 tab 是标注面板"
+        "enabledNotes": "选中正文即可写备注；右栏第三个 tab 是标注面板",
+        "autoHistory": "外部批量修改后自动切到历史对照",
+        "autoHistoryNotes": "agent 改完文档、墨记重新载入后，如果最近复制的某一轮里有多处标注的内容被改动，右栏自动切到「标注 → 历史」的那一轮"
       },
       "turbo": {
         "title": "极速模式",
@@ -1208,7 +1210,6 @@
     },
     "toast": {
       "copied": "已复制到剪贴板",
-      "archived": "该标注已归档，已在历史中定位",
       "orphan": "该标注的原文已不存在",
       "engineMissing": "编辑器还没就绪，稍后再试",
       "archiveCount": "已归档 {n} 条，可在「历史」里找到",
@@ -1236,6 +1237,79 @@
       "undo": "撤销",
       "exists": "已存在",
       "tooLong": "最多 {n} 字"
+    },
+    "locate": {
+      "action": "定位",
+      "title": "在正文中定位这条标注现在的位置",
+      "cardTitle": "点击在正文中定位",
+      "block": "原句已整句改写，已定位到它原来所在的段落",
+      "context": "这句话已被删除，已定位到它原来所在的段落",
+      "near": "原文已连同段落删除，已定位到它原来位置的附近",
+      "none": "原文已删除，正文里找不到对应的位置",
+      "global": "全局备注针对整篇文档，没有对应的正文位置"
+    },
+    "compare": {
+      "before": "标注时",
+      "now": "现在",
+      "same": "标注时 = 现在",
+      "nowBlock": "现在 · 原位置的段落",
+      "deletedBody": "这段原文已从文档中删除",
+      "deletedInBlock": "这一处已从所在段落中删除，现在的段落：",
+      "pending": "打开这篇文档后显示现在的样子",
+      "legacy": "旧版标注，按原文还原",
+      "diff": "改动",
+      "onlyChanged": "只看有变化",
+      "noneChanged": "这一轮没有变化的条目",
+      "indexTitle": "复制文本里的序号（与发给 agent 的编号一致）",
+      "status": {
+        "unchanged": "未改动",
+        "changed": "已修改",
+        "rewritten": "整句改写",
+        "deleted": "原文已删除",
+        "pending": "待比对",
+        "global": "全局备注"
+      },
+      "facet": {
+        "text": "文字",
+        "format": "格式",
+        "block": "{from} → {to}",
+        "context": "仅上下文有改动"
+      },
+      "summary": {
+        "changed": "改 {n}",
+        "rewritten": "改写 {n}",
+        "unchanged": "未改 {n}",
+        "deleted": "删 {n}"
+      },
+      "kind": {
+        "paragraph": "段落",
+        "heading": "标题 H{level}",
+        "list": "列表",
+        "orderedList": "有序列表",
+        "task": "任务项",
+        "taskDone": "任务项 · 已完成",
+        "tableHead": "表格 · 表头",
+        "tableRow": "表格 · 第 {row} 行",
+        "quote": "引用",
+        "code": "代码块",
+        "codeLang": "代码块 · {lang}",
+        "math": "公式",
+        "html": "HTML",
+        "diagram": "图表",
+        "frontmatter": "文档属性",
+        "footnote": "脚注",
+        "other": "其他",
+        "inQuote": "引用 › {kind}"
+      }
+    },
+    "autoHistory": {
+      "banner": "外部修改改动了第 {round} 轮的 {n} 处标注",
+      "restore": "返回",
+      "restoreTitle": "把右栏恢复到自动切换之前",
+      "disable": "不再自动切换",
+      "disabled": "已关闭自动切到历史。可在 偏好设置 → 通用 → 内容标注 中重新打开",
+      "fresh": "本次",
+      "freshTitle": "这次外部修改改动了这一条"
     }
   },
   "welcome": {

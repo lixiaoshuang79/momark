@@ -156,6 +156,8 @@ class Renderer {
             return ANNOTATION_CLASS_NAMES.MU_ANNOTATION_ACTIVE;
         if (type === 'annotation-pending')
             return ANNOTATION_CLASS_NAMES.MU_ANNOTATION_PENDING;
+        if (type === 'annotation-flash')
+            return ANNOTATION_CLASS_NAMES.MU_ANNOTATION_FLASH;
 
         return active ? CLASS_NAMES.MU_HIGHLIGHT : CLASS_NAMES.MU_SELECTION;
     }
