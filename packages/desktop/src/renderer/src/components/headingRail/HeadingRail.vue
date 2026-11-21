@@ -1,6 +1,6 @@
 <template>
-  <!-- 标题轨：编辑区左缘的一列标题横线（横线越短层级越深），墨蓝指示线标出当前
-       读到的标题。悬停某条横线，旁边浮出这一条的完整标题；常驻模式下整列展开成
+  <!-- 标题轨：编辑区左缘的一列标题横线（横线越短层级越深），当前读到的标题那根
+       横线自己变长、变粗、变墨蓝（不另画指示条）。悬停某条横线，旁边浮出这一条的完整标题；常驻模式下整列展开成
        完整标题。无标题 / html 标签 / 欢迎页时宽度收成 0。 -->
   <nav
     ref="rootRef"
@@ -46,11 +46,6 @@
           <span class="hr-dash" />
           <span class="hr-text">{{ item.text || t('headingRail.untitled') }}</span>
         </div>
-        <span
-          class="hr-indicator"
-          :class="{ off: activeIndex < 0, hover: !pinned && hoverIndex === activeIndex }"
-          :style="indicatorStyle"
-        />
       </div>
     </div>
     <!-- 浮层挂到 body：编辑器的段落徽标（Muya 前置按钮）也在 body 上、z-index 1000，
@@ -139,8 +134,8 @@ const pitch = computed(() =>
 const rowHeight = computed(() => (pinned.value ? PINNED_ROW : pitch.value.pitch))
 const rowsHeight = computed(() => items.value.length * rowHeight.value)
 
-// 切换常驻时行高、栏宽、文字一起过渡；这段时间用更长、统一的时长，指示线与行
-// 用同一条缓动同步移动（两者都是行高的线性函数，同缓动同时长即逐帧对齐）。
+// 切换常驻时行高、栏宽、文字一起过渡；这段时间用更长、统一的时长。当前标题的
+// 标识长在行自己身上（横线 / 竖条），随行一起移动，不需要单独对齐。
 const MORPH_MS = 420
 const morphing = ref(false)
 let morphTimer: ReturnType<typeof setTimeout> | null = null
@@ -163,7 +158,7 @@ const rootStyle = computed(() => ({
 // ── 当前标题 ──────────────────────────────────────────────────────────────
 const activeIndex = ref(-1)
 const progress = ref(0)
-// 点击跳转后锁定目标：滚动动画途中会扫过中间的标题，不让指示线一格格跳过去。
+// 点击跳转后锁定目标：滚动动画途中会扫过中间的标题，不让当前标识一格格跳过去。
 // 滚动还在动就顺延（长距离的平滑滚动可能超过 1 秒），停稳后或算到目标即解除。
 let jumpLock: { index: number; until: number; deadline: number; lastTop: number } | null = null
 const JUMP_LOCK_IDLE_MS = 300
@@ -231,26 +226,6 @@ const keepActiveInView = (): void => {
   if (target === null) return
   list.scrollTo({ top: target, behavior: motionReduced() ? 'auto' : 'smooth' })
 }
-
-const indicatorStyle = computed(() => {
-  const index = Math.max(0, activeIndex.value)
-  const item = items.value[index]
-  const h = rowHeight.value
-  if (pinned.value) {
-    const barH = 14
-    return {
-      width: '2px',
-      height: `${barH}px`,
-      transform: `translate3d(4px, ${index * h + (h - barH) / 2}px, 0)`
-    }
-  }
-  // 比普通横线（2px）粗半档，墨蓝在一列浅灰里一眼可辨。
-  return {
-    width: `${dashWidth(item?.depth ?? 0)}px`,
-    height: '3px',
-    transform: `translate3d(14px, ${index * h + h / 2 - 1.5}px, 0)`
-  }
-})
 
 // ── 悬停浮层 ──────────────────────────────────────────────────────────────
 const hoverIndex = ref(-1)
@@ -526,7 +501,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* 时长：常规跟随 .26s，切换常驻（morphing）时行、栏宽、指示线统一 .42s，
+/* 时长：常规跟随 .26s，切换常驻（morphing）时行、栏宽、横线统一 .42s，
    缓动都用 --ease-panel（零过冲），与左右面板开合同一手感。 */
 .heading-rail {
   --hr-dur: 0.26s;
@@ -650,6 +625,26 @@ onBeforeUnmount(() => {
   background: var(--hr-dash-hover);
 }
 
+/* ── 当前标题：就是这一行自己的横线变长、变粗（2→3px）、变墨蓝 ──
+   不另画指示条，所以当前标题变化时是「旧线就地回落、新线就地长出」，没有任何
+   东西在行间移动。用 transform（以左端为原点）放大，不改布局；进入当前态稍慢
+   （.32s）、离开稍快（.2s），视线自然落到新的那根上。颜色跟随主题 --accent。 */
+.hr-row.active .hr-dash {
+  background: var(--accent);
+  transform: scale(1.3, 1.5);
+  transition:
+    transform 0.32s var(--ease-panel),
+    background-color 0.26s ease,
+    opacity 0.24s ease,
+    width var(--hr-dur) var(--ease-panel);
+}
+.hr-row.active.near .hr-dash {
+  transform: scale(1.36, 1.5);
+}
+.hr-row.active.hover .hr-dash {
+  transform: scale(1.45, 1.5);
+}
+
 .hr-text {
   position: absolute;
   left: calc(14px + var(--d) * 12px);
@@ -674,9 +669,9 @@ onBeforeUnmount(() => {
 }
 
 /* ── 常驻完整标题 ── */
-.heading-rail.pinned .hr-dash {
+.heading-rail.pinned .hr-row .hr-dash {
   opacity: 0;
-  transform: scaleX(0.3);
+  transform: scale(0.3, 1);
 }
 .heading-rail.pinned .hr-text {
   opacity: 1;
@@ -707,28 +702,36 @@ onBeforeUnmount(() => {
   color: var(--accent);
   font-weight: 600;
 }
-
-/* ── 当前位置指示线（墨蓝，跟随深浅色主题的 --accent） ── */
-.hr-indicator {
+/* 常驻模式的当前标题：行左缘一根墨蓝竖条，同样长在行自己身上——新行的竖条从
+   中点向上下长出，旧行的就地收回，不在行间滑动。切换常驻时等横线淡出后再长出。 */
+.hr-row::after {
+  content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  border-radius: 1.5px;
+  left: 4px;
+  top: 50%;
+  width: 2px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 1px;
   background: var(--accent);
-  transform-origin: 0 50%;
+  opacity: 0;
+  transform: scaleY(0);
   pointer-events: none;
   transition:
-    transform var(--hr-dur) var(--ease-panel),
-    width var(--hr-dur) var(--ease-panel),
-    height var(--hr-dur) var(--ease-panel),
-    scale 0.22s var(--ease-panel),
+    transform 0.2s var(--ease-panel),
+    opacity 0.16s ease;
+}
+.heading-rail.pinned .hr-row.active::after {
+  opacity: 1;
+  transform: none;
+  transition:
+    transform 0.32s var(--ease-panel),
     opacity 0.2s ease;
 }
-.hr-indicator.off {
-  opacity: 0;
-}
-.hr-indicator.hover {
-  scale: 1.45 1;
+.heading-rail.pinned.morphing .hr-row.active::after {
+  transition:
+    transform 0.32s var(--ease-panel) 0.16s,
+    opacity 0.2s ease 0.16s;
 }
 
 /* ── 悬停浮层 ── */
@@ -803,6 +806,8 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .heading-rail,
   .heading-rail *,
+  .heading-rail *::before,
+  .heading-rail *::after,
   .hr-label {
     transition-duration: 0s !important;
     transition-delay: 0s !important;

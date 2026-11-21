@@ -56,6 +56,14 @@ const rowIndexByLabel = (page: Page, label: string) =>
     const row = document.querySelector(`.hr-row[aria-label="${l}"]`)
     return row ? Number(row.id.replace('hr-row-', '')) : -1
   }, label)
+// 每一根横线当前的背景色（逐帧采样用）。
+const dashColors = (page: Page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('.hr-row .hr-dash')].map(
+      (el) => getComputedStyle(el).backgroundColor
+    )
+  )
+const ACCENT_RGB = 'rgb(61, 90, 128)'
 const clickRow = async (page: Page, index: number) => {
   const box = (await page.locator(`#hr-row-${index}`).boundingBox())!
   await page.mouse.click(box.x + 10, box.y + box.height / 2)
@@ -120,23 +128,70 @@ test.describe('Heading rail', () => {
     await expect.poll(() => headingTopInEditor(page, 17), { timeout: 8000 }).toBeLessThan(400)
     await page.mouse.move(700, 400)
     await expect.poll(() => activeRow(page), { timeout: 8000 }).toBe(17)
-    // 指示线是主题墨蓝（--accent），不是普通横线色。
-    const colors = await page.evaluate(() => ({
-      ind: getComputedStyle(document.querySelector('.hr-indicator')!).backgroundColor,
-      accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
-    }))
-    expect(colors.accent.toLowerCase()).toBe('#3d5a80')
-    expect(colors.ind).toBe('rgb(61, 90, 128)')
+    // 当前标题就是它自己那根横线变墨蓝（--accent）、变长变粗；不另画指示条。
+    expect(await page.locator('.hr-indicator').count()).toBe(0)
+    await page.waitForTimeout(450)
+    const look = await page.evaluate(() => {
+      const box = (i: number) =>
+        document.querySelector(`#hr-row-${i} .hr-dash`)!.getBoundingClientRect()
+      const row = document.querySelector('#hr-row-17')!.getBoundingClientRect()
+      return {
+        accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
+        color: getComputedStyle(document.querySelector('#hr-row-17 .hr-dash')!).backgroundColor,
+        plain: getComputedStyle(document.querySelector('#hr-row-13 .hr-dash')!).backgroundColor,
+        // 17 与 13 同为 H2：比较同级的普通横线。
+        active: { w: box(17).width, h: box(17).height, top: box(17).top, bottom: box(17).bottom },
+        normal: { w: box(13).width, h: box(13).height },
+        row: { top: row.top, bottom: row.bottom }
+      }
+    })
+    expect(look.accent.toLowerCase()).toBe('#3d5a80')
+    expect(look.color).toBe(ACCENT_RGB)
+    expect(look.plain).not.toBe(ACCENT_RGB)
+    expect(look.active.w).toBeGreaterThan(look.normal.w * 1.2)
+    expect(look.active.h).toBeGreaterThan(look.normal.h * 1.3)
+    // 放大后的横线仍在自己那一行里。
+    expect(look.active.top).toBeGreaterThanOrEqual(look.row.top - 0.5)
+    expect(look.active.bottom).toBeLessThanOrEqual(look.row.bottom + 0.5)
   })
 
   test('clicking an earlier dash scrolls back up', async () => {
     const from = await scrollTop(page, '.editor-component')
+    // 过渡期间逐帧采样：只有旧行（17）与新行（2）的横线可以偏离普通色，
+    // 也就是旧线就地回落、新线就地变色，没有东西在行间移动。
+    await page.evaluate(() => {
+      const w = window as unknown as { __hrOdd: Set<number>; __hrStop: boolean }
+      w.__hrOdd = new Set()
+      w.__hrStop = false
+      const plain = new Map<string, number>()
+      document.querySelectorAll('.hr-row .hr-dash').forEach((el, i) => {
+        if (i !== 17) plain.set(getComputedStyle(el).backgroundColor, 1)
+      })
+      const tick = (): void => {
+        document.querySelectorAll('.hr-row .hr-dash').forEach((el, i) => {
+          if (!plain.has(getComputedStyle(el).backgroundColor)) w.__hrOdd.add(i)
+        })
+        if (!w.__hrStop) requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    })
     await clickRow(page, 2)
     await expect
       .poll(() => scrollTop(page, '.editor-component'), { timeout: 8000 })
       .toBeLessThan(from)
     await page.mouse.move(700, 400)
     await expect.poll(() => activeRow(page), { timeout: 8000 }).toBe(2)
+    await page.waitForTimeout(450)
+    const odd = await page.evaluate(() => {
+      const w = window as unknown as { __hrOdd: Set<number>; __hrStop: boolean }
+      w.__hrStop = true
+      return [...w.__hrOdd].sort((a, b) => a - b)
+    })
+    // 悬停的那条（2）也会加深，同样在新行上。
+    expect(odd.every((i) => i === 2 || i === 17)).toBe(true)
+    const colors = await dashColors(page)
+    expect(colors[2]).toBe(ACCENT_RGB)
+    expect(colors.filter((c) => c === ACCENT_RGB)).toHaveLength(1)
   })
 
   test('the current heading follows manual scrolling monotonically', async () => {
@@ -162,6 +217,27 @@ test.describe('Heading rail', () => {
     await expect.poll(() => railWidth(page), { timeout: 3000 }).toBeGreaterThanOrEqual(188)
     await expect(page.locator('#hr-row-1 .hr-text')).toHaveCSS('opacity', '1')
     await expect(page.locator('.tb-headings.on')).toHaveCount(1)
+    // 常驻模式的当前标题：本行左缘的墨蓝竖条 + 墨蓝文字；横线全部隐去。
+    await page.waitForTimeout(700)
+    const pinnedLook = await page.evaluate(() => {
+      const row = document.querySelector('.hr-row.active')!
+      const bar = getComputedStyle(row, '::after')
+      const other = document.querySelector('.hr-row:not(.active)')!
+      return {
+        barOpacity: bar.opacity,
+        barColor: bar.backgroundColor,
+        otherBar: getComputedStyle(other, '::after').opacity,
+        text: getComputedStyle(row.querySelector('.hr-text')!).color,
+        dash: getComputedStyle(row.querySelector('.hr-dash')!).opacity
+      }
+    })
+    expect(pinnedLook).toEqual({
+      barOpacity: '1',
+      barColor: ACCENT_RGB,
+      otherBar: '0',
+      text: ACCENT_RGB,
+      dash: '0'
+    })
     const checked = await app.evaluate(
       ({ Menu }) => Menu.getApplicationMenu()?.getMenuItemById('headingLabelsMenuItem')?.checked
     )
