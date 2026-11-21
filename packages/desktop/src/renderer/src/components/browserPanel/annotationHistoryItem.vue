@@ -45,9 +45,16 @@
             nowKind
           }}</span>
         </div>
-        <div v-if="item.status === 'deleted'" class="hc-render gone">
-          {{ t('annotation.compare.deletedBody') }}
-        </div>
+        <template v-if="item.status === 'deleted'">
+          <div class="hc-render gone">
+            {{
+              nowHtml ? t('annotation.compare.deletedInBlock') : t('annotation.compare.deletedBody')
+            }}
+          </div>
+          <!-- 段落还在、只是这一句没了：附上现在的段落做语境 -->
+          <!-- eslint-disable-next-line vue/no-v-html -- renderSnapshotHtml 输出经 DOMPurify 清洗 -->
+          <div v-if="nowHtml" class="hc-render context" @click="blockLinks" v-html="nowHtml" />
+        </template>
         <div v-else-if="!nowHtml" class="hc-render gone">
           {{ t('annotation.compare.pending') }}
         </div>
@@ -321,6 +328,10 @@ watch([beforeHtml, nowHtml], revealAll)
   color: var(--faint);
   font-size: 12px;
   font-style: italic;
+}
+.hc-render.gone + .hc-render.context {
+  padding-top: 0;
+  color: var(--muted);
 }
 .hc-render :deep(> :first-child) {
   margin-top: 0;

@@ -307,6 +307,17 @@ describe('历史对比视图模型', () => {
     expect(text.comparison!.diff!.some((s) => s.op === 1 && s.text.includes('取消'))).toBe(true)
   })
 
+  it('段落还在、这一句被删：判删除，但带回所在段落做语境', () => {
+    const paragraph = snap({ markdown: '剩下的段落。', markStart: -1, markEnd: -1 })
+    const item = compareHistoryItem(ann('d', { origin: snap() }), {
+      id: 'd',
+      match: 'missing',
+      snapshot: paragraph
+    })
+    expect(item.status).toBe('deleted')
+    expect(item.now).toEqual(paragraph)
+  })
+
   it('v2 旧条目（无 origin）按锚点反推「标注时」，仍可比对', () => {
     const item = compareHistoryItem(ann('old'), located('old', snap()))
     expect(item.origin?.legacy).toBe(true)

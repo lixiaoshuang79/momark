@@ -611,3 +611,74 @@ export function findReplacementBlock(annotation: IAnnotation, muya: Muya): Nulla
 
     return best?.block ?? null;
 }
+
+/** 前后文夹取时退而求其次用的短上下文长度。 */
+const BRIDGE_SHORT = 8;
+
+/**
+ * 在对应到的段落里，用原引文的前后文（prefix / suffix）把「现在的那一段」夹出来：
+ * 前文之后、后文之前，就是原引文现在的样子。短引文被改了两个字时，2-gram 相似度
+ * 很容易跌破 0.75 而判失效——但它的前后文往往原封未动，夹出来的区间比整段准得多。
+ *
+ * 前文 / 后文先用完整的，找不到再用贴着引文的 8 个字；原来就在块首 / 块尾
+ * （上下文为空）则直接取块首 / 块尾。两头都夹不住返回 null。
+ */
+export function bridgeRange(text: string, prefix: string, suffix: string): Nullable<{ start: number; end: number }> {
+    let start = -1;
+    if (!prefix) {
+        start = 0;
+    }
+    else {
+        for (const probe of [prefix, prefix.slice(-BRIDGE_SHORT)]) {
+            const at = text.indexOf(probe);
+            if (probe && at >= 0 && !text.includes(probe, at + 1)) {
+                start = at + probe.length;
+                break;
+            }
+        }
+    }
+    if (start < 0)
+        return null;
+
+    let end = -1;
+    if (!suffix) {
+        end = text.length;
+    }
+    else {
+        for (const probe of [suffix, suffix.slice(0, BRIDGE_SHORT)]) {
+            const at = text.indexOf(probe, start);
+            if (probe && at >= 0) {
+                end = at;
+                break;
+            }
+        }
+    }
+    if (end < start)
+        return null;
+
+    return { start, end };
+}
+
+/**
+ * 引文是否是「从这段里被删掉了」：原段落去掉引文后，比原段落整体更像现在这段，
+ * 且足够像（≥ 0.8）。用于把「删了段里一句话」与「整句改写」分开。
+ */
+export function isQuoteRemoved(annotation: IAnnotation, text: string): boolean {
+    const { quote, prefix, blockText } = annotation.anchor;
+    if (!quote || !blockText)
+        return false;
+
+    const at = locateQuote(blockText, quote, prefix);
+    if (at < 0)
+        return false;
+
+    const now = normalizeText(text.slice(0, BLOCK_COMPARE_MAX)).text;
+    const without = normalizeText((blockText.slice(0, at) + blockText.slice(at + quote.length)).slice(0, BLOCK_COMPARE_MAX)).text;
+    const original = normalizeText(blockText.slice(0, BLOCK_COMPARE_MAX)).text;
+    if (!now)
+        return false;
+
+    const withoutScore = diceCoefficient(without, now);
+
+    return withoutScore >= 0.8 && withoutScore > diceCoefficient(original, now) + 0.02;
+}

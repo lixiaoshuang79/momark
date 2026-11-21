@@ -25,7 +25,7 @@ import {
     selectionToRanges,
 } from './anchor';
 import { normalizePhraseList } from './quickPhrase';
-import { captureSnapshot, findReplacementBlock } from './snapshot';
+import { bridgeRange, captureSnapshot, findReplacementBlock, isQuoteRemoved } from './snapshot';
 
 /** `json-change` 后的重定位节流窗口（方案 §2.3）。 */
 const RELOCATE_DEBOUNCE = 400;
@@ -413,7 +413,8 @@ export class AnnotationModule {
      *   - 锚点命中（含移动、模糊命中）→ `located`，快照画出命中的那一段；
      *   - 引文找不到、但原段落按邻接块 / 相似度还能对上 → `block`（整句被改写），
      *     快照是那个段落、不画区间；
-     *   - 都找不到 → `missing`（原文已删除）。
+     *   - 都找不到 → `missing`（原文已删除）；段落还在、只是这一句被删掉时也是
+     *     `missing`，但附带该段落的快照（不画区间）供面板展示语境。
      *
      * 重定位有实质变化时广播 `relocate`，桌面据此回读并落盘 `currentText` 等字段。
      * 归档条目没有正文高亮，所以不需要重画。全局备注不在返回值里。
@@ -445,28 +446,36 @@ export class AnnotationModule {
 
     private _inspectOne(annotation: IAnnotation): IAnnotationInspection {
         const { id } = annotation;
+        const { quote, blockText, prefix, suffix, ranges } = annotation.anchor;
+        const single = ranges.length <= 1 && !quote.includes('\n');
+        // 标的本来就是整块（表格单元格、整条列表项、整个标题…）
+        const whole = single && quote.trim() === (blockText ?? '').trim();
 
         try {
             if (annotation.anchorState !== 'orphaned') {
-                const snapshot = captureSnapshot(annotation.anchor.ranges, this._muya);
+                const snapshot = captureSnapshot(this._refineNowRanges(annotation, whole), this._muya);
                 if (snapshot)
                     return { id, match: 'located', snapshot };
             }
 
             const block = findReplacementBlock(annotation, this._muya);
             if (block) {
-                // 标的本来就是整块（表格单元格、整条列表项、整个标题…）：对应到的块就是
-                // 它现在的样子，按命中处理并整块画区间；只标了块里一部分的，才是
-                // 「原句已改写、这是原段落」。
-                const { quote, blockText } = annotation.anchor;
-                const whole = annotation.anchor.ranges.length <= 1 && quote.trim() === (blockText ?? '').trim();
+                // 整块标注：对应到的块就是它现在的样子，按命中处理并整块画区间；
+                // 只标了块里一部分的，先试着用原引文的前后文把「现在的那一段」夹出来，
+                // 夹不出来才是「原句已改写、这是原段落」。
+                const bridged = single && !whole ? bridgeRange(block.text, prefix, suffix) : null;
+                const range = bridged ?? { start: 0, end: block.text.length };
                 const snapshot = captureSnapshot(
-                    [{ blockPath: [...block.path], blockName: block.blockName, start: 0, end: block.text.length }],
+                    [{ blockPath: [...block.path], blockName: block.blockName, ...range }],
                     this._muya,
-                    { mark: whole },
+                    { mark: whole || !!bridged },
                 );
-                if (snapshot)
-                    return { id, match: whole ? 'located' : 'block', snapshot };
+                if (snapshot) {
+                    if (whole || bridged)
+                        return { id, match: 'located', snapshot };
+                    // 段落还在、但这一句被删掉了：判删除，同时带上所在段落给面板做语境。
+                    return { id, match: isQuoteRemoved(annotation, block.text) ? 'missing' : 'block', snapshot };
+                }
             }
         }
         catch {
@@ -474,6 +483,32 @@ export class AnnotationModule {
         }
 
         return { id, match: 'missing', snapshot: null };
+    }
+
+    /**
+     * 「现在」该画哪一段：锚点原样命中就用锚点；被模糊匹配挪过的（文字改过），
+     * 模糊窗口只是与原引文等长的近似区间，会把改长 / 改短的文字切掉一截——
+     * 整块标注取整块，局部标注用前后文夹取（与模糊区间有交集才采信）。
+     * 只影响历史里的展示，不回写锚点。
+     */
+    private _refineNowRanges(annotation: IAnnotation, whole: boolean): IAnnotationRange[] {
+        const { ranges, quote, prefix, suffix } = annotation.anchor;
+        if (ranges.length !== 1 || annotation.currentText === quote)
+            return ranges;
+
+        const range = ranges[0]!;
+        const block = this._muya.editor.scrollPage?.queryBlock([...range.blockPath]);
+        if (!block || !block.isContent())
+            return ranges;
+
+        if (whole)
+            return [{ ...range, start: 0, end: block.text.length }];
+
+        const bridged = bridgeRange(block.text, prefix, suffix);
+        if (bridged && bridged.start <= range.end && bridged.end >= range.start)
+            return [{ ...range, ...bridged }];
+
+        return ranges;
     }
 
     /**

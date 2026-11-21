@@ -152,8 +152,9 @@ export function compareSnapshots(
     if (match === 'block') {
         result.status = 'rewritten';
         result.text = true;
-        // 原句 vs 整段：整段比原句长太多时逐字差异只剩一片绿，不如不给。
-        if (diffable && after.length <= Math.max(before.length * 4, 200))
+        // 原句 vs 整段：整段明显比原句长时，逐字差异只是一片红绿噪声（两栏对照
+        // 已经说明了一切），只在两者长度相当时给。
+        if (diffable && after.length <= before.length * 1.5 + 8)
             result.diff = diffText(before, after);
         return result;
     }

@@ -1241,6 +1241,7 @@
       "same": "When annotated = Now",
       "nowBlock": "Now · paragraph at the original spot",
       "deletedBody": "This text has been removed from the document",
+      "deletedInBlock": "This part was removed; the paragraph now reads:",
       "pending": "Open this document to see how it looks now",
       "legacy": "Older annotation, rebuilt from the quote",
       "diff": "Changes",

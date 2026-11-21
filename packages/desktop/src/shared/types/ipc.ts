@@ -520,7 +520,7 @@ export interface IAnnotationSnapshot {
 /** 引擎 `inspect()` 的结果：「现在」的样子。 */
 export interface IAnnotationInspection {
   id: string
-  /** located = 按原锚点命中；block = 原句被整句改写，对应到原段落；missing = 原文已删除。 */
+  /** located = 按原锚点命中；block = 原句被整句改写，对应到原段落；missing = 原文已删除（段落还在时附带该段落快照）。 */
   match: 'located' | 'block' | 'missing'
   snapshot: IAnnotationSnapshot | null
 }

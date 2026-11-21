@@ -110,6 +110,7 @@ export type TInspectMatch = 'located' | 'block' | 'missing';
 export interface IAnnotationInspection {
     id: string;
     match: TInspectMatch;
+    /** located / block：现在的样子；missing：引文所在段落还在时为该段落（不画区间），否则 null。 */
     snapshot: IAnnotationSnapshot | null;
 }
 
