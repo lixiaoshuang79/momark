@@ -4,6 +4,7 @@ import type { TBlockPath } from '../block/types';
 import type { Muya } from '../muya';
 import type { TState } from '../state/types';
 import type { Nullable } from '../types';
+import type { DocIndex } from './docIndex';
 import type {
     IAnnotation,
     IAnnotationRange,
@@ -12,7 +13,8 @@ import type {
 } from './types';
 import { tokenizer, tokensToPlainText } from '../inlineRenderer/lexer';
 import { deepClone } from '../utils';
-import { diceCoefficient, normalizeText } from './anchor';
+import { diceCoefficient, gramCounts, normalizeText } from './anchor';
+import { BLOCK_COMPARE_MAX, diceFromGrams, diceUpperBound } from './docIndex';
 
 /**
  * 标注样式快照（feat/annotation-history-compare）。
@@ -48,8 +50,6 @@ const LEAF_WINDOW = 360;
 const CODE_WINDOW_LINES = 5;
 /** 整份快照 markdown 的上限；超过则退化成只存标注段源码。 */
 const SNAPSHOT_MAX = 6000;
-/** 段落级兜底匹配（原句被整句改写）：块文本参与比对的最大长度。 */
-const BLOCK_COMPARE_MAX = 2000;
 
 const INLINE_MARKERS = new Set(['*', '_', '~']);
 
@@ -584,7 +584,10 @@ function sameStart(text: string, expected: string): boolean {
  *   - 或者整体相似度 ≥ 0.6。
  * 找不到返回 null（= 真删了）。只用于历史里展示「现在」，不改锚点状态。
  */
-export function findReplacementBlock(annotation: IAnnotation, muya: Muya): Nullable<Content> {
+export function findReplacementBlock(annotation: IAnnotation, muya: Muya, index?: DocIndex): Nullable<Content> {
+    if (index)
+        return findReplacementBlockIndexed(annotation, index);
+
     const { blockText, beforeBlockText, afterBlockText, ranges } = annotation.anchor;
     const original = normalizeText((blockText ?? '').slice(0, BLOCK_COMPARE_MAX)).text;
     const blockName = ranges[0]?.blockName;
@@ -605,6 +608,58 @@ export function findReplacementBlock(annotation: IAnnotation, muya: Muya): Nulla
             continue;
 
         const score = dice + (before ? 0.5 : 0) + (after ? 0.5 : 0) + (block.blockName === blockName ? 0.1 : 0);
+        if (!best || score > best.score)
+            best = { block, score };
+    }
+
+    return best?.block ?? null;
+}
+
+/** 邻接块对得上：原来记的邻接文本为空（在文档开头 / 末尾）时，现在也没有邻居才算。 */
+function neighborMatches(text: string | null, expected: string): boolean {
+    return expected ? text != null && text.slice(0, expected.length) === expected : text == null;
+}
+
+/**
+ * `findReplacementBlock` 的共享索引版：判定规则与打分逐项相同，只是
+ *   - 块的归一化文本 / 2-gram / 邻接文本取自索引（整篇只算一次）；
+ *   - 先判邻接，再用「长度决定的 Dice 上界」跳过不可能入选、或不可能超过当前
+ *     最好分数的块——这些块原实现里也不会被选中，所以结果一致。
+ */
+function findReplacementBlockIndexed(annotation: IAnnotation, index: DocIndex): Nullable<Content> {
+    const { blockText, beforeBlockText, afterBlockText, ranges } = annotation.anchor;
+    const originalText = normalizeText((blockText ?? '').slice(0, BLOCK_COMPARE_MAX)).text;
+    const original = { text: originalText, grams: gramCounts(originalText) };
+    const blockName = ranges[0]?.blockName;
+    let best: Nullable<{ block: Content; score: number }> = null;
+
+    for (const entry of index.blocks) {
+        const { block } = entry;
+        if (block.blockName === 'language-input')
+            continue;
+
+        const { previous, next } = index.neighbors(entry);
+        const before = neighborMatches(previous, beforeBlockText);
+        const after = neighborMatches(next, afterBlockText);
+        const bonus = (before ? 0.5 : 0) + (after ? 0.5 : 0) + (block.blockName === blockName ? 0.1 : 0);
+        const need = before && after ? 0 : before || after ? 0.35 : 0.6;
+
+        let dice = 0;
+        if (original.text) {
+            const head = index.head(entry);
+            const upper = diceUpperBound(original.text.length, head.text.length);
+            if (upper < need || (best && upper + bonus <= best.score))
+                continue;
+            dice = diceFromGrams(original, head);
+        }
+        else if (need > 0 || (best && bonus <= best.score)) {
+            continue;
+        }
+
+        if (dice < need)
+            continue;
+
+        const score = dice + bonus;
         if (!best || score > best.score)
             best = { block, score };
     }

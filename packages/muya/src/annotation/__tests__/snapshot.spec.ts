@@ -234,8 +234,9 @@ describe('inspect()：现在的样子', () => {
         muya.replaceContent(DOC.replace('同步失败不阻塞阅读，失败项进入重试队列。', () => '上传出错时静默重试，最多三次后提醒。'));
         const [result] = muya.annotation.inspect([annotation.id]);
 
-        expect(annotation.anchorState).toBe('orphaned');
         expect(result!.match).toBe('block');
+        // 定位用：原来所在的段落现在的块路径
+        expect((muya.editor.scrollPage!.queryBlock([...result!.blockPath!]) as Content).text).toBe('上传出错时静默重试，最多三次后提醒。');
         expect(result!.snapshot!.markdown).toBe('上传出错时静默重试，最多三次后提醒。');
         expect(result!.snapshot!.markStart).toBe(-1);
         expect(compareSnapshots(annotation.origin!, result!.match, result!.snapshot).status).toBe('rewritten');
@@ -256,7 +257,7 @@ describe('inspect()：现在的样子', () => {
         expect(comparison.diff!.length).toBeGreaterThan(0);
     });
 
-    it('归档条目会被重定位，并广播 relocate（桌面据此落盘 currentText）', () => {
+    it('检视只读：归档条目在副本上重定位，不改写锚点、不广播（不触发落盘）', () => {
         const muya = bootMuya(DOC);
         const annotation = annotate(muya, '后台排队上传');
         annotation.archived = true;
@@ -264,16 +265,17 @@ describe('inspect()：现在的样子', () => {
         muya.eventCenter.subscribe('annotation-change', (payload: unknown) => events.push(payload));
 
         muya.replaceContent(DOC.replace('2. 后台排队上传', () => '2. 立即后台排队上传'));
-        const before = JSON.stringify(annotation.anchor.ranges);
-        muya.annotation.inspect([annotation.id]);
+        const before = JSON.stringify(annotation.anchor);
+        const stateBefore = annotation.anchorState;
+        const [result] = muya.annotation.inspect([annotation.id]);
 
-        expect(events).toContainEqual({ type: 'relocate', id: undefined });
-        expect(JSON.stringify(annotation.anchor.ranges)).not.toBe(before);
-        expect(annotation.anchorState).not.toBe('orphaned');
-
-        // 再看一次没有变化 → 不再广播（避免与桌面回读形成循环）
-        events.length = 0;
-        muya.annotation.inspect([annotation.id]);
+        // 「现在」的位置在结果里（定位用），条目本身原样不动
+        expect(result!.match).toBe('located');
+        const range = result!.ranges![0]!;
+        const block = muya.editor.scrollPage!.queryBlock([...range.blockPath]) as Content;
+        expect(block.text.slice(range.start, range.end)).toBe('后台排队上传');
+        expect(JSON.stringify(annotation.anchor)).toBe(before);
+        expect(annotation.anchorState).toBe(stateBefore);
         expect(events).toHaveLength(0);
     });
 

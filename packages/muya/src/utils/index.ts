@@ -23,6 +23,8 @@ const HIGHLIGHT_TYPE_PRIORITY: Record<THighlightType, number> = {
     // 卡片打开期间「正在标注的选区」压过一切——它正是用户此刻的视点
     // （编辑已有标注时选区与该标注完全重叠，要显示成选中态而不是标注态）。
     'annotation-pending': 3,
+    // 从历史「定位」过来的一次性闪烁：用户刚点了它，要压过同处的其它标注。
+    'annotation-flash': 4,
 };
 
 // `never[]` in the contravariant arg-tuple position lets the @methodMixins

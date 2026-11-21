@@ -350,3 +350,78 @@ body {
 .mu-annotation-pulse {
     animation: annotation-pulse 1.2s ease-in-out;
 }
+
+/* 从「标注 → 历史」点一条记录定位过来：标出它**现在**在正文里的位置。
+   与常规标注（墨蓝）刻意用不同的暖色，免得和当前列表的标注混在一起；
+   闪两下后淡出，引擎在动画结束时把类摘掉（一次性、不落盘）。
+   `-block` 版本画在整块上：原句被整句改写 / 已删除时只能指到原来的段落。 */
+@keyframes annotation-flash {
+    0% {
+        background: color-mix(in srgb, var(--warn, #d9a43a) 10%, transparent);
+    }
+
+    12%,
+    40% {
+        background: color-mix(in srgb, var(--warn, #d9a43a) 55%, transparent);
+    }
+
+    26% {
+        background: color-mix(in srgb, var(--warn, #d9a43a) 25%, transparent);
+    }
+
+    75% {
+        background: color-mix(in srgb, var(--warn, #d9a43a) 40%, transparent);
+    }
+
+    100% {
+        background: transparent;
+    }
+}
+
+@keyframes annotation-flash-block {
+    0% {
+        outline-color: transparent;
+        background: transparent;
+    }
+
+    12%,
+    40% {
+        outline-color: color-mix(in srgb, var(--warn, #d9a43a) 85%, transparent);
+        background: color-mix(in srgb, var(--warn, #d9a43a) 14%, transparent);
+    }
+
+    26% {
+        outline-color: color-mix(in srgb, var(--warn, #d9a43a) 40%, transparent);
+        background: color-mix(in srgb, var(--warn, #d9a43a) 6%, transparent);
+    }
+
+    75% {
+        outline-color: color-mix(in srgb, var(--warn, #d9a43a) 70%, transparent);
+        background: color-mix(in srgb, var(--warn, #d9a43a) 10%, transparent);
+    }
+
+    100% {
+        outline-color: transparent;
+        background: transparent;
+    }
+}
+
+.mu-annotation-flash {
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--warn, #d9a43a) 40%, transparent);
+    animation: annotation-flash 3.6s ease-in-out forwards;
+}
+
+.mu-annotation-flash-block {
+    border-radius: 4px;
+    outline: 2px solid color-mix(in srgb, var(--warn, #d9a43a) 70%, transparent);
+    outline-offset: 3px;
+    animation: annotation-flash-block 3.6s ease-in-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mu-annotation-flash,
+    .mu-annotation-flash-block {
+        animation: none;
+    }
+}

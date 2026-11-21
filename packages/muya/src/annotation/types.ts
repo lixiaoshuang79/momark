@@ -8,7 +8,7 @@ import type { Nullable } from '../types';
  * `annotation` = 常规标注，`annotation-active` = 当前激活条（卡片编辑中 / 面板定位）。
  * 重叠时按 `annotation-active > annotation > search` 取高优先级。
  */
-export type THighlightType = 'search' | 'annotation' | 'annotation-active' | 'annotation-pending';
+export type THighlightType = 'search' | 'annotation' | 'annotation-active' | 'annotation-pending' | 'annotation-flash';
 
 /**
  * 标注高亮 span 的 class 名，与 `assets/styles/index.css` 中的规则一一对应。
@@ -21,6 +21,10 @@ export const ANNOTATION_CLASS_NAMES = {
     MU_ANNOTATION_ACTIVE: 'mu-annotation-active',
     /** 卡片打开期间「正在标注的选区」：选中态观感（用户拍板）。 */
     MU_ANNOTATION_PENDING: 'mu-annotation-pending',
+    /** 从历史定位过来时，标注「现在」位置的一次性闪烁（几秒后自动消失，不落盘）。 */
+    MU_ANNOTATION_FLASH: 'mu-annotation-flash',
+    /** 同上，画在整个块上（整句改写 / 原文已删除时只能指到段落）。 */
+    MU_ANNOTATION_FLASH_BLOCK: 'mu-annotation-flash-block',
 } as const;
 
 /** 一段（块内）定位；跨块标注有多段，按文档顺序。 */
@@ -112,6 +116,38 @@ export interface IAnnotationInspection {
     match: TInspectMatch;
     /** located / block：现在的样子；missing：引文所在段落还在时为该段落（不画区间），否则 null。 */
     snapshot: IAnnotationSnapshot | null;
+    /**
+     * located：标注段**现在**在正文里的区间（历史「定位」据此滚动并闪烁）。
+     * 只是检视结果，不回写条目锚点、不落盘；文档一变就可能过期，用前须重新检视。
+     */
+    ranges?: IAnnotationRange[];
+    /** block / missing（段落还在）：原来所在的那个段落现在的块路径。 */
+    blockPath?: TBlockPath;
+}
+
+/**
+ * `reveal()` 的结果（历史条目点击定位）：
+ * - `range`：滚到标注段现在的位置并闪烁该段；
+ * - `block`：原句被整句改写，滚到原来所在的段落并闪烁整段；
+ * - `context`：这一句已从段落中删除，滚到原来所在的段落；
+ * - `near`：原文连同段落都没了，滚到它原来的相邻段落（原位置附近）；
+ * - `none`：正文里找不到任何可用位置，没有滚动；
+ * - `global`：全局备注，没有正文位置。
+ */
+export type TRevealStatus = 'range' | 'block' | 'context' | 'near' | 'none' | 'global';
+
+export interface IAnnotationReveal {
+    id: string;
+    status: TRevealStatus;
+    /** 定位时顺带算出的「现在」（与 `inspect([id])` 同源），宿主可直接拿来刷新面板。 */
+    inspection: IAnnotationInspection | null;
+}
+
+export interface IAnnotationRevealOptions {
+    /** 平滑滚动（宿主按「减少动态效果」偏好决定），缺省 true。 */
+    smooth?: boolean;
+    /** 闪烁持续时间（ms），缺省 3600，与样式里的动画时长一致。 */
+    duration?: number;
 }
 
 export interface IAnnotation {

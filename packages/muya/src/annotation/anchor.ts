@@ -6,6 +6,7 @@ import type { TBlockPath } from '../block/types';
 import type { Muya } from '../muya';
 import type { TState } from '../state/types';
 import type { Nullable } from '../types';
+import type { DocIndex } from './docIndex';
 import type { IAnnotation, IAnnotationAnchor, IAnnotationRange, TSelectionSnapshot } from './types';
 import { tokenizer, tokensToPlainText } from '../inlineRenderer/lexer';
 
@@ -117,13 +118,25 @@ export function normalizeText(text: string): { text: string; map: number[] } {
 }
 
 /** 2-gram 计数表。 */
-function gramCounts(text: string): Map<string, number> {
+export function gramCounts(text: string): Map<string, number> {
     const counts = new Map<string, number>();
     for (let i = 0; i + 1 < text.length; i++) {
         const gram = text.slice(i, i + 2);
         counts.set(gram, (counts.get(gram) ?? 0) + 1);
     }
     return counts;
+}
+
+/** 两份 2-gram 计数的多重集交集大小（遍历小的那份）。 */
+export function gramIntersection(a: Map<string, number>, b: Map<string, number>): number {
+    const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+    let total = 0;
+    for (const [gram, count] of small) {
+        const other = large.get(gram);
+        if (other !== undefined)
+            total += Math.min(count, other);
+    }
+    return total;
 }
 
 /** 2-gram Dice 系数（0–1）。两个串都短于 2 字符时退化为相等判断。 */
@@ -514,19 +527,26 @@ function pickOccurrence(text: string, annotation: IAnnotation): number {
     return best;
 }
 
-function collectQuoteCandidates(scrollPage: ScrollPage, quote: string): IQuoteCandidate[] {
+function collectQuoteCandidates(scrollPage: ScrollPage, quote: string, index?: DocIndex): IQuoteCandidate[] {
     const candidates: IQuoteCandidate[] = [];
-
-    scrollPage.depthFirstTraverse((node: TreeNode) => {
-        if (!node.isContent())
-            return;
-
+    const visit = (node: Content) => {
         let at = node.text.indexOf(quote);
         let guard = 0;
         while (at > -1 && guard++ < MAX_OCCURRENCES) {
             candidates.push({ block: node, index: at });
             at = node.text.indexOf(quote, at + 1);
         }
+    };
+
+    if (index) {
+        for (const entry of index.blocks)
+            visit(entry.block);
+        return candidates;
+    }
+
+    scrollPage.depthFirstTraverse((node: TreeNode) => {
+        if (node.isContent())
+            visit(node);
     });
 
     return candidates;
@@ -536,9 +556,13 @@ function pickBestCandidate(
     candidates: IQuoteCandidate[],
     annotation: IAnnotation,
     muya: Muya,
+    index?: DocIndex,
 ): IQuoteCandidate {
     const { quote, prefix, suffix, ranges, headingPath } = annotation.anchor;
-    const ordinals = blockOrdinalMap(muya);
+    // 同一版本文档的序号表与条目无关：有共享索引就直接用，不再每条遍历一遍。
+    const ordinals: { get: (key: string) => number | undefined } = index
+        ? { get: key => index.ordinalOf(key) }
+        : blockOrdinalMap(muya);
     const originalOrdinal = ordinals.get(pathKey(annotation.anchor.blockPath)) ?? 0;
     let best = candidates[0]!;
     let bestScore = Number.NEGATIVE_INFINITY;
@@ -586,8 +610,14 @@ function trimRange(block: Content, start: number, end: number, score: number): I
     return { block, start: s, end: e, score };
 }
 
-/** 第 3 段：归一化 + 2-gram Dice 滑窗，取最高分且 ≥ 0.75 的区间。 */
-function fuzzyLocate(muya: Muya, quote: string): Nullable<IFuzzyHit> {
+/**
+ * 第 3 段：归一化 + 2-gram Dice 滑窗，取最高分且 ≥ 0.75 的区间。
+ *
+ * 带共享索引时先做一次**上界剪枝**：任何窗口与引文的 2-gram 交集都不会超过
+ * 「整块与引文的多重集交集」，按它算出的分数上界够不到阈值（或够不到已有最好
+ * 分数）的块直接跳过，不再滑窗。只跳过不可能入选的块，结果与不剪枝完全一致。
+ */
+function fuzzyLocate(muya: Muya, quote: string, index?: DocIndex): Nullable<IFuzzyHit> {
     const { scrollPage } = muya.editor;
     if (!scrollPage)
         return null;
@@ -599,15 +629,35 @@ function fuzzyLocate(muya: Muya, quote: string): Nullable<IFuzzyHit> {
     const quoteGrams = gramCounts(target.text);
     const quoteGramTotal = target.text.length - 1;
     const sizes = windowSizes(target.text.length);
+    const minSize = Math.min(...sizes);
     let best: Nullable<IFuzzyHit> = null;
+    const entries: Array<{
+        block: Content;
+        normalized: () => { text: string; map: number[] };
+        grams?: () => Map<string, number>;
+    }> = index
+        ? index.blocks.map(entry => ({
+                block: entry.block,
+                normalized: () => index.normalized(entry),
+                grams: () => index.grams(entry),
+            }))
+        : contentBlocksOf(scrollPage).map(block => ({ block, normalized: () => normalizeText(block.text) }));
 
-    for (const block of contentBlocksOf(scrollPage)) {
+    for (const entry of entries) {
+        const { block } = entry;
         if (!block.text)
             continue;
 
-        const normalized = normalizeText(block.text);
+        const normalized = entry.normalized();
         if (normalized.text.length < 2)
             continue;
+
+        if (entry.grams) {
+            const ceiling = gramIntersection(quoteGrams, entry.grams());
+            const upper = (2 * ceiling) / (quoteGramTotal + minSize - 1);
+            if (upper < FUZZY_THRESHOLD || (best && upper <= best.score))
+                continue;
+        }
 
         for (const size of sizes) {
             if (normalized.text.length < size)
@@ -691,7 +741,7 @@ function refreshCurrentText(annotation: IAnnotation, muya: Muya) {
  * 四段式重定位（命中即停），就地改写 `ranges` / `anchorState` / `currentText` /
  * `contentChanged`。**不改写 `quote` 与各层提示字段**——它们是锚点本体与消歧依据。
  */
-export function relocateAnnotation(annotation: IAnnotation, muya: Muya): void {
+export function relocateAnnotation(annotation: IAnnotation, muya: Muya, index?: DocIndex): void {
     const { scrollPage } = muya.editor;
     const { quote } = annotation.anchor;
 
@@ -713,12 +763,12 @@ export function relocateAnnotation(annotation: IAnnotation, muya: Muya): void {
     }
 
     // 2. 全域精确
-    const candidates = collectQuoteCandidates(scrollPage, quote);
+    const candidates = collectQuoteCandidates(scrollPage, quote, index);
     if (candidates.length) {
         const hit
             = candidates.length === 1
                 ? candidates[0]!
-                : pickBestCandidate(candidates, annotation, muya);
+                : pickBestCandidate(candidates, annotation, muya, index);
         applySingleRange(annotation, hit.block, hit.index, hit.index + quote.length);
         annotation.anchorState = 'relocated';
         refreshCurrentText(annotation, muya);
@@ -726,7 +776,7 @@ export function relocateAnnotation(annotation: IAnnotation, muya: Muya): void {
     }
 
     // 3. 模糊匹配
-    const fuzzy = fuzzyLocate(muya, quote);
+    const fuzzy = fuzzyLocate(muya, quote, index);
     if (fuzzy) {
         applySingleRange(annotation, fuzzy.block, fuzzy.start, fuzzy.end);
         annotation.anchorState = 'relocated';
