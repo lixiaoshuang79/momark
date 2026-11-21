@@ -317,3 +317,112 @@ test.describe('Heading rail', () => {
     await expect(page.locator('.title-stats .dot.show')).toHaveCount(0, { timeout: 5000 })
   })
 })
+
+// 文档开头：一级标题、二级标题、三级标题都挤在第一屏上半（同用户反馈的样本文档），
+// 固定在 ~344px 的阅读线会一下越过前三个。顶部时当前必须是第一个，往下滚逐格前进。
+const buildTopCrowdedDoc = (): string => {
+  const parts = [
+    '# Top Title',
+    '## Section One',
+    'Short intro paragraph for section one.',
+    '### Detail One A',
+    '- item a\n- item b\n- item c',
+    '### Detail One B',
+    '| a | b |\n| - | - |\n| 1 | 2 |'
+  ]
+  for (let i = 2; i <= 14; i++) {
+    parts.push(`## Section ${i}`)
+    for (let p = 0; p < 5; p++) {
+      parts.push(
+        `Filler paragraph ${p} under section ${i}. Lorem ipsum dolor sit amet, consectetur.`
+      )
+    }
+  }
+  return parts.join('\n\n') + '\n'
+}
+
+test.describe('Heading rail at the top of the document', () => {
+  let app: ElectronApplication
+  let page: Page
+
+  const editorTop = (p: Page) =>
+    p.evaluate(() => {
+      ;(document.querySelector('.editor-component') as HTMLElement).scrollTop = 0
+    })
+
+  test.beforeAll(async () => {
+    const launched = await launchWithMarkdown(buildTopCrowdedDoc())
+    app = launched.app
+    page = launched.page
+    await page.waitForSelector('.heading-rail.shown', { timeout: 10000 })
+  })
+
+  test.afterAll(async () => {
+    if (app) await app.close()
+  })
+
+  test('the first heading is current when the document is opened at the top', async () => {
+    expect(await scrollTop(page, '.editor-component')).toBe(0)
+    // 场景成立：至少三个标题的顶边已在阅读线（窗口 y=344）之上。
+    const above = await page.evaluate(
+      (sel) =>
+        [...document.querySelectorAll(sel)].filter((h) => h.getBoundingClientRect().top <= 344)
+          .length,
+      HEADINGS
+    )
+    expect(above).toBeGreaterThanOrEqual(3)
+    await expect.poll(() => activeRow(page), { timeout: 4000 }).toBe(0)
+  })
+
+  test('scrolling down from the top advances one heading at a time from the first', async () => {
+    await editorTop(page)
+    await expect.poll(() => activeRow(page)).toBe(0)
+    const seen: number[] = [await activeRow(page)]
+    for (let step = 0; step < 60; step++) {
+      await page.evaluate(() => {
+        ;(document.querySelector('.editor-component') as HTMLElement).scrollTop += 12
+      })
+      await page.waitForTimeout(40)
+      const now = await activeRow(page)
+      expect(now).toBeGreaterThanOrEqual(seen[seen.length - 1]!)
+      if (now !== seen[seen.length - 1]) seen.push(now)
+    }
+    // 从 0 开始，且前几格是逐个轮到的（没有直接跳到第三个）。
+    expect(seen.slice(0, 4)).toEqual([0, 1, 2, 3])
+  })
+
+  test('clicking the first dash settles on the first heading', async () => {
+    await page.evaluate(() => {
+      ;(document.querySelector('.editor-component') as HTMLElement).scrollTop = 1500
+    })
+    await expect.poll(() => activeRow(page)).toBeGreaterThan(3)
+    await clickRow(page, 0)
+    await expect.poll(() => scrollTop(page, '.editor-component'), { timeout: 8000 }).toBe(0)
+    await page.mouse.move(700, 400)
+    // 跳转锁解除之后（停稳 300ms+）仍是第一个。
+    await page.waitForTimeout(1200)
+    expect(await activeRow(page)).toBe(0)
+  })
+
+  test('a heading the editor cannot scroll to the reading line stays current after a click', async () => {
+    await editorTop(page)
+    await expect.poll(() => activeRow(page)).toBe(0)
+    // 开头点第二个标题：正文滚不动，落定后仍显示被点的那个。
+    await clickRow(page, 1)
+    await page.mouse.move(700, 400)
+    await page.waitForTimeout(1200)
+    expect(await activeRow(page)).toBe(1)
+    // 往下滚：不倒退回第一个，等算出来的追上后照常前进。
+    let last = 1
+    for (let step = 0; step < 30; step++) {
+      await page.evaluate(() => {
+        ;(document.querySelector('.editor-component') as HTMLElement).scrollTop += 12
+      })
+      await page.waitForTimeout(40)
+      const now = await activeRow(page)
+      expect(now).toBeGreaterThanOrEqual(last)
+      last = now
+    }
+    expect(last).toBeGreaterThan(1)
+  })
+})

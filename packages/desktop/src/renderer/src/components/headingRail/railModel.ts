@@ -92,9 +92,17 @@ export interface ActiveHeadingInput {
 /**
  * 当前标题 = 顶边已越过阅读线的最后一个标题；还没读到第一个标题时为 -1。
  *
+ * 文档开头：阅读线固定在 ~344px 深处的话，刚打开（scrollTop = 0）就会越过开头挤在
+ * 一起的前几个标题，当前标题直接落到第三个。所以在最开始的 `base` px 滚动距离内，
+ * 阅读线从「第一个标题的顶边」线性下移回原位：顶部时当前恰好是第一个，往下滚时
+ * 依次轮到后面的标题。只在第一个标题本来就在阅读线之上时生效——阅读线只会被
+ * 提上去、不会被拉下来，开头有一屏以上引言的文档照旧是 -1。
+ *
  * 接近文末时阅读线逐渐下移到可视区底边：最后几节往往不足一屏，阅读线固定不动的话
  * 滚到底也轮不到它们。下移只发生在最后半屏的滚动距离内，按剩余距离线性插值，
  * 所以指示线不会在到底那一刻突然跳格。
+ *
+ * 两段插值都让「阅读线在内容里的位置」随 scrollTop 单调不减，当前标题只会前进。
  */
 export const resolveActiveHeading = ({
   count,
@@ -108,11 +116,20 @@ export const resolveActiveHeading = ({
   const maxScroll = scrollHeight - viewportHeight
   const base = Math.min(Math.max(0, probeOffset), viewportHeight)
   let probe = base
+  // 开头一段：scrollTop < base 时才读第一个标题（远离开头不多读，保持 O(log n)）。
+  if (base > 0 && scrollTop < base) {
+    const first = topOf(0) + Math.max(0, scrollTop)
+    if (first < base) {
+      // +1：亚像素误差下第一个标题也稳稳算进去；相邻标题不可能挤在 1px 内。
+      const start = Math.max(0, first) + 1
+      probe = start + (base - start) * (Math.max(0, scrollTop) / base)
+    }
+  }
   if (maxScroll > 0) {
     const ramp = Math.min(viewportHeight * 0.5, maxScroll)
     const remaining = Math.max(0, maxScroll - scrollTop)
     const t = ramp > 0 ? Math.min(1, Math.max(0, 1 - remaining / ramp)) : 0
-    probe = base + (viewportHeight - 2 - base) * t
+    probe = probe + (viewportHeight - 2 - probe) * t
   }
   let lo = 0
   let hi = count - 1
@@ -127,6 +144,29 @@ export const resolveActiveHeading = ({
     }
   }
   return found
+}
+
+/** 点击跳转落定后仍保持的目标：`scrollTop` 是落定时正文的滚动位置。 */
+export interface JumpHold {
+  index: number
+  scrollTop: number
+}
+
+/**
+ * 点击跳转落定后，按滚动位置算出的标题仍可能不是被点的那个：文档开头/文末滚不到
+ * 让它落在阅读线上的位置（例如开头点第二个标题，正文根本滚不动）。这时继续显示被
+ * 点的那个，直到用户把它滚「过去」：
+ * - 正文没动（只是重排、改窗口大小）：保持；
+ * - 被点的在算出的之后、用户往下滚：保持，直到算出的追上它；
+ * - 被点的在算出的之前、用户往上滚：保持，直到算出的退到它；
+ * - 往反方向滚：放开，交回滚动位置。
+ * 这样放开那一刻当前标题沿滚动方向连续变化，不会先倒退再前进。
+ */
+export const keepJumpHold = (hold: JumpHold, computed: number, scrollTop: number): boolean => {
+  if (computed === hold.index) return false
+  const delta = scrollTop - hold.scrollTop
+  if (Math.abs(delta) < 1) return true
+  return hold.index > computed ? delta > 0 : delta < 0
 }
 
 /** 0–100 的阅读进度；不可滚动的文档视为已读完。 */

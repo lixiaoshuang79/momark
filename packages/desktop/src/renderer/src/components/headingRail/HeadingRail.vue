@@ -82,12 +82,14 @@ import {
   clampLabelTop,
   dashWidth,
   followScrollTop,
+  keepJumpHold,
   pinnedRailWidth,
   railPitch,
   readingProgress,
   resolveActiveHeading,
   rowAt,
   toRailItems,
+  type JumpHold,
   type RailItem
 } from './railModel'
 
@@ -164,6 +166,8 @@ let jumpLock: { index: number; until: number; deadline: number; lastTop: number 
 const JUMP_LOCK_IDLE_MS = 300
 const JUMP_LOCK_MAX_MS = 4000
 let lockTimer: ReturnType<typeof setTimeout> | null = null
+// 跳转落定却到不了阅读线（文档开头/文末滚不动）：继续显示被点的那个，见 keepJumpHold。
+let jumpHold: JumpHold | null = null
 
 const measure = (): void => {
   const source = activeHeadingSource.value
@@ -186,6 +190,10 @@ const measure = (): void => {
       jumpLock.until = Math.max(jumpLock.until, now + JUMP_LOCK_IDLE_MS)
     }
     if (next === jumpLock.index || now > jumpLock.until || now > jumpLock.deadline) {
+      // 停稳了但算出的不是目标：正文已滚到头，转为保持，等用户自己滚过去。
+      if (next !== jumpLock.index && now <= jumpLock.deadline) {
+        jumpHold = { index: jumpLock.index, scrollTop: scroller.scrollTop }
+      }
       jumpLock = null
     } else {
       next = jumpLock.index
@@ -193,6 +201,10 @@ const measure = (): void => {
       if (lockTimer) clearTimeout(lockTimer)
       lockTimer = setTimeout(scheduleMeasure, jumpLock.until - now + 20)
     }
+  }
+  if (!jumpLock && jumpHold) {
+    if (keepJumpHold(jumpHold, next, scroller.scrollTop)) next = jumpHold.index
+    else jumpHold = null
   }
   progress.value = readingProgress(scroller.scrollTop, scroller.scrollHeight, viewportHeight)
   if (next !== activeIndex.value) {
@@ -337,6 +349,7 @@ const jump = (index: number): void => {
   const source = activeHeadingSource.value
   if (!item || !source) return
   const now = performance.now()
+  jumpHold = null
   jumpLock = {
     index,
     until: now + 600,
@@ -430,6 +443,8 @@ watch(
   (source) => {
     detachScroller?.()
     detachScroller = null
+    jumpLock = null
+    jumpHold = null
     if (!source) return
     const scroller = source.scroller
     scroller.addEventListener('scroll', scheduleMeasure, { passive: true })
@@ -448,6 +463,7 @@ watch(
 )
 
 watch(items, () => {
+  jumpHold = null
   activeHeadingSource.value?.invalidate?.()
   if (hoverIndex.value >= items.value.length) hideLabel(true)
   nextTick(scheduleMeasure)
@@ -456,6 +472,7 @@ watch(
   () => currentFile.value?.id,
   () => {
     jumpLock = null
+    jumpHold = null
     hideLabel(true)
     nextTick(scheduleMeasure)
   }

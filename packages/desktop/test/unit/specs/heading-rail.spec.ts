@@ -6,6 +6,7 @@ import {
   clampLabelTop,
   dashWidth,
   followScrollTop,
+  keepJumpHold,
   pinnedRailWidth,
   railPitch,
   readingProgress,
@@ -161,6 +162,132 @@ describe('resolveActiveHeading', () => {
       probeOffset: 200
     })
     expect(reads).toBeLessThanOrEqual(14)
+  })
+})
+
+describe('resolveActiveHeading at the top of the document', () => {
+  // 真实情形：一级标题 + 紧跟的二级、三级标题都挤在第一屏上半，第一个标题顶边也 > 0；
+  // 阅读线 290（= 344 − 滚动容器顶 54），可视区 900。
+  const headings = [48, 120, 215, 450, 720, 1100, 1500, 1900, 2400, 3000]
+  const input = (
+    scrollTop: number,
+    extra: Partial<Parameters<typeof resolveActiveHeading>[0]> = {}
+  ) => ({
+    count: headings.length,
+    topOf: (i: number) => headings[i]! - scrollTop,
+    scrollTop,
+    viewportHeight: 900,
+    scrollHeight: 3600,
+    probeOffset: 290,
+    ...extra
+  })
+  const at = (scrollTop: number, extra: Partial<Parameters<typeof resolveActiveHeading>[0]> = {}) =>
+    resolveActiveHeading(input(scrollTop, extra))
+
+  it('is the first heading at scrollTop 0 even though the reading line passes three headings', () => {
+    expect(headings.filter((h) => h <= 290)).toHaveLength(3)
+    expect(at(0)).toBe(0)
+  })
+
+  it('advances one heading at a time from the top, never jumping ahead then back', () => {
+    const seen: number[] = []
+    let last = -1
+    for (let top = 0; top <= 2700; top += 1) {
+      const next = at(top)
+      expect(next).toBeGreaterThanOrEqual(last)
+      if (next !== last) seen.push(next)
+      last = next
+    }
+    expect(seen).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+  })
+
+  it('is back to the normal reading line once scrolled past the ramp', () => {
+    // scrollTop ≥ 阅读线：与没有开头修正时一致。
+    for (const top of [290, 400, 800, 1300]) {
+      const plain = headings.filter((h) => h - top <= 290).length - 1
+      expect(at(top)).toBe(plain)
+    }
+  })
+
+  it('works with the source-mode reading line too', () => {
+    // 源码模式：阅读线 88，行高 ~22，开头连续几行都是标题。
+    const lines = [50, 72, 94, 160, 400]
+    const r = (scrollTop: number) =>
+      resolveActiveHeading({
+        count: lines.length,
+        topOf: (i) => lines[i]! - scrollTop,
+        scrollTop,
+        viewportHeight: 700,
+        scrollHeight: 2000,
+        probeOffset: 88
+      })
+    expect(r(0)).toBe(0)
+    expect(r(20)).toBe(1)
+    expect(r(88)).toBe(3)
+  })
+
+  it('keeps -1 when the document opens with text before the first heading', () => {
+    // 第一个标题在阅读线之下：阅读线不会被拉下去迁就它。
+    expect(at(0, { topOf: (i) => [400, 900][i]!, count: 2 })).toBe(-1)
+  })
+
+  it('is the first heading in a short, unscrollable document', () => {
+    expect(at(0, { scrollHeight: 900 })).toBe(0)
+    expect(at(0, { scrollHeight: 600 })).toBe(0)
+  })
+
+  it('still ends on the last heading in a document shorter than the ramp', () => {
+    // maxScroll = 200 < 阅读线：开头与文末两段插值同时生效，仍单调并能到最后一个。
+    const short = [48, 120, 215, 700, 1000]
+    let last = -1
+    for (let top = 0; top <= 200; top += 1) {
+      const next = resolveActiveHeading({
+        count: short.length,
+        topOf: (i) => short[i]! - top,
+        scrollTop: top,
+        viewportHeight: 900,
+        scrollHeight: 1100,
+        probeOffset: 290
+      })
+      expect(next).toBeGreaterThanOrEqual(last)
+      last = next
+    }
+    expect(last).toBe(4)
+  })
+
+  it('does not read the first heading when far from the top', () => {
+    const reads: number[] = []
+    resolveActiveHeading(
+      input(1300, {
+        topOf: (i) => {
+          reads.push(i)
+          return headings[i]! - 1300
+        }
+      })
+    )
+    expect(reads.filter((i) => i === 0)).toHaveLength(0)
+  })
+})
+
+describe('keepJumpHold', () => {
+  it('holds a clicked heading the editor cannot scroll to the reading line', () => {
+    // 开头点第二个标题：正文滚不动，算出来仍是第一个。
+    expect(keepJumpHold({ index: 1, scrollTop: 0 }, 0, 0)).toBe(true)
+    // 只是重排（亚像素）：仍保持。
+    expect(keepJumpHold({ index: 1, scrollTop: 0 }, 0, 0.5)).toBe(true)
+  })
+
+  it('keeps holding while scrolling toward it, releases once the computed one catches up', () => {
+    expect(keepJumpHold({ index: 3, scrollTop: 100 }, 2, 140)).toBe(true)
+    expect(keepJumpHold({ index: 3, scrollTop: 100 }, 3, 180)).toBe(false)
+    // 文末：点了倒数第三个，算出来是最后一个；往上滚直到退回它。
+    expect(keepJumpHold({ index: 7, scrollTop: 2600 }, 9, 2550)).toBe(true)
+    expect(keepJumpHold({ index: 7, scrollTop: 2600 }, 7, 2400)).toBe(false)
+  })
+
+  it('releases when scrolling the other way', () => {
+    expect(keepJumpHold({ index: 3, scrollTop: 100 }, 2, 60)).toBe(false)
+    expect(keepJumpHold({ index: 7, scrollTop: 2600 }, 9, 2650)).toBe(false)
   })
 })
 
