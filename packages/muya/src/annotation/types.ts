@@ -48,6 +48,71 @@ export interface IAnnotationAnchor {
 /** 锚点健康度：内部技术维度，只以一行辅助提示露出。 */
 export type TAnchorState = 'anchored' | 'relocated' | 'orphaned';
 
+/**
+ * 标注处所在块的「样子」归类（历史对比用）。由块的 state 链推出：
+ * 最内层叶子 + 最近的列表/表格/引用容器。
+ */
+export type TSnapshotKind
+    = | 'paragraph'
+        | 'heading'
+        | 'list'
+        | 'task'
+        | 'table'
+        | 'quote'
+        | 'code'
+        | 'math'
+        | 'html'
+        | 'diagram'
+        | 'frontmatter'
+        | 'footnote'
+        | 'other';
+
+/**
+ * 标注处的样式快照（feat/annotation-history-compare）。
+ *
+ * 不是像素截图，而是「能重新渲染出同样样子的最小 markdown」：从标注所在的
+ * 顶层块 state 出发，只保留通向标注段的那条子树（列表只留命中的那一项、表格
+ * 留表头 + 命中行、引用只留命中的子块），序列化成 markdown；`markStart/markEnd`
+ * 是标注段在这份 markdown 里的位置（渲染时据此画高亮）。
+ *
+ * 快照是只读的：`IAnnotation.origin` 在新建时写一次、永不回写；「现在」的快照
+ * 每次查看历史时现算（`AnnotationModule.inspect`），不落盘。
+ */
+export interface IAnnotationSnapshot {
+    kind: TSnapshotKind;
+    /** 顶层 → 叶子的 state 名链，如 `['block-quote', 'bullet-list', 'list-item', 'paragraph']`。 */
+    trail: string[];
+    /** 标题级别（kind=heading）。 */
+    level?: number;
+    /** 代码块语言（kind=code，取 info string 首词）。 */
+    lang?: string;
+    /** 任务项勾选态（kind=task）。 */
+    checked?: boolean;
+    /** 表格坐标（kind=table；row=0 为表头）。 */
+    cell?: { row: number; col: number };
+    /** 可渲染的上下文 markdown（已剪枝）。 */
+    markdown: string;
+    /** 标注段在 `markdown` 内的区间；-1 = 无法定位（只渲染、不画高亮）。 */
+    markStart: number;
+    markEnd: number;
+    /** 标注段源码（raw markdown，跨块按 `\n` 拼接）。 */
+    text: string;
+    /** 标注段渲染后的纯文本（去行内标记、去标题井号）——判断「改了字」用。 */
+    plain: string;
+    capturedAt: number;
+    /** 由旧版（v2）锚点字段反推出的近似快照：没有真实块结构，只是尽力还原。 */
+    legacy?: boolean;
+}
+
+/** `inspect()` 的「现在」：按原锚点命中 / 按原位置对应到段落 / 已删除。 */
+export type TInspectMatch = 'located' | 'block' | 'missing';
+
+export interface IAnnotationInspection {
+    id: string;
+    match: TInspectMatch;
+    snapshot: IAnnotationSnapshot | null;
+}
+
 export interface IAnnotation {
     id: string;
     anchor: IAnnotationAnchor;
@@ -62,6 +127,10 @@ export interface IAnnotation {
     copied: boolean;
     round?: number;
     sentQuote?: string;
+    /** 复制那一轮里它在复制文本中的序号（`[n]`），历史里按它排序、与 agent 回复对照。 */
+    sentIndex?: number;
+    /** 标注时的样式快照（新建时写一次，永不回写；v2 旧数据没有）。 */
+    origin?: IAnnotationSnapshot;
 
     // ── 归档：移出当前列表、进入历史 ──
     archived: boolean;
@@ -78,6 +147,8 @@ export interface IAnnotation {
 
 /** 导出给宿主生成复制文本的结构化数据（引擎出数据，桌面出文案）。 */
 export interface IAnnotationExportItem {
+    /** 条目 id（复制后据此记录 `sentIndex`）。 */
+    id: string;
     index: number;
     headingPath: string[];
     lineStart?: number;

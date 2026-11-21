@@ -6,6 +6,7 @@ import type { Nullable } from '../types';
 import type {
     IAnnotation,
     IAnnotationExportItem,
+    IAnnotationInspection,
     IAnnotationRange,
     TAnnotationChangeType,
     TSelectionSnapshot,
@@ -24,6 +25,7 @@ import {
     selectionToRanges,
 } from './anchor';
 import { normalizePhraseList } from './quickPhrase';
+import { captureSnapshot, findReplacementBlock } from './snapshot';
 
 /** `json-change` 后的重定位节流窗口（方案 §2.3）。 */
 const RELOCATE_DEBOUNCE = 400;
@@ -216,6 +218,15 @@ export class AnnotationModule {
             return null;
 
         const now = Date.now();
+        // 标注时的样子（历史对比的「标注时」）：拍不到快照不影响新建，
+        // 历史里会按 v2 字段反推一张近似快照。
+        let origin: IAnnotation['origin'];
+        try {
+            origin = captureSnapshot(anchor.ranges, this._muya, { capturedAt: now }) ?? undefined;
+        }
+        catch {
+            origin = undefined;
+        }
         const annotation: IAnnotation = {
             id: getLongUniqueId(),
             anchor,
@@ -224,6 +235,7 @@ export class AnnotationModule {
             archived: false,
             anchorState: 'anchored',
             currentText: anchor.quote,
+            ...(origin ? { origin } : {}),
             createdAt: now,
             updatedAt: now,
         };
@@ -348,6 +360,7 @@ export class AnnotationModule {
             const line = lines.get(annotation.id);
 
             return {
+                id: annotation.id,
                 index: index + 1,
                 headingPath: [...annotation.anchor.headingPath],
                 lineStart: line?.start,
@@ -360,6 +373,107 @@ export class AnnotationModule {
                 global: !!annotation.global,
             };
         });
+    }
+
+    /**
+     * 给还没有「标注时」快照的条目补拍一张（旧版本建的、尚未复制的条目在复制
+     * 那一刻补）。只在锚点仍**原样命中**（当前文本 === 引文）时补——文字已经被改过
+     * 的话，此刻的样子已经不是标注时的样子，宁可留空走 v2 反推。返回补拍条数。
+     */
+    ensureOrigins(ids: string[]): number {
+        let count = 0;
+
+        for (const id of ids ?? []) {
+            const annotation = this._find(id);
+            if (!annotation || annotation.origin || annotation.global)
+                continue;
+            if (annotation.anchorState === 'orphaned' || annotation.currentText !== annotation.anchor.quote)
+                continue;
+
+            try {
+                const origin = captureSnapshot(annotation.anchor.ranges, this._muya);
+                if (origin) {
+                    annotation.origin = origin;
+                    count++;
+                }
+            }
+            catch {
+                // 拍不到就算了：历史里走 v2 反推，不影响复制。
+            }
+        }
+
+        return count;
+    }
+
+    /**
+     * 历史对比的「现在」（feat/annotation-history-compare）。
+     *
+     * 归档条目不参与增量重定位（打字时只跟踪当前列表），所以这里先把要看的归档
+     * 条目按四段式重定位一遍，拿到它们此刻的位置，再给每条拍一张「现在」的快照：
+     *   - 锚点命中（含移动、模糊命中）→ `located`，快照画出命中的那一段；
+     *   - 引文找不到、但原段落按邻接块 / 相似度还能对上 → `block`（整句被改写），
+     *     快照是那个段落、不画区间；
+     *   - 都找不到 → `missing`（原文已删除）。
+     *
+     * 重定位有实质变化时广播 `relocate`，桌面据此回读并落盘 `currentText` 等字段。
+     * 归档条目没有正文高亮，所以不需要重画。全局备注不在返回值里。
+     */
+    inspect(ids?: string[]): IAnnotationInspection[] {
+        const pool = ids?.length
+            ? ids.map(id => this._find(id)).filter((item): item is IAnnotation => !!item)
+            : this._annotations.filter(annotation => annotation.archived);
+
+        let changed = false;
+        const results: IAnnotationInspection[] = [];
+
+        for (const annotation of pool) {
+            if (annotation.global)
+                continue;
+            if (annotation.archived)
+                changed = this._relocateOne(annotation) || changed;
+
+            results.push(this._inspectOne(annotation));
+        }
+
+        if (changed) {
+            this._invalidate();
+            this._emitChange('relocate');
+        }
+
+        return results;
+    }
+
+    private _inspectOne(annotation: IAnnotation): IAnnotationInspection {
+        const { id } = annotation;
+
+        try {
+            if (annotation.anchorState !== 'orphaned') {
+                const snapshot = captureSnapshot(annotation.anchor.ranges, this._muya);
+                if (snapshot)
+                    return { id, match: 'located', snapshot };
+            }
+
+            const block = findReplacementBlock(annotation, this._muya);
+            if (block) {
+                // 标的本来就是整块（表格单元格、整条列表项、整个标题…）：对应到的块就是
+                // 它现在的样子，按命中处理并整块画区间；只标了块里一部分的，才是
+                // 「原句已改写、这是原段落」。
+                const { quote, blockText } = annotation.anchor;
+                const whole = annotation.anchor.ranges.length <= 1 && quote.trim() === (blockText ?? '').trim();
+                const snapshot = captureSnapshot(
+                    [{ blockPath: [...block.path], blockName: block.blockName, start: 0, end: block.text.length }],
+                    this._muya,
+                    { mark: whole },
+                );
+                if (snapshot)
+                    return { id, match: whole ? 'located' : 'block', snapshot };
+            }
+        }
+        catch {
+            // 快照失败（块树竞态）按「找不到」处理，面板仍能显示标注时的样子。
+        }
+
+        return { id, match: 'missing', snapshot: null };
     }
 
     /**
