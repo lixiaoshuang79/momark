@@ -617,9 +617,15 @@ const commands: CommandDescriptor[] = [
     }
   },
   {
-    id: 'view.toggle-sidebar',
+    id: 'view.toggle-heading-labels',
     execute: async () => {
-      bus.emit('view:toggle-layout-entry', 'showSideBar')
+      bus.emit('view:toggle-layout-entry', 'headingRailPinned')
+    }
+  },
+  {
+    id: 'view.folder-drawer',
+    execute: async () => {
+      bus.emit('view:toggle-layout-entry', 'folderDrawer')
     }
   },
   {

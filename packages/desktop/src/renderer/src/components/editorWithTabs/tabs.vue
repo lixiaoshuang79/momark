@@ -1,12 +1,27 @@
 <template>
   <div ref="tabsRoot" class="editor-tabs" :class="{ single: scene === 'single' }">
+    <!-- 左侧边栏移除后（feat/heading-rail），原侧栏开关的位置与 ⌘\\ 改为
+         「常驻完整标题」开关；紧挨着的文件夹按钮打开同目录文件抽屉。 -->
     <button
-      class="tb-toggle"
-      :class="{ on: showSideBar }"
-      :title="t('sideBar.toggleTitle') + ' ⌘\\'"
-      @click.stop="toggleSidebar"
+      class="tb-toggle tb-headings"
+      :class="{ on: headingRailPinned }"
+      :title="t('headingRail.togglePinned') + ' ' + shortcutHint('\\')"
+      :aria-pressed="headingRailPinned"
+      @click.stop="toggleHeadingLabels"
     >
-      <mo-icon name="i-sidebar" />
+      <svg class="tb-headings-icon" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M2.5 4h11" />
+        <path d="M4.5 8h9" />
+        <path d="M6.5 12h7" />
+      </svg>
+    </button>
+    <button
+      class="tb-toggle tb-folder"
+      :class="{ on: folderDrawerOpen }"
+      :title="t('folderDrawer.toggleTitle') + ' ' + shortcutHint('E', true)"
+      @click.stop="toggleFolderDrawer"
+    >
+      <mo-icon name="i-folder" />
     </button>
 
     <!-- round9（用户拍板）：标签条任何场景都渲染（单文档也显示标签，
@@ -72,6 +87,8 @@ import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { useHtmlTabsStore } from '@/store/htmlTabs'
 import { useLayoutStore } from '@/store/layout'
+import { usePreferencesStore } from '@/store/preferences'
+import { isLinux, isOsx } from '@/util'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
 import dragula from 'dragula'
@@ -97,7 +114,8 @@ const splitStore = useSplitStore()
 const workspaceStore = useWorkspaceStore()
 
 const { currentFile, tabs } = storeToRefs(editorStore)
-const { showSideBar } = storeToRefs(layoutStore)
+const { folderDrawerOpen } = storeToRefs(layoutStore)
+const { headingRailPinned } = storeToRefs(usePreferencesStore())
 const { open: bpanelOpen } = storeToRefs(bpStore)
 const { visibleTabs, scene } = storeToRefs(workspaceStore)
 
@@ -125,8 +143,19 @@ let resizeObserver: ResizeObserver | null = null
 let splitZoneEl: HTMLElement | null = null
 let bpanelEl: HTMLElement | null = null
 
-const toggleSidebar = () => {
-  bus.emit('view:toggle-layout-entry', 'showSideBar')
+const toggleHeadingLabels = () => {
+  bus.emit('view:toggle-layout-entry', 'headingRailPinned')
+}
+
+const toggleFolderDrawer = () => {
+  bus.emit('view:toggle-layout-entry', 'folderDrawer')
+}
+
+// 默认键位的提示（Linux 上 Ctrl+Shift+E 已被「复制段落」占用，文件夹抽屉不设默认键）。
+const shortcutHint = (key: string, shift = false): string => {
+  if (isOsx) return `${shift ? '⇧' : ''}⌘${key}`
+  if (isLinux && shift) return ''
+  return `Ctrl+${shift ? 'Shift+' : ''}${key}`
 }
 
 const toggleBpPanel = () => {
@@ -634,6 +663,34 @@ onBeforeUnmount(() => {
 .tb-toggle svg {
   width: 16px;
   height: 16px;
+}
+/* 常驻完整标题开关：三条按层级缩进的横线，关时缩成标题轨那样的短横、开时伸展成
+   整行文字——与标题轨本身的横线↔文字切换同一语义。 */
+.tb-headings-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+.tb-headings-icon path {
+  transform-box: fill-box;
+  transform-origin: left center;
+  transform: scaleX(0.42);
+  transition: transform 0.38s var(--ease-panel);
+}
+.tb-headings-icon path:nth-child(2) {
+  transition-delay: 0.03s;
+}
+.tb-headings-icon path:nth-child(3) {
+  transition-delay: 0.06s;
+}
+.tb-headings.on .tb-headings-icon path {
+  transform: scaleX(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tb-headings-icon path {
+    transition: none;
+  }
 }
 .tb-toggle.on {
   background: color-mix(in oklab, var(--accent) 10%, transparent);

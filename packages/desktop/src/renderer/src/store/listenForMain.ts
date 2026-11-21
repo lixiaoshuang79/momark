@@ -4,12 +4,10 @@ import { useLayoutStore } from './layout'
 
 export const useListenForMainStore = defineStore('listenForMain', () => {
   function EDITOR_EDIT_ACTION(type: string): void {
-    const layoutStore = useLayoutStore()
+    // 「在文件夹中查找」原先打开侧栏的搜索面板；侧栏移除后改为打开文件夹抽屉，
+    // 并把焦点放进它的筛选框（抽屉监听同名总线事件）。
     if (type === 'findInFolder') {
-      layoutStore.SET_LAYOUT({
-        rightColumn: 'search',
-        showSideBar: true
-      })
+      useLayoutStore().SET_FOLDER_DRAWER(true)
     }
     bus.emit(type, type)
   }

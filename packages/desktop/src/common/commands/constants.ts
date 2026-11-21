@@ -95,9 +95,9 @@ const COMMANDS = Object.freeze({
   VIEW_FORCE_RELOAD_IMAGES: 'view.reload-images',
   VIEW_SOURCE_CODE_MODE: 'view.source-code-mode',
   VIEW_TOGGLE_DEV_TOOLS: 'view.toggle-dev-tools',
-  VIEW_TOGGLE_SIDEBAR: 'view.toggle-sidebar',
+  VIEW_FOLDER_DRAWER: 'view.folder-drawer',
+  VIEW_TOGGLE_HEADING_LABELS: 'view.toggle-heading-labels',
   VIEW_TOGGLE_TABBAR: 'view.toggle-tabbar',
-  VIEW_TOGGLE_TOC: 'view.toggle-toc',
   VIEW_TYPEWRITER_MODE: 'view.typewriter-mode',
 
   WINDOW_MINIMIZE: 'window.minimize',

@@ -154,7 +154,6 @@ export const SEND_CHANNELS = [
   'mt::shell::show-item',
   'mt::update-format-menu',
   'mt::update-line-ending-menu',
-  'mt::update-sidebar-menu',
   'mt::view-layout-changed',
   'mt::welcome::new-doc',
   'mt::welcome::open-file',

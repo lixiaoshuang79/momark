@@ -112,13 +112,13 @@
     },
     "view": {
       "view": "视图",
-      "toggleSidebar": "切换侧边栏",
+      "headingLabels": "常驻显示完整标题",
+      "folderDrawer": "同目录文件…",
       "toggleTabbar": "切换标签栏",
       "commandPalette": "命令面板",
       "sourceCodeMode": "源码模式",
       "typewriterMode": "打字机模式",
       "focusMode": "专注模式",
-      "toggleTableOfContents": "切换目录",
       "reloadImages": "重新加载图片",
       "showDeveloperTools": "显示开发者工具",
       "reloadWindow": "重新加载窗口"
@@ -228,45 +228,29 @@
     "searchLimited": "仅搜索前 {count} 个结果"
   },
   "sideBar": {
-    "search": {
-      "searchInFolder": "在文件夹中搜索…",
-      "noFolderOpen": "没有打开的文件夹",
-      "noResultsFound": "未找到结果。",
-      "cancel": "取消",
-      "openFolder": "打开文件夹",
-      "showMoreMatches": "显示更多匹配"
-    },
     "tree": {
-      "openedFiles": "已打开的文件",
-      "saveAll": "保存全部",
-      "closeAll": "关闭全部",
-      "emptyProject": "空项目",
-      "createFile": "创建文件",
-      "openFolder": "打开文件夹",
-      "currentFile": "当前",
-      "revealInFinder": "在访达中打开",
-      "noFilesInDirectory": "该目录下没有 Markdown 文件"
+      "revealInFinder": "在访达中打开"
     },
-    "toc": {
-      "title": "目录",
-      "expandAll": "全部展开",
-      "collapseAll": "全部折叠",
-      "empty": "暂无标题"
-    },
-    "icons": {
-      "files": "文件",
-      "search": "搜索",
-      "toc": "目录",
-      "settings": "设置"
-    },
-    "tabs": {
-      "outline": "大纲",
-      "files": "文件"
-    },
-    "toggleTitle": "显示/隐藏侧栏",
     "rightPanelTitle": "右侧栏 / 浏览器面板（拖标签进面板可双屏分栏）",
     "rightPanelCloseDoc": "关闭右栏文档",
     "rightPanelDragBack": "拖回标签栏"
+  },
+  "headingRail": {
+    "ariaLabel": "文档标题",
+    "outline": "大纲",
+    "untitled": "（空标题）",
+    "togglePinned": "常驻显示完整标题"
+  },
+  "folderDrawer": {
+    "title": "同目录文件",
+    "toggleTitle": "同目录文件",
+    "filterPlaceholder": "筛选文件名",
+    "current": "当前",
+    "noFolder": "当前文档还没有保存到文件夹里",
+    "noMatch": "没有匹配的文件",
+    "noFiles": "这个文件夹里没有其他 Markdown 文件",
+    "openFile": "打开文件…",
+    "openFolder": "打开文件夹…"
   },
   "commandPalette": {
     "placeholder": "输入要执行的命令",
@@ -528,26 +512,6 @@
         "restoreAll": "恢复所有已打开的文件和文件夹",
         "selectFolder": "选择文件夹",
         "openBlankPage": "打开空白页"
-      },
-      "sidebar": {
-        "title": "侧边栏",
-        "wrapTextInToc": "在目录中换行文本",
-        "showOpenedFiles": "显示已打开文件",
-        "excludePatterns": "排除模式",
-        "excludePatternsNotes": "排除模式（注释）",
-        "fileSortBy": {
-          "title": "文件排序方式",
-          "creationTime": "创建时间",
-          "modificationTime": "修改时间",
-          "filename": "文件名"
-        },
-        "fileSortOrder": {
-          "title": "排序顺序",
-          "aToZ": "A → Z",
-          "zToA": "Z → A",
-          "oldestFirst": "从旧到新",
-          "newestFirst": "从新到旧"
-        }
       },
       "misc": {
         "title": "杂项",
@@ -947,8 +911,8 @@
       "toggleSourceCodeMode": "切换源码模式",
       "toggleTypewriterMode": "切换打字机模式",
       "toggleFocusMode": "切换专注模式",
-      "toggleSidebar": "切换侧边栏",
-      "toggleToc": "切换目录",
+      "toggleHeadingLabels": "切换：常驻显示完整标题",
+      "folderDrawer": "同目录文件",
       "toggleTabbar": "切换标签栏",
       "toggleDevTools": "切换开发者工具",
       "actualSize": "实际大小",

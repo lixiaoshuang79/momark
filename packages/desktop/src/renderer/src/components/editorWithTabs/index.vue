@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="editor-with-tabs"
-    :style="{ 'max-width': `calc(100vw - ${effectiveSideBarWidth}px)` }"
-  >
+  <div class="editor-with-tabs">
     <!-- 标签栏 + 面包屑已上移到 app.vue 的 .win-body 之上（PHASE2-SPEC §1：
          全宽行；主体三栏从面包屑行之下开始）。本组件只负责编辑内容区。 -->
     <div class="container">
@@ -28,9 +25,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/store/editor'
-import { useLayoutStore } from '@/store/layout'
 import { isHtmlTab } from '@/store/help'
 import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
@@ -49,8 +44,6 @@ defineProps<{
   platform: string
 }>()
 
-const layoutStore = useLayoutStore()
-const { effectiveSideBarWidth } = storeToRefs(layoutStore)
 const editorStore = useEditorStore()
 const htmlTabId = computed(() =>
   isHtmlTab(editorStore.currentFile) ? editorStore.currentFile!.id : null

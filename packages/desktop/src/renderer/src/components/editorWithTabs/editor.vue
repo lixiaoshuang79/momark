@@ -131,7 +131,11 @@ import { guessClipboardFilePath } from '@/util/clipboard'
 import { describeMissedResources, inlineHtmlDocument } from '@/util/htmlInline'
 import { dataURLToFile } from '@/util/dataURLToFile'
 import { getCssForOptions, getHtmlToc, type PdfCssOptions, type HtmlTocOptions } from '@/util/pdf'
-import { resolveTocHeadingElement } from '@/util/tocNavigation'
+import { resolveTocHeadingElement, TOP_LEVEL_HEADINGS_SELECTOR } from '@/util/tocNavigation'
+import {
+  createMuyaHeadingSource,
+  registerHeadingSource
+} from '@/components/headingRail/headingSource'
 import { addCommonStyle, setEditorWidth } from '@/util/theme'
 import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore, adjustTrailingNewlines } from '@/store/editor'
@@ -447,6 +451,8 @@ let imageViewer: SimpleImageViewer | null = null
 let scrollHandler: ((e: Event) => void) | null = null
 // rAF 合并句柄（见 scrollHandler）：同一帧内的多次滚动只写一次 store。
 let scrollRafHandle: number | null = null
+// 标题轨的几何来源（主编辑区）；卸载时注销。
+let disposeHeadingSource: (() => void) | null = null
 
 // The engine's undo/redo history (`getHistory()`) has a different shape than
 // the desktop store's `tab.history` (which drives the save/dirty tracking and
@@ -2682,6 +2688,13 @@ onMounted(() => {
   }
   container.addEventListener('scroll', scrollHandler, { passive: true })
 
+  const headingSource = createMuyaHeadingSource(container, TOP_LEVEL_HEADINGS_SELECTOR)
+  const unregisterHeadingSource = registerHeadingSource(headingSource)
+  disposeHeadingSource = () => {
+    unregisterHeadingSource()
+    headingSource.dispose()
+  }
+
   // Clicking the hover-to-copy affordance on a heading emits `heading-copy-link`
   // with the heading's stable slug; copy the matching GitHub anchor to the
   // clipboard (resolved via `listToc.find(i => i.slug === key)`).
@@ -2861,6 +2874,8 @@ onBeforeUnmount(() => {
     container?.removeEventListener('scroll', scrollHandler)
   }
   scrollHandler = null
+  disposeHeadingSource?.()
+  disposeHeadingSource = null
   // 挂起中的 rAF / 空闲回调也要撤掉，避免销毁后再写 store。
   if (scrollRafHandle !== null) {
     cancelAnimationFrame(scrollRafHandle)

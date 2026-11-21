@@ -5,17 +5,17 @@ import { launchElectron, waitForMenuReady } from './helpers'
 test.describe('Application menu wiring', () => {
   let app: ElectronApplication
 
-  test.beforeAll(async() => {
+  test.beforeAll(async () => {
     const { app: electronApp } = await launchElectron()
     app = electronApp
     await waitForMenuReady(app)
   })
 
-  test.afterAll(async() => {
+  test.afterAll(async () => {
     if (app) await app.close()
   })
 
-  test('Top-level menu has the expected categories', async() => {
+  test('Top-level menu has the expected categories', async () => {
     const labels = await app.evaluate(({ Menu }) => {
       const menu = Menu.getApplicationMenu()
       return menu ? menu.items.map((i) => i.label) : []
@@ -23,7 +23,7 @@ test.describe('Application menu wiring', () => {
     expect(labels.length).toBeGreaterThanOrEqual(5)
   })
 
-  test('Known menu IDs are registered', async() => {
+  test('Known menu IDs are registered', async () => {
     const expected = [
       'heading1MenuItem',
       'heading2MenuItem',
@@ -48,9 +48,9 @@ test.describe('Application menu wiring', () => {
       'sourceCodeModeMenuItem',
       'typewriterModeMenuItem',
       'focusModeMenuItem',
-      'sideBarMenuItem',
+      'headingLabelsMenuItem',
+      'folderDrawerMenuItem',
       'tabBarMenuItem',
-      'tocMenuItem',
       'autoSaveMenuItem',
       'dark',
       'light',

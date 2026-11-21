@@ -3,7 +3,7 @@
     v-if="currentNotification"
     class="editor-notifications"
     :class="currentNotification.style"
-    :style="{ 'max-width': `calc(100vw - ${effectiveSideBarWidth}px)` }"
+    :style="{ 'max-width': `calc(100vw - ${railWidth}px)` }"
   >
     <div class="msg">
       {{ currentNotification.msg }}
@@ -41,7 +41,7 @@ const layoutStore = useLayoutStore()
 const splitStore = useSplitStore()
 
 const { currentFile } = storeToRefs(editorStore)
-const { effectiveSideBarWidth } = storeToRefs(layoutStore)
+const { railWidth } = storeToRefs(layoutStore)
 
 // round10：横幅数据源 = 左侧当前文档的通知栈；分屏开启时右侧文档的
 // 外部变更通知同样在此展示（数据挂在 split tab 的 notifications 栈）。

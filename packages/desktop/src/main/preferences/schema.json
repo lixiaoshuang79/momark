@@ -397,10 +397,10 @@
     "enum": ["picgo", "tencent-cos"],
     "default": "picgo"
   },
-  "sideBarVisibility": {
-    "description": "View--Whether the side bar is visible.--internal",
+  "headingRailPinned": {
+    "description": "View--Always show full heading titles in the heading rail at the left edge of the editor (otherwise only the heading marks are shown).--internal",
     "type": "boolean",
-    "default": true
+    "default": false
   },
   "tabBarVisibility": {
     "description": "View--Whether the tabs are shown.--internal",
