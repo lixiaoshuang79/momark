@@ -112,13 +112,13 @@
     },
     "view": {
       "view": "View",
-      "toggleSidebar": "Toggle Sidebar",
+      "headingLabels": "Always Show Heading Titles",
+      "folderDrawer": "Files in This Folder…",
       "toggleTabbar": "Toggle Tabbar",
       "commandPalette": "Command Palette",
       "sourceCodeMode": "Source Code Mode",
       "typewriterMode": "Typewriter Mode",
       "focusMode": "Focus Mode",
-      "toggleTableOfContents": "Toggle Table of Contents",
       "reloadImages": "Reload Images",
       "showDeveloperTools": "Show Developer Tools",
       "reloadWindow": "Reload Window"
@@ -228,43 +228,27 @@
     "searchLimited": "Searched limited to first {count} results"
   },
   "sideBar": {
-    "search": {
-      "searchInFolder": "Search in folder...",
-      "noFolderOpen": "No folder open",
-      "noResultsFound": "No results found.",
-      "cancel": "Cancel",
-      "openFolder": "Open Folder",
-      "showMoreMatches": "Show more matches"
-    },
     "tree": {
-      "openedFiles": "Opened files",
-      "saveAll": "Save All",
-      "closeAll": "Close All",
-      "emptyProject": "Empty project",
-      "createFile": "Create File",
-      "openFolder": "Open Folder",
-      "currentFile": "Current",
-      "revealInFinder": "Reveal in Finder",
-      "noFilesInDirectory": "No Markdown files in this directory"
+      "revealInFinder": "Reveal in Finder"
     },
-    "toc": {
-      "title": "Table Of Contents",
-      "expandAll": "Expand all",
-      "collapseAll": "Collapse all",
-      "empty": "No headings"
-    },
-    "icons": {
-      "files": "Files",
-      "search": "Search",
-      "toc": "Table of Contents",
-      "settings": "Settings"
-    },
-    "tabs": {
-      "outline": "Outline",
-      "files": "Files"
-    },
-    "toggleTitle": "Show/Hide Side Bar",
     "rightPanelTitle": "Right Panel / Browser Panel (drag a tab here to split)"
+  },
+  "headingRail": {
+    "ariaLabel": "Document headings",
+    "outline": "Outline",
+    "untitled": "(Untitled heading)",
+    "togglePinned": "Always show heading titles"
+  },
+  "folderDrawer": {
+    "title": "Files in This Folder",
+    "toggleTitle": "Files in this folder",
+    "filterPlaceholder": "Filter by file name",
+    "current": "Current",
+    "noFolder": "This document has not been saved to a folder yet",
+    "noMatch": "No matching files",
+    "noFiles": "No other Markdown files in this folder",
+    "openFile": "Open File…",
+    "openFolder": "Open Folder…"
   },
   "commandPalette": {
     "placeholder": "Type a command to execute",
@@ -526,26 +510,6 @@
         "restoreAll": "Restore all opened files and folders",
         "selectFolder": "Select Folder",
         "openBlankPage": "Open blank page"
-      },
-      "sidebar": {
-        "title": "Sidebar",
-        "wrapTextInToc": "Wrap text in table of contents",
-        "showOpenedFiles": "Show opened files",
-        "excludePatterns": "Exclude patterns",
-        "excludePatternsNotes": "Exclude patterns (Notes)",
-        "fileSortBy": {
-          "title": "File Sort By",
-          "creationTime": "Creation Time",
-          "modificationTime": "Modification Time",
-          "filename": "File Name"
-        },
-        "fileSortOrder": {
-          "title": "Sort Order",
-          "aToZ": "A → Z",
-          "zToA": "Z → A",
-          "oldestFirst": "Oldest First",
-          "newestFirst": "Newest First"
-        }
       },
       "misc": {
         "title": "Miscellaneous",
@@ -945,8 +909,8 @@
       "toggleSourceCodeMode": "Toggle Source Code Mode",
       "toggleTypewriterMode": "Toggle Typewriter Mode",
       "toggleFocusMode": "Toggle Focus Mode",
-      "toggleSidebar": "Toggle Sidebar",
-      "toggleToc": "Toggle Table of Contents",
+      "toggleHeadingLabels": "Toggle Always Show Heading Titles",
+      "folderDrawer": "Files in This Folder",
       "toggleTabbar": "Toggle Tab Bar",
       "toggleDevTools": "Toggle Developer Tools",
       "devReload": "Developer Reload",

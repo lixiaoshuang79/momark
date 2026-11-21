@@ -31,7 +31,7 @@ describe('zoomActionForCommand', () => {
   it('非缩放命令一律不接管', () => {
     for (const id of [
       'file.save',
-      'view.toggle-sidebar',
+      'view.toggle-heading-labels',
       'paragraph.heading-1',
       'edit.copy',
       'window.zoomIn'

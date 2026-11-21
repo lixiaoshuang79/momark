@@ -106,47 +106,6 @@
     <compound>
       <template #head>
         <h6 class="title">
-          {{ t('preferences.general.sidebar.title') }}
-        </h6>
-      </template>
-      <template #children>
-        <bool
-          :description="t('preferences.general.sidebar.wrapTextInToc')"
-          :bool="wordWrapInToc"
-          :on-change="(value) => onSelectChange('wordWrapInToc', value)"
-        />
-        <bool
-          :description="t('preferences.general.sidebar.showOpenedFiles')"
-          :bool="openedFilesInSidebar"
-          :on-change="(value) => onSelectChange('openedFilesInSidebar', value)"
-        />
-
-        <text-box
-          :description="t('preferences.general.sidebar.excludePatterns')"
-          :notes="t('preferences.general.sidebar.excludePatternsNotes')"
-          :input="projectPaths.join(',')"
-          :on-change="(value) => onSelectChange('treePathExcludePatterns', value.split(','))"
-          more="https://github.com/isaacs/minimatch"
-        />
-
-        <cur-select
-          :description="t('preferences.general.sidebar.fileSortBy.title')"
-          :value="fileSortBy"
-          :options="getFileSortByOptions()"
-          :on-change="(value) => onSelectChange('fileSortBy', value)"
-        />
-        <cur-select
-          :description="t('preferences.general.sidebar.fileSortOrder.title')"
-          :value="fileSortOrder"
-          :options="getFileSortOrderOptions(String(fileSortBy))"
-          :on-change="(value) => onSelectChange('fileSortOrder', value)"
-        />
-      </template>
-    </compound>
-
-    <compound>
-      <template #head>
-        <h6 class="title">
           {{ t('preferences.general.startup.title') }}
         </h6>
       </template>
@@ -225,15 +184,12 @@ import type { PreferencesState } from '@/store/preferences'
 import Compound from '../common/compound/index.vue'
 import CurSelect from '../common/select/index.vue'
 import Bool from '../common/bool/index.vue'
-import textBox from '../common/textBox/index.vue'
 import { isOsx } from '@/util'
 
 import {
   getAutoSaveDelayOptions,
   getTitleBarStyleOptions,
   zoomOptions,
-  getFileSortByOptions,
-  getFileSortOrderOptions,
   getLanguageOptions
 } from './config'
 
@@ -251,14 +207,9 @@ const {
   defaultDirectoryToOpen,
   openFilesInNewWindow,
   openFolderInNewWindow,
-  treePathExcludePatterns: projectPaths,
   zoom,
   hideScrollbar,
-  wordWrapInToc,
-  fileSortBy,
-  fileSortOrder,
-  language,
-  openedFilesInSidebar
+  language
 } = storeToRefs(preferenceStore)
 
 const startUpAction = computed<string>({

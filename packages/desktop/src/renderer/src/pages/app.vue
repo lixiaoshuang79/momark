@@ -21,10 +21,11 @@
         <editor-tabs />
       </div>
 
-      <!-- 主体三栏：侧栏 / 编辑区列 / 分隔线 / 右侧浏览器面板
-           （PHASE2-SPEC §1/§3：win-body 行从面包屑行之下开始） -->
+      <!-- 主体：标题轨 / 编辑区列 / 分隔线 / 右侧浏览器面板
+           （PHASE2-SPEC §1/§3：win-body 行从面包屑行之下开始）。左侧边栏已移除
+           （feat/heading-rail）：文档结构由标题轨承担，同目录文件由文件夹抽屉承担。 -->
       <div class="win-body" :class="winBodyClasses">
-        <side-bar v-if="init" />
+        <heading-rail v-if="init" />
 
         <div class="editor-main-col">
           <div v-if="!init" class="editor-placeholder" />
@@ -48,6 +49,7 @@
       <!-- round10：底部状态栏已移除——侧栏/编辑区直接延伸到窗口底，
            字数/保存状态上移至顶栏右上角（titleBar）-->
 
+      <folder-drawer v-if="init" />
       <command-palette />
       <export-setting-dialog />
       <rename />
@@ -69,7 +71,8 @@ import Recent from '@/components/recent/index.vue'
 import EditorWithTabs from '@/components/editorWithTabs/index.vue'
 import EditorTabs from '@/components/editorWithTabs/tabs.vue'
 import TitleBar from '@/components/titleBar/index.vue'
-import SideBar from '@/components/sideBar/index.vue'
+import HeadingRail from '@/components/headingRail/HeadingRail.vue'
+import FolderDrawer from '@/components/folderDrawer/FolderDrawer.vue'
 import CommandPalette from '@/components/commandPalette/index.vue'
 import ExportSettingDialog from '@/components/exportSettings/index.vue'
 import Rename from '@/components/rename/index.vue'

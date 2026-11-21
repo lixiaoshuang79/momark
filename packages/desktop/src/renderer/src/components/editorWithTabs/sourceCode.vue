@@ -7,6 +7,7 @@ import { ref, markRaw, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { findMarkdownHeadingLine, scrollSourceEditorToLine } from '@/util/sourceModeToc'
+import { attachSourceHeadingSource } from '@/components/headingRail/sourceHeadingSource'
 import { storeToRefs } from 'pinia'
 import codeMirror, { setCursorAtFirstLine, setTextDirection } from '../../codeMirror'
 import { wordCount as getWordCount } from '@muyajs/core'
@@ -59,6 +60,9 @@ let committedWordCount: ReturnType<typeof getWordCount> | undefined
 
 const { theme, sourceCode } = storeToRefs(preferencesStore)
 const { currentFile: currentTab } = storeToRefs(editorStore)
+
+// 标题轨（源码模式）的几何来源；卸载时注销。
+let detachHeadingSource: (() => void) | null = null
 
 const isValidMuyaIndexCursor = (cursor: unknown): cursor is MuyaIndexCursorLike => {
   const c = cursor as MuyaIndexCursorLike | null | undefined
@@ -455,10 +459,13 @@ onMounted(() => {
   tabId.value = id
 
   listenChange()
+  if (container) detachHeadingSource = attachSourceHeadingSource(codeMirrorInstance, container)
 })
 
 onBeforeUnmount(() => {
   viewDestroyed.value = true
+  detachHeadingSource?.()
+  detachHeadingSource = null
   if (commitTimer.value) {
     clearTimeout(commitTimer.value)
     commitTimer.value = null

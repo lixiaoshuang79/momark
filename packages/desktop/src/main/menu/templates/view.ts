@@ -3,7 +3,7 @@ import * as actions from '../actions/view'
 import { t } from '../../i18n'
 import type Keybindings from '../../keyboard/shortcutHandler'
 
-export default function(keybindings: Keybindings): MenuItemConstructorOptions {
+export default function (keybindings: Keybindings): MenuItemConstructorOptions {
   const submenu: MenuItemConstructorOptions[] = [
     {
       label: t('menu.view.commandPalette'),
@@ -49,13 +49,21 @@ export default function(keybindings: Keybindings): MenuItemConstructorOptions {
       type: 'separator'
     },
     {
-      label: t('menu.view.toggleSidebar'),
-      id: 'sideBarMenuItem',
-      accelerator: keybindings.getAccelerator('view.toggle-sidebar') ?? undefined,
+      label: t('menu.view.headingLabels'),
+      id: 'headingLabelsMenuItem',
+      accelerator: keybindings.getAccelerator('view.toggle-heading-labels') ?? undefined,
       type: 'checkbox',
       checked: false,
       click(_item, focusedWindow) {
-        actions.toggleSidebar(focusedWindow as BrowserWindow | undefined)
+        actions.toggleHeadingLabels(focusedWindow as BrowserWindow | undefined)
+      }
+    },
+    {
+      label: t('menu.view.folderDrawer'),
+      id: 'folderDrawerMenuItem',
+      accelerator: keybindings.getAccelerator('view.folder-drawer') ?? undefined,
+      click(_item, focusedWindow) {
+        actions.toggleFolderDrawer(focusedWindow as BrowserWindow | undefined)
       }
     },
     {
@@ -66,14 +74,6 @@ export default function(keybindings: Keybindings): MenuItemConstructorOptions {
       checked: false,
       click(_item, focusedWindow) {
         actions.toggleTabBar(focusedWindow as BrowserWindow | undefined)
-      }
-    },
-    {
-      label: t('menu.view.toggleTableOfContents'),
-      id: 'tocMenuItem',
-      accelerator: keybindings.getAccelerator('view.toggle-toc') ?? undefined,
-      click(_, focusedWindow) {
-        actions.showTableOfContents(focusedWindow as BrowserWindow | undefined)
       }
     },
     {

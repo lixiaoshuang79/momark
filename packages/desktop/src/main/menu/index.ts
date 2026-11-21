@@ -4,7 +4,6 @@ import { app, Menu, ipcMain, type BrowserWindow } from 'electron'
 import log from 'electron-log'
 import { ensureDirSync, isDirectory2, isFile2 } from 'common/filesystem'
 import { isLinux, isOsx, isWindows } from '../config'
-import { updateSidebarMenu } from '../menu/actions/edit'
 import { updateFormatMenu } from '../menu/actions/format'
 import { updateSelectionMenus, type SelectionState } from '../menu/actions/paragraph'
 import { onInternalChannel } from '../utils/internalIpc'
@@ -292,7 +291,7 @@ class AppMenu {
       updateMenuItem(oldMenu, newMenu, 'sourceCodeModeMenuItem')
       updateMenuItem(oldMenu, newMenu, 'typewriterModeMenuItem')
       updateMenuItem(oldMenu, newMenu, 'focusModeMenuItem')
-      updateMenuItem(oldMenu, newMenu, 'sideBarMenuItem')
+      updateMenuItem(oldMenu, newMenu, 'headingLabelsMenuItem')
       updateMenuItem(oldMenu, newMenu, 'tabBarMenuItem')
 
       // update window menu
@@ -324,7 +323,7 @@ class AppMenu {
         updateMenuItem(oldMenu, rebuilt, 'sourceCodeModeMenuItem')
         updateMenuItem(oldMenu, rebuilt, 'typewriterModeMenuItem')
         updateMenuItem(oldMenu, rebuilt, 'focusModeMenuItem')
-        updateMenuItem(oldMenu, rebuilt, 'sideBarMenuItem')
+        updateMenuItem(oldMenu, rebuilt, 'headingLabelsMenuItem')
         updateMenuItem(oldMenu, rebuilt, 'tabBarMenuItem')
         newMenu = rebuilt
       } else if (type === MenuType.SETTINGS) {
@@ -490,13 +489,6 @@ class AppMenu {
         updateFormatMenu(this.getWindowMenuById(windowId), formats)
       }
     )
-    ipcMain.on('mt::update-sidebar-menu', (_e, windowId: number, value: unknown) => {
-      if (!this.has(windowId)) {
-        log.error(`UpdateApplicationMenu: Cannot find window menu for window id ${windowId}.`)
-        return
-      }
-      updateSidebarMenu(this.getWindowMenuById(windowId), value)
-    })
     ipcMain.on(
       'mt::view-layout-changed',
       (_e, windowId: number, viewSettings: Record<string, unknown>) => {

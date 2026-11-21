@@ -33,16 +33,16 @@ export const useSplitStore = defineStore('split', () => {
     docFocused.value = focused
   }
 
-  // round8（用户拍板）：左右文档平等——右栏宽 = 可用编辑区（窗宽 − 左侧栏）的
-  // 一半，左侧文档区天然同宽；侧栏开合时跟随重算。最小 240px（极窄窗口下
-  // 无法物理等分时保底）。
+  // round8（用户拍板）：左右文档平等——右栏宽 = 可用编辑区（窗宽 − 标题轨）的
+  // 一半，左侧文档区天然同宽；标题轨切换常驻/横线时跟随重算。最小 240px（极窄
+  // 窗口下无法物理等分时保底）。
   const layoutStore = useLayoutStore()
   const equalSplitWidth = computed<number>(() => {
-    const avail = window.innerWidth - layoutStore.effectiveSideBarWidth
+    const avail = window.innerWidth - layoutStore.railWidth
     return Math.max(240, Math.round(avail / 2))
   })
   watch(
-    () => layoutStore.effectiveSideBarWidth,
+    () => layoutStore.railWidth,
     () => {
       if (active.value && kind.value === 'doc') {
         width.value = equalSplitWidth.value
@@ -140,7 +140,7 @@ export const useSplitStore = defineStore('split', () => {
    * 拖到 ≥90% 可用宽度自动关闭分屏。
    */
   function SET_SPLIT_WIDTH(widthPx: number): void {
-    const avail = window.innerWidth - layoutStore.effectiveSideBarWidth
+    const avail = window.innerWidth - layoutStore.railWidth
     if (widthPx >= avail * 0.9) {
       RETURN_SPLIT_TO_TABS()
       return

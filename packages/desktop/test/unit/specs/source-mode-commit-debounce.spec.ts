@@ -61,7 +61,7 @@ const loadComponent = (deps: Record<string, unknown>) => {
     `const { _defineComponent, ref, markRaw, watch, onMounted, onBeforeUnmount, nextTick,
       useEditorStore, usePreferencesStore, storeToRefs, codeMirror,
       setCursorAtFirstLine, setTextDirection, getWordCount, adjustCursor, bus,
-      oneDarkThemes, railscastsThemes } = __deps
+      oneDarkThemes, railscastsThemes, attachSourceHeadingSource } = __deps
     ${js}
     return module.exports`
   ) as (deps: Record<string, unknown>, exports: object, module: object) => SetupModule
@@ -163,6 +163,8 @@ const makeDeps = (cm: StubCM) => {
     bus,
     oneDarkThemes: [],
     railscastsThemes: [],
+    // 标题轨来源有自己的单测（heading-rail.spec.ts）；这里只验提交路径。
+    attachSourceHeadingSource: () => () => {},
     __listenSpy: listenSpy,
     __wordCountSpy: wordCountSpy,
     __mounted: mounted,

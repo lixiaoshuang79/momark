@@ -1081,23 +1081,13 @@ export const useEditorStore = defineStore('editor', {
       }, 400)
 
       window.electron.ipcRenderer.on('mt::bootstrap-editor', (_, config) => {
-        const {
-          addBlankTab,
-          markdownList,
-          lineEnding,
-          sideBarVisibility,
-          tabBarVisibility,
-          sourceCodeModeEnabled
-        } = config
+        const { addBlankTab, markdownList, lineEnding, tabBarVisibility, sourceCodeModeEnabled } =
+          config
 
         window.electron.ipcRenderer.send('mt::window-initialized')
         mainStore.SET_INITIALIZED()
         preferencesStore.SET_USER_PREFERENCE({ endOfLine: lineEnding })
-        layoutStore.SET_LAYOUT({
-          rightColumn: 'files',
-          showSideBar: !!sideBarVisibility,
-          showTabBar: !!tabBarVisibility
-        })
+        layoutStore.SET_LAYOUT({ showTabBar: !!tabBarVisibility })
         layoutStore.DISPATCH_LAYOUT_MENU_ITEMS()
         preferencesStore.SET_MODE({
           type: 'sourceCode',

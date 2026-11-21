@@ -162,9 +162,9 @@ const COMMAND_KEY_MAP: Record<string, string> = {
   // # View Controls
   // ============================================
   // UI toggles
-  'view.toggle-sidebar': 'commands.view.toggleSidebar',
+  'view.toggle-heading-labels': 'commands.view.toggleHeadingLabels',
+  'view.folder-drawer': 'commands.view.folderDrawer',
   'view.toggle-tabbar': 'commands.view.toggleTabbar',
-  'view.toggle-toc': 'commands.view.toggleToc',
 
   // Edit modes
   'view.toggle-source-code-mode': 'commands.view.toggleSourceCodeMode',

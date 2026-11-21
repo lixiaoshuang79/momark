@@ -126,8 +126,9 @@ export interface PreferencesState {
   spellcheckerNoUnderline: boolean
   spellcheckerLanguage: string
 
-  // ----- Side bar / tab bar visibility (persisted) -----
-  sideBarVisibility: boolean
+  // ----- Tab bar visibility / heading rail (persisted) -----
+  // 标题轨常驻完整标题（feat/heading-rail）。默认 false = 只有横线。
+  headingRailPinned: boolean
   tabBarVisibility: boolean
   sourceCodeModeEnabled: boolean
   openedFilesInSidebar: boolean
@@ -248,8 +249,9 @@ export const usePreferencesStore = defineStore('preferences', {
     spellcheckerLanguage: 'en-US',
 
     // Default values that are overwritten with the entries below.
-    // MoMark 裁决（QA-03/QA-02）：侧栏默认展开、标签栏常驻（含单文档态）。
-    sideBarVisibility: true,
+    // MoMark 裁决（QA-02）：标签栏常驻（含单文档态）。左侧边栏已移除，
+    // 标题轨默认只显示横线。
+    headingRailPinned: false,
     tabBarVisibility: true,
     sourceCodeModeEnabled: false,
     openedFilesInSidebar: true,
