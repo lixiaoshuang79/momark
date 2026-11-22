@@ -188,7 +188,7 @@ export interface IpcSendChannels {
   'mt::cmd-close-window': []
   'mt::cmd-import-file': []
   'mt::cmd-new-editor-window': []
-  'mt::cmd-open-file': []
+  'mt::cmd-open-file': [options?: { defaultPath?: string }]
   'mt::cmd-open-folder': []
   'mt::cmd-toggle-autosave': []
   'mt::editor-selection-changed': [windowId: number, state: unknown]
