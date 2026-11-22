@@ -903,53 +903,6 @@
   flex: 1;
   min-height: 0;
 }
-.rp-docbar {
-  gap: 6px;
-  padding: 0 6px 0 4px;
-  cursor: grab;
-  font-size: var(--f12);
-}
-.rp-docbar:active {
-  cursor: grabbing;
-}
-.rp-docbar .grip {
-  display: grid;
-  place-items: center;
-  width: 14px;
-  color: var(--faint);
-}
-.rp-docbar .grip svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-}
-.rp-docbar > svg {
-  width: 14px;
-  height: 14px;
-  color: var(--muted);
-  flex: none;
-}
-.rp-docbar .name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 560;
-  color: var(--ink);
-}
-.rp-docbar .ro {
-  flex: none;
-  font-size: 10.5px;
-  padding: 1px 6px;
-  border-radius: 9px;
-  background: var(--hover);
-  color: var(--faint);
-}
-.rp-docbar .sp {
-  flex: 1;
-}
 .rp-docview {
   flex: 1;
   min-height: 0;

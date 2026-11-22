@@ -55,7 +55,22 @@
             <mo-icon name="i-external" />
           </button>
           <template v-if="rightDocName">
-            <span class="title-sep" aria-hidden="true">|</span>
+            <!-- round3：右侧栏不再显示文档名，「与左侧交换」并入顶栏——竖线本身就是
+                 交换按钮：平时是一条淡竖线，鼠标移到标题上时变成 ⇄（只在分屏时可点）。 -->
+            <button
+              v-if="splitStore.active"
+              class="title-sep title-swap title-no-drag"
+              :title="t('rightPanel.doc.swap')"
+              :aria-label="t('rightPanel.doc.swap')"
+              :disabled="!canSwapSides"
+              @click.stop="swapSides"
+            >
+              <span class="bar" aria-hidden="true">|</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M3 5.5h9.5M10 3l2.5 2.5L10 8M13 10.5H3.5M6 8l-2.5 2.5L6 13" />
+              </svg>
+            </button>
+            <span v-else class="title-sep" aria-hidden="true">|</span>
             <span
               class="filename right-doc title-no-drag"
               :draggable="splitStore.active"
@@ -291,6 +306,19 @@ const closeRightDoc = () => {
   if (splitStore.active) {
     splitStore.RETURN_SPLIT_TO_TABS()
   }
+}
+
+// ⇄ 与左侧交换（round3 从右侧栏文件名条移来）：右侧文档到左边编辑，
+// 左边当前文档进右侧分屏。
+const canSwapSides = computed(() => {
+  const left = editorStore.currentFile
+  return splitStore.active && !!left && left.id !== splitStore.tabId
+})
+const swapSides = () => {
+  const left = editorStore.currentFile
+  if (!splitStore.active || !left || left.id === splitStore.tabId) return
+  splitStore.RETURN_SPLIT_TO_TABS()
+  splitStore.DRAG_TO_SPLIT(left.id, { keepCurrent: true })
 }
 
 // 标题文案：collapsed 时纯文件名，否则缩略路径（与右文档侧同一口径）。
@@ -625,6 +653,64 @@ onBeforeUnmount(() => {
   font-weight: 400;
   padding: 0 1px;
   flex: none;
+}
+/* 竖线 = 交换按钮：静止时只是一条淡竖线，标题 hover / 键盘聚焦时换成 ⇄ */
+.title-swap {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  margin: 0 2px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  font: inherit;
+  cursor: pointer;
+}
+.title-swap .bar,
+.title-swap svg {
+  grid-area: 1 / 1;
+  transition: opacity 0.15s ease;
+}
+.title-swap svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--muted);
+  opacity: 0;
+}
+.title-path:hover .title-swap:not(:disabled) .bar,
+.title-swap:focus-visible .bar {
+  opacity: 0;
+}
+.title-path:hover .title-swap:not(:disabled) svg,
+.title-swap:focus-visible svg {
+  opacity: 1;
+}
+.title-swap:not(:disabled):hover {
+  background: var(--hover);
+}
+.title-swap:not(:disabled):hover svg {
+  color: var(--accent);
+}
+.title-swap:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.title-swap:disabled {
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .title-swap .bar,
+  .title-swap svg {
+    transition: none;
+  }
 }
 .title-path .filename.right-doc {
   max-width: 240px;

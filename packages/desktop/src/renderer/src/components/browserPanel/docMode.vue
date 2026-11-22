@@ -1,42 +1,11 @@
 <template>
   <!-- 文档 pane（feat/right-panel-redesign，DESIGN-NOTES §3.4 文档）：
-       有分屏文档时第二行是文件名条（拖拽把手 + 图标 + 文件名 + HTML 只读，可拖回
-       标签栏结束分屏；右侧「⇄ 与左侧交换」「× 关闭右侧文档」），下面是编辑器 /
-       HTML 页面视图。没有分屏文档时是空态：虚线投放框 + 打开文件… / 新建 + 最近打开。 -->
+       有分屏文档时直接是编辑器 / HTML 页面视图，紧贴面板头部。round3（用户拍板）：
+       面板里不再显示文档名——文件名只在顶栏「文件A | 文件B」出现；拖回标签栏、
+       ⇄ 与左侧交换（顶栏竖线）、× 关闭右侧文档都在顶栏右文档名上。
+       没有分屏文档时是空态：虚线投放框 + 打开文件… / 新建 + 最近打开。 -->
   <div class="bp-doc">
     <template v-if="splitDocTab">
-      <div
-        class="rp-sub rp-docbar"
-        draggable="true"
-        :title="t('rightPanel.doc.dragBack')"
-        @dragstart="onBarDragStart"
-        @dragend="onBarDragEnd"
-      >
-        <span class="grip" aria-hidden="true">
-          <svg viewBox="0 0 16 16">
-            <path d="M6 4h.01M10 4h.01M6 8h.01M10 8h.01M6 12h.01M10 12h.01" />
-          </svg>
-        </span>
-        <mo-icon :name="splitDocTab.kind === 'html' ? 'i-code' : 'i-file'" />
-        <span class="name" :title="splitDocTab.pathname || splitDocTab.filename">{{
-          splitDocTab.filename
-        }}</span>
-        <span v-if="splitDocTab.kind === 'html'" class="ro">{{ t('folderDrawer.readOnly') }}</span>
-        <span class="sp" />
-        <button
-          class="rp-ib"
-          :title="t('rightPanel.doc.swap')"
-          :disabled="!canSwap"
-          @click="swapSides"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M3 5.5h9.5M10 3l2.5 2.5L10 8M13 10.5H3.5M6 8l-2.5 2.5L6 13" />
-          </svg>
-        </button>
-        <button class="rp-ib" :title="t('rightPanel.doc.close')" @click="closeSplit">
-          <mo-icon name="i-x" />
-        </button>
-      </div>
       <!-- 分屏标签是只读 html 时显示页面视图，否则是该文档的编辑器。 -->
       <div class="rp-docview">
         <html-tab-view v-if="splitDocTab.kind === 'html'" :tab-id="splitDocTab.id" />
@@ -83,14 +52,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import { useEditorStore } from '@/store/editor'
 import { useSplitStore } from '@/store/split'
 import MoIcon from '@/components/icons/MoIcon.vue'
-import bus from '../../bus'
 import { t } from '../../i18n'
 import DocEditorPane from './docEditorPane.vue'
 import HtmlTabView from '../htmlTab/HtmlTabView.vue'
@@ -128,40 +96,6 @@ watch(
     if (tab === 'doc' && open && !has) loadRecents()
   }
 )
-
-// 文件名条拖回标签栏：与顶栏右文档名同一套内部拖放（tabs.vue onReturnDrop 落地）。
-const onBarDragStart = (event: DragEvent) => {
-  const tab = splitDocTab.value
-  if (!tab || !useSplitStore().active) return
-  event.dataTransfer?.setData('application/x-momark-split-doc', tab.filename)
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
-  window.__momarkReturnDrag = true
-  bus.emit('split:return-drag-start')
-}
-const onBarDragEnd = () => {
-  window.__momarkReturnDrag = false
-  bus.emit('split:return-drag-end')
-}
-
-// ⇄ 与左侧交换：右侧文档到左边编辑，左边当前文档进右侧分屏。
-const canSwap = computed(() => {
-  const left = useEditorStore().currentFile
-  return !!left && !!splitDocTab.value && left.id !== splitDocTab.value.id
-})
-const swapSides = () => {
-  const editorStore = useEditorStore()
-  const splitStore = useSplitStore()
-  const left = editorStore.currentFile
-  const right = splitDocTab.value
-  if (!left || !right || left.id === right.id) return
-  splitStore.RETURN_SPLIT_TO_TABS()
-  splitStore.DRAG_TO_SPLIT(left.id, { keepCurrent: true })
-}
-
-// × 关闭右侧文档：文档回左侧标签集合（不关闭文件）。
-const closeSplit = () => {
-  useSplitStore().RETURN_SPLIT_TO_TABS()
-}
 
 // 最近文件点击：直接打开进入分屏（round8 起不再只读预览）。
 const openRecent = async (filePath: string) => {
