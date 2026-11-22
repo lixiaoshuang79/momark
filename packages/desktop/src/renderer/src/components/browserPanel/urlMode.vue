@@ -73,6 +73,7 @@
 
       <div ref="moreWrap" class="rp-more">
         <button
+          ref="moreBtn"
           class="rp-ib"
           :class="{ on: menuOpen }"
           :title="t('rightPanel.web.more')"
@@ -86,13 +87,61 @@
             <circle cx="12.5" cy="8" r="1" />
           </svg>
         </button>
+        <!-- ⋯ 菜单（round2 重做）：左侧 15px 线性图标 + 文案；缩放是一枚步进胶囊
+             （− / 百分比 / ＋，点百分比恢复 100%）；两个显示选项用迷你开关表示开合；
+             「复制链接」原地反馈「已复制」再收起。↑/↓ 在行间移动，←/→ 在缩放胶囊内移动，
+             Home/End 首尾，Esc / Tab 收起并把焦点还给 ⋯。 -->
         <transition name="rp-pop">
-          <div v-if="menuOpen" ref="menuEl" class="rp-pop" role="menu" @keydown="onMenuKey">
-            <div class="rp-zoom">
-              <span>{{ t('rightPanel.web.zoom') }}</span>
-              <button class="rp-ib" :disabled="!activePage" @click="zoom('out')">−</button>
-              <b>{{ zoomLabel }}</b>
-              <button class="rp-ib" :disabled="!activePage" @click="zoom('in')">＋</button>
+          <div
+            v-if="menuOpen"
+            ref="menuEl"
+            class="rp-pop rp-menu"
+            role="menu"
+            :aria-label="t('rightPanel.web.more')"
+            @keydown="onMenuKey"
+          >
+            <div class="rp-zoom" role="group" :aria-label="t('rightPanel.web.zoom')">
+              <span class="mi-ic" aria-hidden="true">
+                <svg viewBox="0 0 16 16">
+                  <circle cx="7" cy="7" r="4.3" />
+                  <path d="m10.2 10.2 3.3 3.3" />
+                </svg>
+              </span>
+              <span class="mi-lb">{{ t('rightPanel.web.zoom') }}</span>
+              <span class="rp-stepper">
+                <button
+                  role="menuitem"
+                  data-row="zoom"
+                  :disabled="!activePage || atZoomMin"
+                  :aria-label="t('rightPanel.web.zoomOut')"
+                  :title="`${t('rightPanel.web.zoomOut')} ${zoomKeys.out}`"
+                  @click="zoom('out')"
+                >
+                  <svg viewBox="0 0 16 16"><path d="M4 8h8" /></svg>
+                </button>
+                <button
+                  role="menuitem"
+                  data-row="zoom"
+                  class="val"
+                  :class="{ fit: activePage?.fitWidth }"
+                  :disabled="!activePage || zoomIsDefault"
+                  :aria-label="t('rightPanel.web.zoomReset')"
+                  :title="`${t('rightPanel.web.zoomReset')} ${zoomKeys.reset}`"
+                  @click="zoomReset"
+                >
+                  {{ zoomPercent }}
+                </button>
+                <button
+                  role="menuitem"
+                  data-row="zoom"
+                  :disabled="!activePage || atZoomMax"
+                  :aria-label="t('rightPanel.web.zoomIn')"
+                  :title="`${t('rightPanel.web.zoomIn')} ${zoomKeys.in}`"
+                  @click="zoom('in')"
+                >
+                  <svg viewBox="0 0 16 16"><path d="M4 8h8M8 4v8" /></svg>
+                </button>
+              </span>
             </div>
             <button
               role="menuitemcheckbox"
@@ -100,8 +149,14 @@
               :disabled="!activePage"
               @click="toggleFit"
             >
-              <span class="tick">{{ activePage?.fitWidth ? '✓' : '' }}</span>
-              {{ t('rightPanel.web.fitWidth') }}
+              <span class="mi-ic" aria-hidden="true">
+                <svg viewBox="0 0 16 16">
+                  <path d="M2.5 3.5v9M13.5 3.5v9M5 8h6" />
+                  <path d="M6.8 6.2 5 8l1.8 1.8M9.2 6.2 11 8l-1.8 1.8" />
+                </svg>
+              </span>
+              <span class="mi-lb">{{ t('rightPanel.web.fitWidth') }}</span>
+              <i class="mi-switch" aria-hidden="true" />
             </button>
             <button
               role="menuitemcheckbox"
@@ -109,20 +164,51 @@
               :disabled="!activePage"
               @click="toggleDevice"
             >
-              <span class="tick">{{ deviceMode === 'mobile' ? '✓' : '' }}</span>
-              {{ t('rightPanel.web.mobile') }}
+              <span class="mi-ic" aria-hidden="true">
+                <svg viewBox="0 0 16 16">
+                  <rect x="4.6" y="2" width="6.8" height="12" rx="1.8" />
+                  <path d="M7.3 12h1.4" />
+                </svg>
+              </span>
+              <span class="mi-lb">{{ t('rightPanel.web.mobile') }}</span>
+              <i class="mi-switch" aria-hidden="true" />
             </button>
             <hr />
             <button role="menuitem" :disabled="!activePage" @click="openExternal">
-              <span class="tick" />{{ t('rightPanel.web.openExternal') }}
+              <span class="mi-ic" aria-hidden="true">
+                <svg viewBox="0 0 16 16">
+                  <path d="M9 2.5h4.5V7M13.2 2.8 7.4 8.6" />
+                  <path
+                    d="M11.5 9.5v2.7a1.3 1.3 0 0 1-1.3 1.3H3.8a1.3 1.3 0 0 1-1.3-1.3V5.8a1.3 1.3 0 0 1 1.3-1.3h2.7"
+                  />
+                </svg>
+              </span>
+              <span class="mi-lb">{{ t('rightPanel.web.openExternal') }}</span>
             </button>
-            <button role="menuitem" :disabled="!activePage" @click="copyLink">
-              <span class="tick" />{{ t('rightPanel.web.copyLink') }}
+            <button
+              role="menuitem"
+              :class="{ done: copied }"
+              :disabled="!activePage"
+              @click="copyLink"
+            >
+              <span class="mi-ic" aria-hidden="true">
+                <svg v-if="copied" viewBox="0 0 16 16"><path d="m3.5 8.4 2.9 2.8 6.1-6.4" /></svg>
+                <svg v-else viewBox="0 0 16 16">
+                  <path d="M6.9 9.1a2.6 2.6 0 0 0 3.7 0l2.1-2.1a2.6 2.6 0 0 0-3.7-3.7l-.8.8" />
+                  <path d="M9.1 6.9a2.6 2.6 0 0 0-3.7 0L3.3 9a2.6 2.6 0 0 0 3.7 3.7l.8-.8" />
+                </svg>
+              </span>
+              <span class="mi-lb" aria-live="polite">{{
+                copied ? t('rightPanel.web.copied') : t('rightPanel.web.copyLink')
+              }}</span>
             </button>
             <template v-if="activePage">
               <hr />
               <button role="menuitem" @click="closeActive">
-                <span class="tick" />{{ t('rightPanel.web.closePage') }}
+                <span class="mi-ic" aria-hidden="true">
+                  <svg viewBox="0 0 16 16"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>
+                </span>
+                <span class="mi-lb">{{ t('rightPanel.web.closePage') }}</span>
               </button>
             </template>
           </div>
@@ -253,24 +339,28 @@
       </transition>
     </div>
 
-    <!-- 网页条右键菜单 -->
-    <div
-      v-if="pageMenu"
-      class="rp-pop rp-ctx"
-      role="menu"
-      :style="{ left: `${pageMenu.x}px`, top: `${pageMenu.y}px` }"
-      @keydown="onMenuKey"
-    >
-      <button role="menuitem" @click="ctx('close')">
-        <span class="tick" />{{ t('rightPanel.web.closePage') }}<kbd>⌫</kbd>
-      </button>
-      <button v-if="urlPages.length > 1" role="menuitem" @click="ctx('others')">
-        <span class="tick" />{{ t('rightPanel.web.closeOthers') }}
-      </button>
-      <button v-if="hasPagesToRight" role="menuitem" @click="ctx('right')">
-        <span class="tick" />{{ t('rightPanel.web.closeRight') }}
-      </button>
-    </div>
+    <!-- 网页条右键菜单：与 ⋯ 菜单同一套外壳与条目样式（无图标列） -->
+    <transition name="rp-pop">
+      <div
+        v-if="pageMenu"
+        ref="ctxEl"
+        class="rp-pop rp-ctx"
+        role="menu"
+        :style="{ left: `${pageMenu.x}px`, top: `${pageMenu.y}px` }"
+        @keydown="onMenuKey"
+      >
+        <button role="menuitem" @click="ctx('close')">
+          <span class="mi-lb">{{ t('rightPanel.web.closePage') }}</span
+          ><kbd>⌫</kbd>
+        </button>
+        <button v-if="urlPages.length > 1" role="menuitem" @click="ctx('others')">
+          <span class="mi-lb">{{ t('rightPanel.web.closeOthers') }}</span>
+        </button>
+        <button v-if="hasPagesToRight" role="menuitem" @click="ctx('right')">
+          <span class="mi-lb">{{ t('rightPanel.web.closeRight') }}</span>
+        </button>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -280,7 +370,8 @@ import { storeToRefs } from 'pinia'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import { t } from '../../i18n'
 import { motionReduced } from '@/util/motion'
-import { useBrowserPanelStore, type WebPage } from '@/store/browserPanel'
+import { useBrowserPanelStore, ZOOM_MAX, ZOOM_MIN, type WebPage } from '@/store/browserPanel'
+import { isOsx } from '@/util'
 import WebviewPage from './webviewPage.vue'
 
 const bpStore = useBrowserPanelStore()
@@ -386,7 +477,7 @@ const startNewPage = (): void => {
 }
 const onEsc = (): void => {
   if (pageMenu.value) pageMenu.value = null
-  else if (menuOpen.value) menuOpen.value = false
+  else if (menuOpen.value) closeMenu(true)
 }
 
 // ── 网页条：激活 / 关闭 / 键盘 / 中键 / 右键 ─────────────────────────────
@@ -444,7 +535,7 @@ const closePage = (id: string): void => {
   anim.oncancel = commit
 }
 const closeActive = (): void => {
-  menuOpen.value = false
+  closeMenu()
   if (activePageId.value) closePage(activePageId.value)
 }
 const reopen = (): void => {
@@ -491,10 +582,12 @@ const openPageMenu = (event: MouseEvent, id: string): void => {
   const rect = root?.getBoundingClientRect()
   pageMenu.value = {
     id,
-    x: Math.max(6, event.clientX - (rect?.left ?? 0)),
+    // 靠右的页签右键时菜单不越出面板（菜单约 180px 宽）
+    x: Math.max(6, Math.min(event.clientX - (rect?.left ?? 0), (rect?.width ?? 9999) - 186)),
     y: event.clientY - (rect?.top ?? 0) + 4
   }
-  menuOpen.value = false
+  closeMenu()
+  nextTick(() => focusFirstItem(ctxEl.value))
 }
 const ctx = (action: 'close' | 'others' | 'right'): void => {
   const id = pageMenu.value?.id
@@ -507,58 +600,113 @@ const ctx = (action: 'close' | 'others' | 'right'): void => {
 
 // ── ⋯ 菜单：缩放 / 适应宽度 / 移动端样式 / 外部打开 / 复制链接 / 关闭 ─────────
 const moreWrap = ref<HTMLElement | null>(null)
+const moreBtn = ref<HTMLElement | null>(null)
 const menuEl = ref<HTMLElement | null>(null)
+const ctxEl = ref<HTMLElement | null>(null)
 const menuOpen = ref(false)
-const toggleMenu = (): void => {
-  menuOpen.value = !menuOpen.value
-  pageMenu.value = null
-  if (menuOpen.value) {
-    nextTick(() => menuEl.value?.querySelector<HTMLElement>('button:not(:disabled)')?.focus())
-  }
+const copied = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
+
+const focusFirstItem = (menu: HTMLElement | null): void => {
+  menu?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
 }
-const zoomLabel = computed(() => {
+const closeMenu = (refocus = false): void => {
+  menuOpen.value = false
+  copied.value = false
+  if (copiedTimer) clearTimeout(copiedTimer)
+  copiedTimer = null
+  if (refocus) nextTick(() => moreBtn.value?.focus())
+}
+const toggleMenu = (): void => {
+  if (menuOpen.value) return closeMenu()
+  menuOpen.value = true
+  pageMenu.value = null
+  nextTick(() => focusFirstItem(menuEl.value))
+}
+
+// 缩放胶囊：百分比只显示数字（适应宽度开着时数字用墨蓝表示「这是自动算的」）。
+const zoomPercent = computed(() => `${Math.round((activePage.value?.zoom ?? 1) * 100)}%`)
+const zoomIsDefault = computed(() => {
   const page = activePage.value
-  if (!page) return '100%'
-  return page.fitWidth
-    ? `${t('rightPanel.web.fitShort')} · ${Math.round(page.zoom * 100)}%`
-    : `${Math.round(page.zoom * 100)}%`
+  return !page || (!page.fitWidth && Math.abs(page.zoom - 1) < 0.001)
 })
+const atZoomMin = computed(() => (activePage.value?.zoom ?? 1) <= ZOOM_MIN + 0.001)
+const atZoomMax = computed(() => (activePage.value?.zoom ?? 1) >= ZOOM_MAX - 0.001)
+const zoomKeys = isOsx
+  ? { in: '⌘+', out: '⌘−', reset: '⌘0' }
+  : { in: 'Ctrl++', out: 'Ctrl+−', reset: 'Ctrl+0' }
 const zoom = (action: 'in' | 'out'): void => {
   if (activePageId.value) bpStore.APPLY_ZOOM_ACTION(activePageId.value, action)
+}
+const zoomReset = (): void => {
+  if (activePageId.value) bpStore.APPLY_ZOOM_ACTION(activePageId.value, 'reset')
 }
 const toggleFit = (): void => {
   bpStore.TOGGLE_FIT_WIDTH()
 }
+// 移动端样式会重载页面：切完就收起菜单，让用户看到页面变化。
 const toggleDevice = (): void => {
-  menuOpen.value = false
+  closeMenu()
   bpStore.TOGGLE_DEVICE_MODE()
 }
 const openExternal = (): void => {
-  menuOpen.value = false
+  closeMenu()
   const url = activePage.value?.url
   if (url) bpStore.OPEN_EXTERNAL(url).catch(() => {})
 }
+// 复制链接：条目原地变成「✓ 已复制链接」，650ms 后收起——不弹全局 toast。
 const copyLink = (): void => {
-  menuOpen.value = false
   const url = activePage.value?.url
-  if (url) window.electron.clipboard.writeText(url)
+  if (!url) return
+  window.electron.clipboard.writeText(url)
+  copied.value = true
+  if (copiedTimer) clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => closeMenu(true), motionReduced() ? 400 : 650)
 }
+
+// 菜单键盘：条目按「行」组织（缩放胶囊里的三个按钮算同一行）。
 const onMenuKey = (event: KeyboardEvent): void => {
   const menu = event.currentTarget as HTMLElement
   const items = Array.from(menu.querySelectorAll<HTMLElement>('button:not(:disabled)'))
-  const i = items.indexOf(document.activeElement as HTMLElement)
-  if (event.key === 'ArrowDown') {
+  if (!items.length) return
+  const active = document.activeElement as HTMLElement | null
+  const i = active ? items.indexOf(active) : -1
+  const rowOf = (el: HTMLElement | undefined): string | null =>
+    el?.dataset.row ?? (el ? `i${items.indexOf(el)}` : null)
+  const row = rowOf(items[i])
+  // 每行取第一个可用按钮作为该行的落点
+  const rowHeads = items.filter((el, k) => k === 0 || rowOf(items[k - 1]) !== rowOf(el))
+  const headIndex = rowHeads.findIndex((el) => rowOf(el) === row)
+  const focus = (el: HTMLElement | undefined): void => {
     event.preventDefault()
-    ;(items[i + 1] ?? items[0])?.focus()
-  } else if (event.key === 'ArrowUp') {
-    event.preventDefault()
-    ;(items[i - 1] ?? items[items.length - 1])?.focus()
+    el?.focus()
+  }
+  switch (event.key) {
+    case 'ArrowDown':
+      return focus(rowHeads[headIndex + 1] ?? rowHeads[0])
+    case 'ArrowUp':
+      return focus(rowHeads[headIndex - 1] ?? rowHeads[rowHeads.length - 1])
+    case 'Home':
+      return focus(rowHeads[0])
+    case 'End':
+      return focus(rowHeads[rowHeads.length - 1])
+    case 'ArrowRight':
+    case 'ArrowLeft': {
+      if (!active?.dataset.row) return
+      const same = items.filter((el) => el.dataset.row === active.dataset.row)
+      const j = same.indexOf(active) + (event.key === 'ArrowRight' ? 1 : -1)
+      return focus(same[Math.max(0, Math.min(same.length - 1, j))])
+    }
+    case 'Tab':
+      event.preventDefault()
+      if (menu === ctxEl.value) pageMenu.value = null
+      else closeMenu(true)
   }
 }
 
 const onDocPointer = (event: PointerEvent): void => {
   const target = event.target as Node
-  if (menuOpen.value && !moreWrap.value?.contains(target)) menuOpen.value = false
+  if (menuOpen.value && !moreWrap.value?.contains(target)) closeMenu()
   if (pageMenu.value && !(target as Element).closest?.('.rp-ctx')) pageMenu.value = null
 }
 onMounted(() => document.addEventListener('pointerdown', onDocPointer, true))
@@ -605,6 +753,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', onDocPointer, true)
   if (hintTimer !== null) window.clearTimeout(hintTimer)
   if (undoTimer) clearTimeout(undoTimer)
+  if (copiedTimer) clearTimeout(copiedTimer)
 })
 
 defineExpose({ focusAddress: () => startEdit() })

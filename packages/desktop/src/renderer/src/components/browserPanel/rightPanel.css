@@ -629,8 +629,8 @@
   align-items: center;
   gap: 10px;
   max-width: calc(100% - 24px);
-  padding: 7px 8px 7px 12px;
-  border-radius: 9px;
+  padding: 6px 6px 6px 12px;
+  border-radius: 11px;
   background: var(--hudbg);
   color: var(--hudfg);
   font-size: 12px;
@@ -663,93 +663,232 @@
   transform: translate(-50%, 8px);
 }
 
-/* 弹出菜单（⋯ / 网页条右键） */
+/* ── 弹出菜单（⋯ / 网页条右键）· round2 重做 ──
+   外壳：比卡片再高一级（浅色纯白 + 更深的投影，深色 surface-2），11px 圆角与 5px
+   内边距同心（条目 7px 圆角）。条目 30px 高：15px 线性图标（muted）+ 文案（ink）
+   + 右侧附件（开关 / 快捷键）。hover 与键盘焦点同一底色。 */
 .rp-pop {
+  --mi-h: 30px;
+  --mi-hover: color-mix(in oklab, var(--ink) 6.5%, transparent);
   position: absolute;
   z-index: 40;
-  min-width: 196px;
-  padding: 4px;
-  border-radius: 10px;
-  background: var(--surface-1);
+  min-width: 180px;
+  padding: 5px;
+  box-sizing: border-box;
+  border-radius: 11px;
+  background: var(--surface-2);
   box-shadow:
-    var(--shadow-pop),
-    0 8px 24px rgba(0, 0, 0, 0.12);
+    0 0 0 0.5px rgba(11, 11, 11, 0.12),
+    0 3px 8px rgba(0, 0, 0, 0.06),
+    0 14px 36px -8px rgba(0, 0, 0, 0.2);
   font-size: var(--f12);
+  color: var(--ink);
+  transform-origin: top right;
+}
+[data-theme='dark'] .rp-pop {
+  --mi-hover: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.1),
+    0 3px 8px rgba(0, 0, 0, 0.3),
+    0 16px 40px -8px rgba(0, 0, 0, 0.6);
+}
+.rp-menu {
+  width: 248px;
 }
 .rp-more .rp-pop {
-  top: 32px;
+  top: 34px;
   right: 0;
 }
-.rp-pop button[role^='menuitem'] {
+.rp-ctx {
+  transform-origin: top left;
+}
+.rp-pop button[role^='menuitem']:not([data-row]) {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 28px;
+  gap: 9px;
+  height: var(--mi-h);
   padding: 0 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: 7px;
   background: none;
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 0.1s ease;
 }
-.rp-pop button[role^='menuitem']:hover:not(:disabled),
-.rp-pop button[role^='menuitem']:focus-visible {
+.rp-ctx button[role^='menuitem'] {
+  padding: 0 10px;
+}
+.rp-pop button[role^='menuitem']:not([data-row]):hover:not(:disabled),
+.rp-pop button[role^='menuitem']:not([data-row]):focus-visible {
   outline: none;
-  background: var(--hover);
+  background: var(--mi-hover);
 }
 .rp-pop button:disabled {
-  opacity: 0.4;
+  opacity: 0.38;
   cursor: default;
 }
-.rp-pop .tick {
-  width: 14px;
+.rp-pop .mi-ic {
   flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.rp-pop .mi-ic svg,
+.rp-stepper svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rp-pop .mi-lb {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rp-pop button.done .mi-ic,
+.rp-pop button.done .mi-lb {
   color: var(--accent);
 }
 .rp-pop kbd {
-  margin-left: auto;
-  font: 500 10px var(--font-mono);
+  flex: none;
+  margin-left: 12px;
+  font: 500 var(--f11) var(--font-mono);
   color: var(--faint);
 }
 .rp-pop hr {
   border: none;
   height: 0.5px;
   background: var(--line);
-  margin: 4px 6px;
+  margin: 5px 8px;
 }
+
+/* 迷你开关（menuitemcheckbox 的右侧附件）：24×14，开 = 墨蓝 */
+.rp-pop .mi-switch {
+  flex: none;
+  position: relative;
+  width: 24px;
+  height: 14px;
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--ink) 16%, transparent);
+  transition: background-color 0.18s ease;
+}
+.rp-pop .mi-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.22s var(--rp-ease);
+}
+.rp-pop [aria-checked='true'] .mi-switch {
+  background: var(--accent);
+}
+.rp-pop [aria-checked='true'] .mi-switch::after {
+  transform: translateX(10px);
+}
+
+/* 缩放行：图标 + 「缩放」+ 步进胶囊（− / 百分比 / ＋） */
 .rp-zoom {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 4px 2px 8px;
+  gap: 9px;
+  height: calc(var(--mi-h) + 4px);
+  padding: 0 3px 2px 8px;
+}
+.rp-stepper {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 1px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--hover);
+}
+.rp-stepper button {
+  height: 24px;
+  min-width: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: none;
   color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 0.1s ease,
+    color 0.1s ease;
 }
-.rp-zoom span {
-  flex: 1;
-}
-.rp-zoom b {
-  min-width: 64px;
-  text-align: center;
-  font: 500 11px var(--font-mono);
+.rp-stepper button.val {
+  min-width: 52px;
+  font: 500 var(--f11) / 1 var(--font-mono);
   color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
+.rp-stepper button.val.fit {
+  color: var(--accent);
+}
+.rp-stepper button.val:disabled {
+  opacity: 1;
+}
+.rp-stepper button:hover:not(:disabled),
+.rp-stepper button:focus-visible {
+  outline: none;
+  background: var(--surface-2);
+  color: var(--ink);
+  box-shadow:
+    0 0 0 0.5px var(--line-strong),
+    0 1px 2px rgba(0, 0, 0, 0.06);
+}
+[data-theme='dark'] .rp-stepper button:hover:not(:disabled),
+[data-theme='dark'] .rp-stepper button:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .rp-pop-enter-active {
   transition:
-    opacity 0.16s ease,
-    transform 0.16s var(--rp-ease);
+    opacity 0.14s ease,
+    transform 0.18s var(--rp-ease);
 }
 .rp-pop-leave-active {
-  transition: opacity 0.1s ease;
+  transition:
+    opacity 0.1s ease,
+    transform 0.1s var(--rp-exit);
 }
 .rp-pop-enter-from {
   opacity: 0;
-  transform: translateY(-4px) scale(0.98);
+  transform: translateY(-3px) scale(0.97);
 }
 .rp-pop-leave-to {
   opacity: 0;
+  transform: scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-pop-enter-active,
+  .rp-pop-leave-active,
+  .rp-pop .mi-switch::after {
+    transition: opacity 0.1s ease;
+  }
+  .rp-pop-enter-from,
+  .rp-pop-leave-to {
+    transform: none;
+  }
 }
 
 /* ── 文档 pane ── */
