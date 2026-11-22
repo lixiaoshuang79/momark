@@ -12,10 +12,12 @@
   display: flex;
   min-height: 0;
   position: relative;
+  /* 面板卡片从窗口右缘外滑入：在这里裁掉露在窗口外的部分 */
+  overflow: clip;
   /* 右侧栏开关（PanelToggle.vue）的固定位置：距窗口右缘 = 面板外边距 + 卡片内缩。
      收起时标签条右侧为它预留 --panel-toggle-reserve；展开（停靠）后它在面板头部里，
      标签条不再预留。 */
-  --panel-gutter: 0px;
+  --panel-gutter: 8px;
   --panel-toggle-inset: 5px;
   --panel-toggle-right: calc(var(--panel-gutter) + var(--panel-toggle-inset));
   --panel-toggle-reserve: calc(var(--panel-toggle-right) + 32px + 8px);
@@ -77,8 +79,10 @@
 .splitter .sp-line {
   position: absolute;
   left: 4px;
-  top: 0;
-  bottom: 0;
+  /* 只画在卡片左缘的直边段上（避开上下圆角与底部画布留白） */
+  top: 12px;
+  bottom: calc(var(--panel-gutter) + 12px);
+  border-radius: 1px;
   width: 1px;
   background: transparent;
   transition:
@@ -206,18 +210,17 @@
   color: var(--accent);
 }
 
-/* ── 右侧浏览器面板（默认收起宽 0；展开 288px；分屏文档态 min(480px,60%)）──
-   dock-panel 卡片化（用户拍板，参考 claude-visual-gallery section.dock-panel）：
-   画布（--bg）透出，面板本体 = 悬浮卡片（白底、.5px 发丝边、13px 圆角、轻投影）。 */
+/* ── 右侧面板列（收起宽 0；展开宽 = workspace.panelWidthPx）──
+   列本身透明（画布 --bg 透出），面板本体是列里的悬浮卡片（rightPanel.css）。
+   overflow 可见：卡片投影要能落到正文一侧；露出窗口右缘的部分由 .win-body 裁掉。 */
 .bpanel {
   flex: none;
   background: transparent;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
-  /* 开合动画 380ms --ease-panel：显式宽度动画（内联 width 驱动）；
-     收起 260ms 标准减速（.collapsed 覆盖）。 */
+  /* 开合：显式宽度动画（内联 width 驱动），曲线/时长见 .win-body 令牌。 */
   transition: width var(--panel-open-dur) var(--panel-ease);
 }
 .bpanel.collapsed {
@@ -231,14 +234,10 @@
   bottom: 0;
   z-index: 26;
 }
-.bpanel.overlay:not(.collapsed) .bp-inner {
-  box-shadow:
-    -12px 0 32px rgba(0, 0, 0, 0.14),
-    0 2px 8px rgba(0, 0, 0, 0.08);
-}
 @media (prefers-reduced-motion: reduce) {
   .bpanel,
   .bpanel.collapsed,
+  .bpanel.collapsed .bp-inner,
   .splitter {
     transition: none;
   }

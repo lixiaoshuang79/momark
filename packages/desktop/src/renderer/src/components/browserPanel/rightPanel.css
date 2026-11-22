@@ -1,51 +1,66 @@
 /* ============================================================
-   右侧栏 v1（feat/right-panel-redesign，DESIGN-NOTES §3）
-   面板是从标签栏那一行开始的整列：头部（分段控件）与标签栏同高，左缘一条
-   .5px 发丝线；内容固定在目标宽度、贴右侧，开合时像抽屉一样滑出不重排。
+   右侧栏 v1 + round2（feat/right-panel-redesign，DESIGN-NOTES §3）
+   round2：面板回到 1.8.0 用户认可的「悬浮卡片」——白底、.5px 描边、12px 圆角、
+   轻投影，右/下留 8px 画布（--panel-gutter），顶边与标签栏同一行；卡片左缘就是
+   与正文的边界（分隔线热区压在这条边上）。开合时卡片整张从窗口右缘滑入/滑出，
+   内容在目标宽度上不重排；右上角的面板开关（PanelToggle）位置不动，卡片滑到它下面。
    全部取值来自 tokens.css 令牌，深浅主题自动生效。
-   曲线：空间位移 cubic-bezier(.2,0,0,1)；面板宽度 --ease-panel；退出 (.4,0,1,1)。
+   曲线：空间位移 cubic-bezier(.2,0,0,1)；面板开合 --panel-ease；退出 (.4,0,1,1)。
    ============================================================ */
 
 .bpanel {
   --rp-ease: cubic-bezier(0.2, 0, 0, 1);
   --rp-exit: cubic-bezier(0.4, 0, 1, 1);
   --rp-head-h: 40px;
+  --rp-radius: 12px;
+  /* 卡片底色：浅色纯白（比画布 --bg 亮一级），深色 surface-1（比画布亮一级） */
+  --rp-surface: var(--surface-2);
+  --rp-card-ring: 0 0 0 0.5px rgba(11, 11, 11, 0.13);
+  --rp-card-shadow: 0 2px 8px rgba(0, 0, 0, 0.07), 0 12px 32px -16px rgba(0, 0, 0, 0.12);
+  --rp-card-shadow-float: 0 4px 12px rgba(0, 0, 0, 0.08), 0 24px 56px -12px rgba(0, 0, 0, 0.26);
+}
+[data-theme='dark'] .bpanel {
+  --rp-surface: var(--surface-1);
+  --rp-card-ring: 0 0 0 0.5px rgba(255, 255, 255, 0.09);
+  --rp-card-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --rp-card-shadow-float: 0 4px 14px rgba(0, 0, 0, 0.4), 0 24px 56px -12px rgba(0, 0, 0, 0.6);
 }
 
-/* 面板本体：整列、发丝线左缘（原卡片的外边距/圆角/投影取消） */
+/* 面板本体：卡片。贴面板列左缘（= 分隔线），宽 = 列宽 − 右侧画布留白。
+   列宽从 0 长到目标宽时，卡片随左缘一起从窗口右缘滑入（win-body 负责裁切）。 */
 .bpanel .bp-inner {
   position: absolute;
   top: 0;
-  right: 0;
-  bottom: 0;
-  width: var(--panel-w);
+  left: 0;
+  bottom: var(--panel-gutter, 8px);
+  width: calc(var(--panel-w) - var(--panel-gutter, 8px));
   flex: none;
   margin: 0;
   border: 0;
-  border-radius: 0;
-  box-shadow: inset 0.5px 0 0 var(--line-strong);
-  background: var(--surface-0);
+  border-radius: var(--rp-radius);
+  box-shadow: var(--rp-card-ring), var(--rp-card-shadow);
+  background: var(--rp-surface);
   container-type: inline-size;
   container-name: rpanel;
-  transition: opacity 0s;
+  overflow: hidden;
+  visibility: visible;
+  transition: visibility 0s;
 }
 [data-theme='dark'] .bpanel .bp-inner {
-  background: var(--surface-0);
+  background: var(--rp-surface);
   border: 0;
-  box-shadow: inset 0.5px 0 0 var(--line-strong);
+  box-shadow: var(--rp-card-ring), var(--rp-card-shadow);
 }
-/* 收起：内容先 80ms 淡出，再 260ms 收宽度 */
+/* 收起：卡片带着内容整张滑出（不再先淡出内容），滑完后才隐藏——否则停在窗口
+   右缘外的卡片投影会在右边漏出一道阴影。 */
 .bpanel.collapsed .bp-inner {
-  opacity: 0;
-  transition: opacity 80ms linear;
+  visibility: hidden;
+  transition: visibility 0s linear var(--panel-close-dur, 0.3s);
 }
-.win-body .bpanel.collapsed {
-  transition-delay: 80ms;
-}
-.bpanel.overlay:not(.collapsed) .bp-inner {
-  box-shadow:
-    inset 0.5px 0 0 var(--line-strong),
-    -14px 0 32px rgba(0, 0, 0, 0.14);
+/* 浮层（窄窗）：同一张卡片，投影加深，表示它浮在正文之上 */
+.bpanel.overlay:not(.collapsed) .bp-inner,
+[data-theme='dark'] .bpanel.overlay:not(.collapsed) .bp-inner {
+  box-shadow: var(--rp-card-ring), var(--rp-card-shadow-float);
 }
 .bpanel.drop-ok .bp-inner {
   outline: none;
@@ -225,7 +240,7 @@
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: var(--surface-0);
+  background: var(--rp-surface);
 }
 
 /* ── 通用小部件 ── */
@@ -438,9 +453,10 @@
   color: var(--ink);
 }
 .rp-page.on {
-  background: var(--surface-2);
+  /* 卡片本身已是白底：当前页改用浅灰底 + 发丝描边区分 */
+  background: var(--hover);
   color: var(--ink);
-  box-shadow: 0 0 0 0.5px var(--line-strong);
+  box-shadow: inset 0 0 0 0.5px var(--line);
 }
 .rp-page.closing {
   pointer-events: none;
@@ -546,7 +562,7 @@
   flex: 1;
   min-height: 0;
   position: relative;
-  background: var(--surface-2);
+  background: var(--rp-surface);
 }
 .rp-wempty,
 .rp-werr {
@@ -561,7 +577,7 @@
   text-align: center;
   font-size: var(--f12);
   color: var(--muted);
-  background: var(--surface-0);
+  background: var(--rp-surface);
 }
 .rp-wempty > svg,
 .rp-werr > svg {
@@ -881,7 +897,8 @@
 
 /* 面板收起时窗口右缘的 84px 投放条（替代原来的右侧 38% 投放区） */
 .win-body .split-drop-zone {
-  top: 8px;
+  /* 从开关下方开始，不与钉在右上角的面板开关重叠 */
+  top: 44px;
   right: 8px;
   bottom: 8px;
   width: 84px;
