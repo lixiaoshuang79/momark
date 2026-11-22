@@ -1287,5 +1287,19 @@
     "noRecentText": "还没有打开过文档\n从左侧「新建文档」开始你的第一篇",
     "timeToday": "今天",
     "timeYesterday": "昨天"
+  },
+  "rightPanel": {
+    "divider": {
+      "label": "调整右侧栏宽度",
+      "title": "拖动调整宽度 · 双击恢复默认",
+      "min": "最小 {px}px",
+      "max": "最大 60%",
+      "editor": "为正文保留 {px}px",
+      "snap": {
+        "third": "⅓",
+        "half": "½",
+        "default": "默认"
+      }
+    }
   }
 }

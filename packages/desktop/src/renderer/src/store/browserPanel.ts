@@ -66,9 +66,8 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   const activePageId = ref<string | null>(null)
   const dockAddrOpen = ref(false)
   const dragState = ref<BpDragState>('none')
-  // 网页模式面板宽度（分隔线可拖动，240px ≤ w ≤ 60% 窗宽；会话内保持，
-  // 不落盘，重启回 288px 默认）。文档分屏的宽度归 split.width 管。
-  const urlWidth = ref(288)
+  // 面板宽度已改为比例（feat/right-panel-redesign）：见 workspace.panelWidthPx
+  // 与 store/panelGeometry.ts。
 
   // ── 内容标注 tab（feat/annotations）──────────────────────────────
   // 第三 tab 是叠加态：打开时压住 url/doc 两个模式（内容都保活），关闭后
@@ -87,13 +86,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   let unlistenNewWindow: (() => void) | null = null
   let unlistenZoomCommand: (() => void) | null = null
   let unlistenInputContext: (() => void) | null = null
-
-  function SET_URL_WIDTH(value: number): void {
-    const win = window.innerWidth
-    const min = 240
-    const max = Math.max(min, win * 0.6)
-    urlWidth.value = Math.round(Math.max(min, Math.min(max, value)))
-  }
 
   function SET_OPEN(value: boolean): void {
     open.value = value
@@ -385,7 +377,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     activePageId,
     dockAddrOpen,
     dragState,
-    urlWidth,
     deviceMode,
     turboMode,
     SET_OPEN,
@@ -404,7 +395,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     SHOW_ZOOM_HINT,
     zoomHint,
     SET_DRAG_STATE,
-    SET_URL_WIDTH,
     OPEN_EXTERNAL,
     OPEN_LINK,
     DROP_WEB_CONTENT,

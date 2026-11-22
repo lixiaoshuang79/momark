@@ -1,8 +1,7 @@
-import { computed, ref, watch } from 'vue'
+import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useEditorStore } from './editor'
 import { useBrowserPanelStore } from './browserPanel'
-import { useLayoutStore } from './layout'
 
 /**
  * 拖拽分屏状态（STATE-MACHINE §1 SplitState，PHASE2-SPEC §3）。
@@ -19,7 +18,6 @@ export const useSplitStore = defineStore('split', () => {
   const active = ref(false)
   const kind = ref<SplitKind>('doc')
   const tabId = ref<string | null>(null)
-  const width = ref(240)
   // 拖拽中的标签 id（tab dragstart → 投放区/面板 drop 的瞬时 UI 状态，
   // 不入 SplitState 持久语义；dragend 清空）。
   const dragTabId = ref<string | null>(null)
@@ -33,22 +31,9 @@ export const useSplitStore = defineStore('split', () => {
     docFocused.value = focused
   }
 
-  // round8（用户拍板）：左右文档平等——右栏宽 = 可用编辑区（窗宽 − 标题轨）的
-  // 一半，左侧文档区天然同宽；标题轨切换常驻/横线时跟随重算。最小 240px（极窄
-  // 窗口下无法物理等分时保底）。
-  const layoutStore = useLayoutStore()
-  const equalSplitWidth = computed<number>(() => {
-    const avail = window.innerWidth - layoutStore.railWidth
-    return Math.max(240, Math.round(avail / 2))
-  })
-  watch(
-    () => layoutStore.railWidth,
-    () => {
-      if (active.value && kind.value === 'doc') {
-        width.value = equalSplitWidth.value
-      }
-    }
-  )
+  // 分屏宽度不再存像素（feat/right-panel-redesign）：由 workspace 按偏好
+  // rightSplitRatio（默认 50% = round8「左右平等」）× 可用宽派生，标题轨切换、
+  // 窗口 resize 时自然重算。
 
   function SET_KIND(next: SplitKind): void {
     kind.value = next
@@ -88,8 +73,6 @@ export const useSplitStore = defineStore('split', () => {
     active.value = true
     kind.value = 'doc'
     tabId.value = id
-    // round8（用户拍板）：左右文档平等——右栏宽 = 可用编辑区的一半。
-    width.value = equalSplitWidth.value
 
     bpStore.SET_OPEN(true)
     bpStore.SET_MODE('doc')
@@ -134,20 +117,6 @@ export const useSplitStore = defineStore('split', () => {
     // （用户拍板：关闭右侧边栏/切换模式都不影响里面的内容和状态）。
   }
 
-  /**
-   * 分隔线拖动（STATE-MACHINE setSplitWidth）：
-   * 240px ≤ 右栏 ≤ 等宽值（可用编辑区一半，round8 用户拍板左右平等）；
-   * 拖到 ≥90% 可用宽度自动关闭分屏。
-   */
-  function SET_SPLIT_WIDTH(widthPx: number): void {
-    const avail = window.innerWidth - layoutStore.railWidth
-    if (widthPx >= avail * 0.9) {
-      RETURN_SPLIT_TO_TABS()
-      return
-    }
-    width.value = Math.round(Math.max(240, Math.min(widthPx, avail / 2)))
-  }
-
   // 关闭分屏（右栏开关收起等路径），文档静默还回。
   function CLOSE_SPLIT(): void {
     RETURN_SPLIT_TO_TABS()
@@ -157,14 +126,12 @@ export const useSplitStore = defineStore('split', () => {
     active,
     kind,
     tabId,
-    width,
     dragTabId,
     draggingSplit,
     docFocused,
     SET_KIND,
     DRAG_TO_SPLIT,
     RETURN_SPLIT_TO_TABS,
-    SET_SPLIT_WIDTH,
     CLOSE_SPLIT,
     SET_DOC_FOCUSED
   }

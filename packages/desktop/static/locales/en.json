@@ -1285,5 +1285,19 @@
     "noRecentText": "No documents opened yet\nStart your first one from \"New Document\" on the left",
     "timeToday": "Today",
     "timeYesterday": "Yesterday"
+  },
+  "rightPanel": {
+    "divider": {
+      "label": "Resize the right panel",
+      "title": "Drag to resize · double-click to reset",
+      "min": "Minimum {px}px",
+      "max": "Maximum 60%",
+      "editor": "Keeping {px}px for the document",
+      "snap": {
+        "third": "⅓",
+        "half": "½",
+        "default": "Default"
+      }
+    }
   }
 }

@@ -66,6 +66,8 @@
   "spellcheckerNoUnderline": false,
   "spellcheckerLanguage": "en-US",
   "headingRailPinned": false,
+  "rightPanelRatio": 0.3,
+  "rightSplitRatio": 0.5,
   "tabBarVisibility": true,
   "sourceCodeModeEnabled": false,
   "openedFilesInSidebar": true,

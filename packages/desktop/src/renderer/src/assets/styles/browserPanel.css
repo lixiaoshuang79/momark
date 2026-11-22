@@ -27,16 +27,8 @@
   padding: 12px 0 100px 2.5%;
 }
 
-/* round27 四次（用户拍板）：左文档滚动条挪进左右文档中间的分隔带正中
-   （容器右缘右移 ~5px，滚动条落在 ~9px 分隔带的中央）。
-   右栏编辑器（.bpanel 内）不受影响，滚动条留在面板右缘。 */
-.win-body.split .editor-component {
-  margin-right: -5px;
-}
-
-.win-body.split .bpanel .editor-component {
-  margin-right: 0;
-}
+/* feat/right-panel-redesign：分隔线改为盖在面板左缘上的 9px 热区（不再占
+   布局宽度），左文档滚动条贴着面板左缘即可，原先 -5px 的挪位取消。 */
 
 .win-body.dragging-split,
 .win-body.dragging-split * {
@@ -44,16 +36,103 @@
   user-select: none;
 }
 
-/* 双屏分栏分隔线（8px 命中区 + 中间 1px --line；hover 变 accent） */
-.splitter {
-  width: 8px;
-  flex: none;
-  cursor: col-resize;
-  position: relative;
-  background: transparent;
-  z-index: 5;
+/* 拖动中面板宽度直接跟手（不做过渡）；松手后恢复过渡，380ms 收到最终值。 */
+.win-body.dragging-split .bpanel {
+  transition: none !important;
 }
-/* round13（用户拍板）：分隔条 hover/拖动都不再显示竖线，仅保留 8px 拖拽热区。 */
+
+/* ── 分隔线（feat/right-panel-redesign，DESIGN-NOTES §1）──
+   9px 热区、视觉 1px；悬停 100ms 后变 2px 墨蓝线；拖动时读数气泡；越界变警示色。
+   绝对定位在面板左缘（right = 面板宽 − 4.5px），不占布局宽度。 */
+.splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  z-index: 30;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+  transition: right 0.38s var(--ease-panel);
+}
+.win-body.dragging-split .splitter {
+  transition: none;
+}
+.splitter .sp-line {
+  position: absolute;
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: transparent;
+  transition:
+    background-color 0.15s ease 0.1s,
+    width 0.15s ease 0.1s,
+    left 0.15s ease 0.1s;
+}
+.splitter:hover .sp-line,
+.splitter.drag .sp-line,
+.splitter:focus-visible .sp-line {
+  background: var(--accent);
+  width: 2px;
+  left: 3.5px;
+}
+.splitter.limit .sp-line {
+  background: var(--warn) !important;
+}
+.splitter .sp-chip {
+  position: absolute;
+  top: 52px;
+  right: 14px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: var(--hudbg);
+  color: var(--hudfg);
+  font: 11px/1 var(--font-mono);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(4px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+  pointer-events: none;
+}
+.splitter.drag .sp-chip,
+.splitter.kbd .sp-chip {
+  opacity: 1;
+  transform: none;
+}
+.splitter-snaps {
+  position: absolute;
+  inset: 0;
+  z-index: 29;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.splitter-snaps.show {
+  opacity: 1;
+}
+.splitter-snaps .sp-snap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed var(--line-strong);
+}
+.splitter-snaps .sp-snap b {
+  position: absolute;
+  top: 8px;
+  left: 4px;
+  font: 500 10px/1 var(--font-mono);
+  color: var(--faint);
+}
+.splitter-snaps .sp-snap.hit {
+  border-left-color: var(--accent);
+}
+.splitter-snaps .sp-snap.hit b {
+  color: var(--accent);
+}
 
 /* ── 标签拖入投放区（右 38% 宽，无需预先打开右栏）── */
 .split-drop-zone {
@@ -121,8 +200,32 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  /* 开合动画 .42s cubic-bezier(.22,1,.36,1)：显式宽度动画（内联 width 驱动） */
-  transition: width 0.42s var(--ease-panel);
+  /* 开合动画 380ms --ease-panel：显式宽度动画（内联 width 驱动）；
+     收起 260ms 标准减速（.collapsed 覆盖）。 */
+  transition: width 0.38s var(--ease-panel);
+}
+.bpanel.collapsed {
+  transition: width 0.26s cubic-bezier(0.2, 0, 0, 1);
+}
+/* 窄窗（可用宽 − 280 < 480）：面板浮在正文上方，正文宽度不变。 */
+.bpanel.overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 26;
+}
+.bpanel.overlay:not(.collapsed) .bp-inner {
+  box-shadow:
+    -12px 0 32px rgba(0, 0, 0, 0.14),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bpanel,
+  .bpanel.collapsed,
+  .splitter {
+    transition: none;
+  }
 }
 .bpanel.drop-ok .bp-inner {
   outline: 2px dashed var(--accent);

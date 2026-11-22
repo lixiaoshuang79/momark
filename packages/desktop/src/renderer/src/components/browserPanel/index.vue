@@ -3,6 +3,7 @@
     class="bpanel"
     :class="{
       collapsed: !bpanelOpen,
+      overlay: panelOverlay,
       'drop-ok': dragState === 'over'
     }"
     :style="panelStyle"
@@ -81,7 +82,7 @@ const {
   dragState,
   turboMode
 } = storeToRefs(bpStore)
-const { panelWidthPx } = storeToRefs(workspaceStore)
+const { panelWidthPx, panelOverlay } = storeToRefs(workspaceStore)
 
 // 偏好关掉标注 → 若正停在标注 tab，退回它压住的那个模式（数据保留，重新
 // 打开偏好即原样恢复；见方案 §5.1 偏好三件套）。

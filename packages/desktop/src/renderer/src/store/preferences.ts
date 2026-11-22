@@ -129,6 +129,10 @@ export interface PreferencesState {
   // ----- Tab bar visibility / heading rail (persisted) -----
   // 标题轨常驻完整标题（feat/heading-rail）。默认 false = 只有横线。
   headingRailPinned: boolean
+  // 右侧栏宽度比例（feat/right-panel-redesign）：面板比例（网页/标注/文档空态）与
+  // 分屏比例分开记。存比例不存像素，窗口大小变化时按比例重算再夹上下限。
+  rightPanelRatio: number
+  rightSplitRatio: number
   tabBarVisibility: boolean
   sourceCodeModeEnabled: boolean
   openedFilesInSidebar: boolean
@@ -252,6 +256,8 @@ export const usePreferencesStore = defineStore('preferences', {
     // MoMark 裁决（QA-02）：标签栏常驻（含单文档态）。左侧边栏已移除，
     // 标题轨默认只显示横线。
     headingRailPinned: false,
+    rightPanelRatio: 0.3,
+    rightSplitRatio: 0.5,
     tabBarVisibility: true,
     sourceCodeModeEnabled: false,
     openedFilesInSidebar: true,
