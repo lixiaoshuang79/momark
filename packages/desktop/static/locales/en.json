@@ -121,7 +121,11 @@
       "focusMode": "Focus Mode",
       "reloadImages": "Reload Images",
       "showDeveloperTools": "Show Developer Tools",
-      "reloadWindow": "Reload Window"
+      "reloadWindow": "Reload Window",
+      "rightPanel": "Right Panel",
+      "rightPanelWeb": "Right Panel: Web",
+      "rightPanelDoc": "Right Panel: Document",
+      "rightPanelAnnotation": "Right Panel: Notes"
     },
     "format": {
       "format": "Format",
@@ -929,7 +933,11 @@
       "reloadImages": "Reload Images",
       "textDirection": "Text Direction",
       "actualSize": "Actual Size",
-      "devToggleDeveloperTools": "Toggle Developer Tools"
+      "devToggleDeveloperTools": "Toggle Developer Tools",
+      "rightPanel": "Right Panel",
+      "rightPanelWeb": "Right Panel: Web",
+      "rightPanelDoc": "Right Panel: Document",
+      "rightPanelAnnotation": "Right Panel: Notes"
     },
     "tabs": {
       "cycleForward": "Cycle Forward",
@@ -1157,7 +1165,7 @@
     },
     "orphanGroup": "Lost ({n})",
     "orphanGroupNote": "no highlight in text",
-    "copyAll": "Copy all annotations ({n})",
+    "copyAll": "Copy {n} new annotation(s)",
     "copyAllHint": "Only the {n} not-yet-sent annotation(s) will be copied",
     "copiedDone": "Copied ✓",
     "copiedText": "Copied text",
@@ -1310,6 +1318,63 @@
         "half": "½",
         "default": "Default"
       }
+    },
+    "label": "Right panel",
+    "collapse": "Collapse the right panel",
+    "tabsLabel": "Right panel content",
+    "soloHint": "Web and notes are off",
+    "tab": {
+      "web": "Web",
+      "doc": "Document"
+    },
+    "toggle": {
+      "open": "Open the right panel",
+      "close": "Collapse the right panel",
+      "openWithPending": "Open the right panel · {n} annotation(s) not copied",
+      "openTo": "Open to {tab}"
+    },
+    "drop": {
+      "title": "Release to open \"{name}\" on the right",
+      "sub": "Keep editing the current document on the left",
+      "edge": "Drop here\nto split right"
+    },
+    "web": {
+      "back": "Back",
+      "forward": "Forward",
+      "reload": "Reload",
+      "address": "Address",
+      "addressPlaceholder": "Enter a URL or search",
+      "more": "Zoom and display",
+      "zoom": "Zoom",
+      "fitWidth": "Fit panel width",
+      "fitShort": "Fit",
+      "mobile": "Mobile layout",
+      "openExternal": "Open in Browser",
+      "copyLink": "Copy Link",
+      "pages": "Web pages",
+      "newPage": "New web page",
+      "closePage": "Close Web Page",
+      "closeNamed": "Close \"{name}\"",
+      "closeOthers": "Close Other Web Pages",
+      "closeRight": "Close Web Pages to the Right",
+      "closedNamed": "Closed \"{name}\"",
+      "undo": "Undo",
+      "allClosed": "All web pages are closed · enter a URL above",
+      "emptyHint": "Enter a URL or search above",
+      "justClosed": "Just closed:",
+      "reopen": "Reopen",
+      "failed": "Can't open this page",
+      "retry": "Retry",
+      "loading": "Loading…"
+    },
+    "doc": {
+      "dragBack": "Drag back to the tab bar to end the split",
+      "swap": "Swap with the left side",
+      "close": "Close the right document",
+      "dropTitle": "Drag a tab here",
+      "dropSub": "Read and edit side by side",
+      "openFile": "Open File…",
+      "newFile": "New"
     }
   }
 }

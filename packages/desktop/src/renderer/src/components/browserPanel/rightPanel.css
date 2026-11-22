@@ -1,0 +1,943 @@
+/* ============================================================
+   右侧栏 v1（feat/right-panel-redesign，DESIGN-NOTES §3）
+   面板是从标签栏那一行开始的整列：头部（分段控件）与标签栏同高，左缘一条
+   .5px 发丝线；内容固定在目标宽度、贴右侧，开合时像抽屉一样滑出不重排。
+   全部取值来自 tokens.css 令牌，深浅主题自动生效。
+   曲线：空间位移 cubic-bezier(.2,0,0,1)；面板宽度 --ease-panel；退出 (.4,0,1,1)。
+   ============================================================ */
+
+.bpanel {
+  --rp-ease: cubic-bezier(0.2, 0, 0, 1);
+  --rp-exit: cubic-bezier(0.4, 0, 1, 1);
+  --rp-head-h: 40px;
+}
+
+/* 面板本体：整列、发丝线左缘（原卡片的外边距/圆角/投影取消） */
+.bpanel .bp-inner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--panel-w);
+  flex: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: inset 0.5px 0 0 var(--line-strong);
+  background: var(--surface-0);
+  container-type: inline-size;
+  container-name: rpanel;
+  transition: opacity 0s;
+}
+[data-theme='dark'] .bpanel .bp-inner {
+  background: var(--surface-0);
+  border: 0;
+  box-shadow: inset 0.5px 0 0 var(--line-strong);
+}
+/* 收起：内容先 80ms 淡出，再 260ms 收宽度 */
+.bpanel.collapsed .bp-inner {
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+.win-body .bpanel.collapsed {
+  transition-delay: 80ms;
+}
+.bpanel.overlay:not(.collapsed) .bp-inner {
+  box-shadow:
+    inset 0.5px 0 0 var(--line-strong),
+    -14px 0 32px rgba(0, 0, 0, 0.14);
+}
+.bpanel.drop-ok .bp-inner {
+  outline: none;
+}
+
+/* ── 头部：分段控件 ── */
+.rp-head {
+  flex: none;
+  height: var(--rp-head-h);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+.rp-seg {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  height: 28px;
+  padding: 2px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--hover);
+}
+.rp-seg-ind {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: calc(2px + var(--i) * (100% - 4px) / var(--n));
+  width: calc((100% - 4px) / var(--n));
+  border-radius: 6px;
+  background: var(--surface-2);
+  box-shadow:
+    0 0 0 0.5px var(--line-strong),
+    0 1px 2px rgba(0, 0, 0, 0.07);
+}
+[data-theme='dark'] .rp-seg-ind {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.rp-seg button {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: var(--f12);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+.rp-seg button:hover {
+  color: var(--ink);
+}
+.rp-seg button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.rp-seg button .ic {
+  position: relative;
+  display: grid;
+  place-items: center;
+  transition:
+    transform 0.15s ease,
+    color 0.2s ease;
+}
+.rp-seg button:active .ic {
+  transform: scale(0.88);
+}
+.rp-seg button svg {
+  width: 14px;
+  height: 14px;
+}
+.rp-seg button[aria-selected='true'] {
+  color: var(--ink);
+  font-weight: 560;
+}
+.rp-seg button[aria-selected='true'] .ic {
+  color: var(--accent);
+}
+.rp-seg button .lb {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rp-seg .spin {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  animation: rpSpin 0.9s linear infinite;
+}
+@keyframes rpSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.rp-seg .ddot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.rp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-on);
+  font: 500 9.5px/1 var(--font-mono);
+  flex: none;
+}
+.rp-solo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 4px;
+  font-size: var(--f12);
+  font-weight: 560;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.rp-solo .ic {
+  display: grid;
+  color: var(--accent);
+}
+.rp-solo .ic svg {
+  width: 14px;
+  height: 14px;
+}
+.rp-solo small {
+  font-weight: 400;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 进度线：头部下方 2px */
+.bpanel .bp-track {
+  top: var(--rp-head-h);
+  border-radius: 0;
+  background: transparent;
+}
+
+/* ── 内容区：三个 pane 叠放，切换时共享 X 轴 ── */
+.rp-panes {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  border-top: 0.5px solid var(--line);
+}
+.rp-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-0);
+}
+
+/* ── 通用小部件 ── */
+.rp-sub {
+  flex: none;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  border-bottom: 0.5px solid var(--line);
+  box-sizing: border-box;
+}
+.rp-ib {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+.rp-ib:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+.rp-ib:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.rp-ib:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.rp-ib.on {
+  background: var(--selected);
+  color: var(--ink);
+}
+.rp-ib:focus-visible,
+.rp-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.rp-ib svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rp-ib circle {
+  fill: currentColor;
+  stroke: none;
+}
+.rp-btn {
+  height: 30px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow:
+    0 0 0 0.5px var(--line-strong),
+    0 1px 2px rgba(0, 0, 0, 0.05);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--f12);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease;
+}
+.rp-btn:hover {
+  background: var(--hover);
+}
+.rp-btn:active {
+  transform: scale(0.98);
+}
+.rp-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* 收起 ›（浮层模式） */
+.rp-collapse svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ── 网页 pane ── */
+.bpanel .bp-url {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  position: relative;
+}
+.rp-addr {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  margin: 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: var(--hover);
+  font-size: var(--f12);
+  color: var(--faint);
+  cursor: text;
+  outline: none;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.rp-addr:hover {
+  background: var(--selected);
+}
+.rp-addr:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.rp-addr.edit {
+  background: var(--surface-2);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    var(--focus-ring);
+}
+.rp-addr .host {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: none;
+  max-width: 70%;
+}
+.rp-addr .path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+@container rpanel (max-width: 360px) {
+  .rp-addr .host + .path {
+    display: none;
+  }
+}
+.rp-addr input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  padding: 0;
+}
+.rp-lock {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--faint);
+}
+.rp-more {
+  position: relative;
+}
+
+/* 网页条 */
+.rp-pages {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-bottom: 0.5px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rp-pages::-webkit-scrollbar {
+  display: none;
+}
+.rp-page {
+  flex: none;
+  display: flex;
+  align-items: center;
+  max-width: 168px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--muted);
+  overflow: hidden;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.rp-page:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.rp-page.on {
+  background: var(--surface-2);
+  color: var(--ink);
+  box-shadow: 0 0 0 0.5px var(--line-strong);
+}
+.rp-page.closing {
+  pointer-events: none;
+}
+.rp-page-main {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.rp-page-main:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.rp-page .fav {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--selected);
+  color: var(--muted);
+  font: 600 9px var(--font-mono);
+}
+.rp-page .fav img {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+.rp-page .fav .ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: var(--accent);
+  animation: rpSpin 0.9s linear infinite;
+}
+.rp-page .t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 关闭：位置常驻（出现时不挤动标题）；当前页常显，其余悬停/聚焦出现 */
+.rp-page-x {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-right: 3px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--faint);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+.rp-page-x svg {
+  width: 11px;
+  height: 11px;
+}
+.rp-page.on .rp-page-x {
+  opacity: 0.75;
+}
+.rp-page:hover .rp-page-x,
+.rp-page:focus-within .rp-page-x {
+  opacity: 1;
+}
+.rp-page-x:hover {
+  background: var(--selected);
+  color: var(--ink);
+}
+.rp-page-x:active {
+  transform: scale(0.9);
+}
+.rp-new {
+  width: 24px;
+  height: 24px;
+}
+.rp-new svg {
+  width: 13px;
+  height: 13px;
+}
+
+.rp-wview {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: var(--surface-2);
+}
+.rp-wempty,
+.rp-werr {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  font-size: var(--f12);
+  color: var(--muted);
+  background: var(--surface-0);
+}
+.rp-wempty > svg,
+.rp-werr > svg {
+  width: 22px;
+  height: 22px;
+  color: var(--faint);
+}
+.rp-wempty p,
+.rp-werr p {
+  margin: 0;
+  line-height: 1.6;
+}
+.rp-wempty .reopen {
+  color: var(--faint);
+}
+.rp-wempty .reopen button {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  padding: 2px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.rp-wempty .reopen button:hover {
+  background: var(--hover);
+}
+.rp-werr b {
+  color: var(--ink);
+  font-size: 13px;
+}
+.rp-werr .why {
+  color: var(--faint);
+  word-break: break-all;
+}
+.rp-werr .row {
+  display: flex;
+  gap: 6px;
+}
+
+/* 关闭网页后的撤销条（面板内） */
+.rp-undo {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 24px);
+  padding: 7px 8px 7px 12px;
+  border-radius: 9px;
+  background: var(--hudbg);
+  color: var(--hudfg);
+  font-size: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.rp-undo span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rp-undo button {
+  flex: none;
+  border: none;
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.14);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.rp-undo-enter-active,
+.rp-undo-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.24s var(--rp-ease);
+}
+.rp-undo-enter-from,
+.rp-undo-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+}
+
+/* 弹出菜单（⋯ / 网页条右键） */
+.rp-pop {
+  position: absolute;
+  z-index: 40;
+  min-width: 196px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  box-shadow:
+    var(--shadow-pop),
+    0 8px 24px rgba(0, 0, 0, 0.12);
+  font-size: var(--f12);
+}
+.rp-more .rp-pop {
+  top: 32px;
+  right: 0;
+}
+.rp-pop button[role^='menuitem'] {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rp-pop button[role^='menuitem']:hover:not(:disabled),
+.rp-pop button[role^='menuitem']:focus-visible {
+  outline: none;
+  background: var(--hover);
+}
+.rp-pop button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.rp-pop .tick {
+  width: 14px;
+  flex: none;
+  color: var(--accent);
+}
+.rp-pop kbd {
+  margin-left: auto;
+  font: 500 10px var(--font-mono);
+  color: var(--faint);
+}
+.rp-pop hr {
+  border: none;
+  height: 0.5px;
+  background: var(--line);
+  margin: 4px 6px;
+}
+.rp-zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  color: var(--muted);
+}
+.rp-zoom span {
+  flex: 1;
+}
+.rp-zoom b {
+  min-width: 64px;
+  text-align: center;
+  font: 500 11px var(--font-mono);
+  color: var(--ink);
+}
+.rp-pop-enter-active {
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s var(--rp-ease);
+}
+.rp-pop-leave-active {
+  transition: opacity 0.1s ease;
+}
+.rp-pop-enter-from {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+.rp-pop-leave-to {
+  opacity: 0;
+}
+
+/* ── 文档 pane ── */
+.bpanel .bp-doc {
+  position: relative;
+  inset: auto;
+  flex: 1;
+  min-height: 0;
+}
+.rp-docbar {
+  gap: 6px;
+  padding: 0 6px 0 4px;
+  cursor: grab;
+  font-size: var(--f12);
+}
+.rp-docbar:active {
+  cursor: grabbing;
+}
+.rp-docbar .grip {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  color: var(--faint);
+}
+.rp-docbar .grip svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.rp-docbar > svg {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  flex: none;
+}
+.rp-docbar .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 560;
+  color: var(--ink);
+}
+.rp-docbar .ro {
+  flex: none;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--hover);
+  color: var(--faint);
+}
+.rp-docbar .sp {
+  flex: 1;
+}
+.rp-docview {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.rp-docempty {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 40px;
+  gap: 12px;
+}
+.rp-dropbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 22px 12px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--line-strong);
+  text-align: center;
+  font-size: var(--f12);
+  color: var(--faint);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.rp-dropbox svg {
+  width: 20px;
+  height: 20px;
+  margin-bottom: 4px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+}
+.rp-dropbox b {
+  color: var(--ink);
+  font-weight: 560;
+}
+.rp-docbtns {
+  display: flex;
+  gap: 6px;
+}
+.rp-docbtns .rp-btn {
+  flex: 1;
+}
+.rp-docempty .bp-recents-title {
+  padding-top: 6px;
+}
+
+/* 拖标签进面板：虚线投放框 */
+.rp-dropov {
+  position: absolute;
+  inset: 6px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--accent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  text-align: center;
+  font-size: var(--f12);
+  color: var(--muted);
+  opacity: 0;
+  transform: scale(0.98);
+  pointer-events: none;
+  transition:
+    opacity 0.16s ease,
+    transform 0.22s var(--ease-panel);
+}
+.rp-dropov div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rp-dropov b {
+  color: var(--ink);
+}
+.bpanel.drop-ok .rp-dropov {
+  opacity: 1;
+  transform: none;
+}
+
+/* 面板收起时窗口右缘的 84px 投放条（替代原来的右侧 38% 投放区） */
+.win-body .split-drop-zone {
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: 84px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--line-strong);
+  background: var(--surface-0);
+  box-shadow: none;
+  transform: translateX(12px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.24s var(--ease-panel),
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.win-body .split-drop-zone.show {
+  transform: none;
+  border-left-color: var(--line-strong);
+}
+.win-body .split-drop-zone.over {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  box-shadow: none;
+}
+.win-body .split-drop-zone .drop-message {
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: none;
+  box-shadow: none;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--muted);
+  text-align: center;
+  white-space: pre-line;
+}
+.win-body .split-drop-zone.over .drop-message {
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-seg .spin,
+  .rp-page .fav .ring {
+    animation-duration: 2.4s;
+  }
+  .rp-dropov,
+  .rp-undo-enter-active,
+  .rp-undo-leave-active,
+  .rp-pop-enter-active {
+    transition: opacity 0.12s linear;
+  }
+  .win-body .bpanel.collapsed {
+    transition-delay: 0s;
+  }
+}

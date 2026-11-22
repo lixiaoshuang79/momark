@@ -18,7 +18,14 @@ interface SetLayoutOptions {
   scheduleBufferUpdate?: boolean
 }
 
-export type LayoutEntry = 'showTabBar' | 'headingRailPinned' | 'folderDrawer'
+export type LayoutEntry =
+  | 'showTabBar'
+  | 'headingRailPinned'
+  | 'folderDrawer'
+  | 'rightPanel'
+  | 'rightPanelWeb'
+  | 'rightPanelDoc'
+  | 'rightPanelAnnotation'
 
 interface BufferedLayout {
   showTabBar: boolean
@@ -88,6 +95,15 @@ export const useLayoutStore = defineStore('layout', () => {
       SET_HEADING_RAIL_PINNED(!usePreferencesStore().headingRailPinned)
     } else if (entryName === 'folderDrawer') {
       folderDrawerOpen.value = !folderDrawerOpen.value
+    } else if (entryName === 'rightPanel') {
+      // 右侧栏（feat/right-panel-redesign）：菜单 / 快捷键 / 命令面板 → 右侧栏组件
+      bus.emit('right-panel:toggle')
+    } else if (entryName === 'rightPanelWeb') {
+      bus.emit('right-panel:open-to', 'url')
+    } else if (entryName === 'rightPanelDoc') {
+      bus.emit('right-panel:open-to', 'doc')
+    } else if (entryName === 'rightPanelAnnotation') {
+      bus.emit('right-panel:open-to', 'annotation')
     }
   }
 

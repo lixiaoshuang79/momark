@@ -97,6 +97,11 @@ const keybindings: Map<string, string> = new Map([
   ['view.focus-mode', 'Command+Shift+J'],
   ['view.toggle-heading-labels', 'Command+\\'],
   ['view.folder-drawer', 'Command+Shift+E'],
+  // 右侧栏（feat/right-panel-redesign）：⌥⌘\ 与左侧 ⌘\ 对称；⌥⌘1/2/3 直接打开到某个 tab。
+  ['view.right-panel', 'Command+Option+\\'],
+  ['view.right-panel-web', 'Command+Option+1'],
+  ['view.right-panel-doc', 'Command+Option+2'],
+  ['view.right-panel-annotation', 'Command+Option+3'],
   ['view.toggle-tabbar', 'Command+Option+B'],
   ['view.toggle-dev-tools', 'Command+Option+I'],
   ['view.dev-reload', 'Command+Option+R'],

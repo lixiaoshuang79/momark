@@ -1,5 +1,6 @@
 <template>
   <aside
+    ref="panelEl"
     class="bpanel"
     :class="{
       collapsed: !bpanelOpen,
@@ -7,37 +8,62 @@
       'drop-ok': dragState === 'over'
     }"
     :style="panelStyle"
-    aria-label="右侧浏览器面板"
+    :aria-label="t('rightPanel.label')"
+    :aria-hidden="!bpanelOpen"
+    :inert="!bpanelOpen || undefined"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
     @drop="onDrop"
+    @keydown.esc="onEsc"
   >
-    <div class="bp-inner">
-      <div class="bp-body">
-        <!-- 顶部 2px 墨蓝进度线（任何激活页加载中即显示，滑动动画） -->
-        <div class="bp-track" :class="{ show: activePageLoading }" />
+    <div ref="innerEl" class="bp-inner">
+      <bp-head :overlay="panelOverlay" :entering="entering" @collapse="bpStore.SET_OPEN(false)" />
+      <!-- 头部下方 2px 墨蓝进度线（任何激活页加载中即显示） -->
+      <div class="bp-track" :class="{ show: activePageLoading }" />
 
-        <!-- 三种内容常驻挂载（v-show）：切换网页/文档/标注、收起再展开面板
-             都不影响里面的内容与状态（网页滚动/登录态、预览文档保持）。
-             极速模式例外：网页模式整块卸载，保证一个 <webview> 都不留。 -->
-        <url-mode v-if="!turboMode" v-show="activeTab === 'url'" />
-        <doc-mode v-show="activeTab === 'doc'" ref="docModeRef" />
-        <annotation-mode v-show="activeTab === 'annotation'" />
+      <!-- 三个 pane 常驻挂载（v-show）：切换 tab、收起再展开都不影响里面的内容与
+           状态（网页登录态/滚动、分屏文档）。极速模式例外：网页 pane 整块卸载，
+           保证一个 <webview> 都不留。切换时按 tab 顺序水平进出（共享 X 轴）。 -->
+      <div class="rp-panes">
+        <section
+          v-if="!turboMode"
+          v-show="isShown('url')"
+          id="rp-pane-url"
+          ref="paneUrl"
+          class="rp-pane"
+          role="tabpanel"
+          aria-labelledby="rp-tab-url"
+        >
+          <url-mode />
+        </section>
+        <section
+          v-show="isShown('doc')"
+          id="rp-pane-doc"
+          ref="paneDoc"
+          class="rp-pane"
+          role="tabpanel"
+          aria-labelledby="rp-tab-doc"
+        >
+          <doc-mode />
+        </section>
+        <section
+          v-show="isShown('annotation')"
+          id="rp-pane-annotation"
+          ref="paneAnn"
+          class="rp-pane"
+          role="tabpanel"
+          aria-labelledby="rp-tab-annotation"
+        >
+          <annotation-mode />
+        </section>
       </div>
 
-      <!-- 底部条按 tab 各归其位：网址 = 40px 导航条；文档 = 「打开文件… /
-           新建文件」（36px 顶部 hairline，两按钮左右等分）；标注 = 面板自带
-           底条（annotationMode.vue 内），所以这里两套都收起。 -->
-      <nav-bar v-if="!turboMode" v-show="activeTab === 'url'" />
-      <div v-show="activeTab === 'doc'" class="bp-doc-actions">
-        <button class="bp-openfile" @click="openDocFile">
-          <mo-icon name="i-folder" />
-          打开文件…
-        </button>
-        <button class="bp-openfile" @click="newDocFile">
-          <mo-icon name="i-file" />
-          新建文件
-        </button>
+      <!-- 拖标签进面板：虚线投放框 -->
+      <div class="rp-dropov" aria-hidden="true">
+        <div>
+          <b>{{ t('rightPanel.drop.title', { name: dragName }) }}</b>
+          <span>{{ t('rightPanel.drop.sub') }}</span>
+        </div>
       </div>
     </div>
 
@@ -50,29 +76,33 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import MoIcon from '@/components/icons/MoIcon.vue'
-import { useBrowserPanelStore } from '@/store/browserPanel'
+import { t } from '../../i18n'
+import { useBrowserPanelStore, type BpActiveTab } from '@/store/browserPanel'
+import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { useSplitStore } from '@/store/split'
 import { useWorkspaceStore } from '@/store/workspace'
+import BpHead from './bpHead.vue'
 import UrlMode from './urlMode.vue'
 import DocMode from './docMode.vue'
 import AnnotationMode from './annotationMode.vue'
-import NavBar from './navBar.vue'
 import QuickPhraseSettings from '@/components/quickPhraseSettings.vue'
 import { prefersReducedMotion, useAnnotationStore } from '@/store/annotation'
+import bus from '../../bus'
+import './rightPanel.css'
 
 /**
- * 右侧浏览器面板容器（PHASE2-SPEC §5 / STATE-MACHINE BpState）：
- * 宽 288px（默认收起 0，.42s --ease-panel 显式宽度动画）、左缘 .5px 发丝线；
- * 分屏文档态 min(480px,60%)；win-body 挂 .panel-open（由 app.vue 统一挂载）。
- * 面板整体是标签拖放目标（.drop-ok = 2px dashed accent outline）。
+ * 右侧栏容器（feat/right-panel-redesign，DESIGN-NOTES §3）：
+ * 宽度 = workspace.panelWidthPx（按比例派生）；收起宽 0。内容固定在目标宽度、
+ * 贴右侧（像抽屉一样滑出，过程中不重新排版）。窄窗下 .overlay 浮在正文上方。
+ * 面板整体是标签拖放目标（.drop-ok 显示虚线投放框）。
  */
 
 const bpStore = useBrowserPanelStore()
 const splitStore = useSplitStore()
 const workspaceStore = useWorkspaceStore()
 const preferencesStore = usePreferencesStore()
+const editorStore = useEditorStore()
 
 const {
   open: bpanelOpen,
@@ -93,19 +123,150 @@ watch(
   }
 )
 
-const docModeRef = ref<InstanceType<typeof DocMode> | null>(null)
+const panelEl = ref<HTMLElement | null>(null)
+const innerEl = ref<HTMLElement | null>(null)
 
 const panelStyle = computed(() => ({
   width: bpanelOpen.value ? `${panelWidthPx.value}px` : '0px',
-  // round18：面板宽度的 CSS 变量——Dock 落点的网址栏要按面板宽度撑开
-  // （它挂在 34px 的 Dock 项里，百分比量不到面板宽）。
   '--panel-w': `${panelWidthPx.value}px`
 }))
 
 const activePageLoading = computed(() => {
+  if (activeTab.value !== 'url') return false
   const page = urlPages.value.find((p) => p.id === activePageId.value)
   return !!page && page.loading
 })
+
+const dragName = computed(() => {
+  const id = splitStore.dragTabId
+  const tab = id ? editorStore.tabs.find((item) => item.id === id) : null
+  return tab?.filename ?? ''
+})
+
+// ══ tab 内容切换：共享 X 轴（DESIGN-NOTES §3.3）══
+// 旧内容朝反方向退 14px、130ms 淡出；新内容从切换方向 28px 外滑入，300ms，延迟 60ms。
+const ORDER: BpActiveTab[] = ['url', 'doc', 'annotation']
+const paneUrl = ref<HTMLElement | null>(null)
+const paneDoc = ref<HTMLElement | null>(null)
+const paneAnn = ref<HTMLElement | null>(null)
+const paneOf = (tab: BpActiveTab): HTMLElement | null =>
+  tab === 'url' ? paneUrl.value : tab === 'doc' ? paneDoc.value : paneAnn.value
+
+const leaving = ref<BpActiveTab | null>(null)
+const isShown = (tab: BpActiveTab): boolean => activeTab.value === tab || leaving.value === tab
+
+let leaveAnim: Animation | null = null
+watch(activeTab, async (to, from) => {
+  leaveAnim?.cancel()
+  leaveAnim = null
+  if (!bpanelOpen.value || !from || from === to) {
+    leaving.value = null
+    return
+  }
+  const reduced = prefersReducedMotion()
+  const dir = ORDER.indexOf(to) > ORDER.indexOf(from) ? 1 : -1
+  leaving.value = from
+  await nextTick()
+  const outEl = paneOf(from)
+  const inEl = paneOf(to)
+  inEl?.animate(
+    reduced
+      ? [{ opacity: 0 }, { opacity: 1 }]
+      : [
+          { opacity: 0, transform: `translateX(${28 * dir}px)` },
+          { opacity: 1, transform: 'none' }
+        ],
+    {
+      duration: reduced ? 120 : 300,
+      delay: reduced ? 0 : 60,
+      easing: 'cubic-bezier(0.2, 0, 0, 1)',
+      fill: 'backwards'
+    }
+  )
+  if (!outEl) {
+    leaving.value = null
+    return
+  }
+  const anim = outEl.animate(
+    reduced
+      ? [{ opacity: 1 }, { opacity: 0 }]
+      : [
+          { opacity: 1, transform: 'none' },
+          { opacity: 0, transform: `translateX(${-14 * dir}px)` }
+        ],
+    { duration: reduced ? 120 : 130, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' }
+  )
+  leaveAnim = anim
+  const done = (): void => {
+    if (leaveAnim === anim) leaveAnim = null
+    if (leaving.value === from) leaving.value = null
+    anim.cancel()
+  }
+  anim.onfinish = done
+  anim.oncancel = () => {
+    if (leaving.value === from) leaving.value = null
+  }
+})
+
+// ══ 开合节奏（DESIGN-NOTES §3.2）══
+// 打开：宽度 0 → 目标 380ms（CSS）；三个 tab 90/135/180ms 依次从右侧 18px 外淡入
+// （300ms）；当前内容 170ms 上移 8px 淡入；选中块 210ms 从 0.9 倍淡入。
+// 收起：内容 80ms 淡出，宽度 260ms 收回（CSS）；焦点在面板里则还给开关按钮。
+const entering = ref(false)
+let enterTimer: ReturnType<typeof setTimeout> | null = null
+const playOpen = (): void => {
+  if (prefersReducedMotion()) return
+  const root = innerEl.value
+  if (!root) return
+  entering.value = true
+  if (enterTimer) clearTimeout(enterTimer)
+  enterTimer = setTimeout(() => {
+    entering.value = false
+    enterTimer = null
+  }, 600)
+  const ease = 'cubic-bezier(0.2, 0, 0, 1)'
+  root.querySelectorAll<HTMLElement>('.rp-seg > button').forEach((btn, i) => {
+    btn.animate(
+      [
+        { opacity: 0, transform: 'translateX(18px)' },
+        { opacity: 1, transform: 'none' }
+      ],
+      { duration: 300, delay: 90 + i * 45, easing: ease, fill: 'backwards' }
+    )
+  })
+  root.querySelector<HTMLElement>('.rp-seg-ind')?.animate(
+    [
+      { opacity: 0, transform: 'scale(0.9)' },
+      { opacity: 1, transform: 'none' }
+    ],
+    { duration: 240, delay: 210, easing: ease, fill: 'backwards' }
+  )
+  paneOf(activeTab.value)?.animate(
+    [
+      { opacity: 0, transform: 'translateY(8px)' },
+      { opacity: 1, transform: 'none' }
+    ],
+    { duration: 300, delay: 170, easing: ease, fill: 'backwards' }
+  )
+}
+
+watch(bpanelOpen, (isOpen) => {
+  if (isOpen) {
+    nextTick(playOpen)
+    return
+  }
+  leaving.value = null
+  const active = document.activeElement
+  if (active && panelEl.value?.contains(active)) {
+    document.querySelector<HTMLElement>('.editor-tabs .panel-toggle')?.focus()
+  }
+})
+
+// 浮层模式下 Esc 收起（停靠模式下 Esc 留给面板内部，如地址栏取消编辑）。
+const onEsc = (event: KeyboardEvent): void => {
+  if (!panelOverlay.value || event.defaultPrevented) return
+  bpStore.SET_OPEN(false)
+}
 
 // ══ 拖放目标：整个面板可接收标签 drop ══
 const onDragOver = (event: DragEvent) => {
@@ -126,42 +287,28 @@ const onDrop = (event: DragEvent) => {
   bpStore.SET_DRAG_STATE('none')
   const id = splitStore.dragTabId
   if (!id) return
-  // round11 通知精简（用户拍板）：重复拖入已在分屏的文件不弹 toast，
-  // 投放区/右侧面板本身已呈现该文件，用户可自行看见。
+  // round11 通知精简（用户拍板）：重复拖入已在分屏的文件不弹 toast。
   splitStore.DRAG_TO_SPLIT(id)
   splitStore.dragTabId = null
 }
 
-const openDocFile = () => {
-  docModeRef.value?.openFile()
-}
-
-const newDocFile = () => {
-  docModeRef.value?.newFile()
-}
-
-// ══ 飞点（原型动效 #22/#23，feat/quick-phrases）══
-// 卡片保存成功（引擎事件 muya-annotation-saved → annotation store 的 savedPulse）
-// 且**标注面板没开着**时，从保存按钮（origin，视口坐标）飞一个 8px 墨蓝圆点到
-// 标签栏「标注」徽标：弧线（顶点高 36px）460ms，末段淡出；到达后徽标弹跳
-// （bpModes 监听 badgePulse 播 1→1.22→1）。标注面板正开着时互斥——那一路由
-// annotationMode 的「新条目入场」承接（#24）。
+// ══ 新标注的反馈落点（DESIGN-NOTES §3.4 标注，三种情况互斥）══
+// 面板收起：圆点飞到开关图标（开关弹跳并出现小点）；面板打开但不在标注 tab：
+// 飞到标注徽标（徽标弹跳）；正在看标注 tab：不飞，卡片直接在列表里入场。
 const annotationStore = useAnnotationStore()
 
 const FLY_DURATION = 460
 const FLY_APEX = 36
 
-/**
- * 飞点落点：`.bp-mode-badge` 是 `v-if="uncopied"`，可能不存在；面板收起时整排
- * tab 都缩在 18px 的收起态里（不可见），此时不播（兜底 1）。徽标在但不可量
- * （极端布局）时退到「标注」tab 按钮本身（兜底 2）；两者都没有就放弃。
- */
 const flyTargetFor = (): HTMLElement | null => {
-  const modes = document.querySelector<HTMLElement>('.bp-modes.shown')
-  if (!modes) return null
-  const badge = modes.querySelector<HTMLElement>('.bp-mode-ann .bp-mode-badge')
+  if (!bpanelOpen.value) {
+    return document.querySelector<HTMLElement>('.editor-tabs .panel-toggle')
+  }
+  const tab = document.querySelector<HTMLElement>('.rp-head .rp-tab-annotation')
+  if (!tab) return null
+  const badge = tab.querySelector<HTMLElement>('.rp-badge')
   if (badge && badge.getBoundingClientRect().width > 0) return badge
-  return modes.querySelector<HTMLElement>('.bp-mode-ann')
+  return tab
 }
 
 const playFlyDot = (origin: { x: number; y: number }): void => {
@@ -184,8 +331,6 @@ const playFlyDot = (origin: { x: number; y: number }): void => {
   const STEPS = 18
   const ctrlX = (origin.x + to.x) / 2
   const ctrlY = (origin.y + to.y) / 2 - FLY_APEX * 2
-  // 关键帧写成结构类型而不是 `Keyframe[]`：.vue 的 ESLint 作用域不认 DOM 全局类型
-  // （结构上可赋给 WAAPI 的 Keyframe），少一条 no-undef 噪音。
   const keyframes: Array<{ offset: number; transform: string; opacity: number }> = []
   for (let i = 0; i <= STEPS; i += 1) {
     const p = i / STEPS
@@ -225,11 +370,22 @@ watch(
   }
 )
 
+// 菜单 / 快捷键（⌥⌘\、⌥⌘1/2/3）与开关右键菜单统一走 bus。
+const onToggleBus = (): void => bpStore.TOGGLE_PANEL()
+const onOpenToBus = (tab: unknown): void => {
+  if (tab === 'url' || tab === 'doc' || tab === 'annotation') bpStore.OPEN_TO_TAB(tab)
+}
+
 onMounted(() => {
   bpStore.LISTEN()
+  bus.on('right-panel:toggle', onToggleBus)
+  bus.on('right-panel:open-to', onOpenToBus)
 })
 
 onBeforeUnmount(() => {
   bpStore.STOP_LISTENING()
+  bus.off('right-panel:toggle', onToggleBus)
+  bus.off('right-panel:open-to', onOpenToBus)
+  if (enterTimer) clearTimeout(enterTimer)
 })
 </script>

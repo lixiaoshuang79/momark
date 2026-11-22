@@ -70,15 +70,26 @@
     <!-- 右栏文档指示已移到窗口顶栏（titleBar，「文件A | 文件B」竖线分隔、
          可拖回标签栏）。 -->
 
+    <!-- 右侧栏开关（feat/right-panel-redesign，DESIGN-NOTES §3.1）：同一个图标、
+         两种填充状态——打开时右侧一栏从右向左填满（墨蓝），按钮底色变浅墨蓝；
+         收起且有未复制标注时右上角一个 7px 墨蓝点。右键可直接打开到某个 tab。 -->
     <button
+      ref="panelToggleEl"
       class="tb-toggle panel-toggle"
-      :class="{ rolled: bpanelOpen }"
-      :title="t('sideBar.rightPanelTitle')"
+      :class="{ on: bpanelOpen, 'has-dot': toggleDot }"
+      :title="panelToggleTitle"
+      :aria-label="panelToggleTitle"
+      :aria-pressed="bpanelOpen"
       @click.stop="toggleBpPanel"
+      @contextmenu.prevent.stop="openPanelMenu"
     >
-      <mo-icon :name="bpanelOpen ? 'i-x' : 'i-partition'" />
+      <svg class="pt-icon" viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="2" y="3" width="12" height="10" rx="2" />
+        <path d="M10 3v10" />
+        <path class="pfill" d="M10 3h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2z" />
+      </svg>
+      <i class="tdot" />
     </button>
-    <bp-modes :shown="bpanelOpen" />
   </div>
 </template>
 
@@ -100,7 +111,8 @@ import type { IFileState } from '@shared/types/files'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import { useSplitStore } from '@/store/split'
 import { useWorkspaceStore } from '@/store/workspace'
-import BpModes from '@/components/browserPanel/bpModes.vue'
+import { useAnnotationStore, prefersReducedMotion } from '@/store/annotation'
+import { popupContextMenu } from '../../contextMenu/popupMenu'
 import { motionReduced } from '@/util/motion'
 import { getTabLabels } from '@/util/tabLabels'
 // 正文整屏滑出/滑入动效的全局样式（类名挂在兄弟组件的根节点上，
@@ -161,6 +173,65 @@ const shortcutHint = (key: string, shift = false): string => {
 const toggleBpPanel = () => {
   bpStore.TOGGLE_PANEL()
 }
+
+// ── 右侧栏开关：tooltip / 未复制标注小点 / 右键「打开到…」/ 飞点到达弹跳 ──
+const annotationStore = useAnnotationStore()
+const preferencesStore = usePreferencesStore()
+const panelToggleEl = ref<HTMLElement | null>(null)
+const panelShortcut = (n?: number): string => {
+  if (n !== undefined && isLinux) return ''
+  const key = n === undefined ? '\\' : String(n)
+  return isOsx ? `⌥⌘${key}` : `Ctrl+Alt+${key}`
+}
+const annotationOn = computed(() => preferencesStore.annotationEnabled !== false)
+const toggleDot = computed(
+  () => !bpanelOpen.value && annotationOn.value && annotationStore.uncopiedCount > 0
+)
+const panelToggleTitle = computed(() => {
+  if (bpanelOpen.value) return `${t('rightPanel.toggle.close')} ${panelShortcut()}`
+  const base = toggleDot.value
+    ? t('rightPanel.toggle.openWithPending', { n: annotationStore.uncopiedCount })
+    : t('rightPanel.toggle.open')
+  return `${base} ${panelShortcut()}`
+})
+const openPanelMenu = (event: MouseEvent) => {
+  const accel = (n: number): string | undefined =>
+    isLinux ? undefined : `${isOsx ? 'Command' : 'Ctrl'}+Alt+${n}`
+  const items = [
+    !bpStore.turboMode && {
+      label: t('rightPanel.toggle.openTo', { tab: t('rightPanel.tab.web') }),
+      accelerator: accel(1),
+      click: () => bpStore.OPEN_TO_TAB('url')
+    },
+    {
+      label: t('rightPanel.toggle.openTo', { tab: t('rightPanel.tab.doc') }),
+      accelerator: accel(2),
+      click: () => bpStore.OPEN_TO_TAB('doc')
+    },
+    annotationOn.value && {
+      label: t('rightPanel.toggle.openTo', { tab: t('annotation.tab') }),
+      accelerator: accel(3),
+      click: () => bpStore.OPEN_TO_TAB('annotation')
+    },
+    bpanelOpen.value && { type: 'separator' },
+    bpanelOpen.value && {
+      label: t('rightPanel.toggle.close'),
+      click: () => bpStore.SET_OPEN(false)
+    }
+  ].filter(Boolean) as Array<{ label?: string; type?: string; click?: () => void }>
+  popupContextMenu(items, { x: event.clientX, y: event.clientY })
+}
+// 面板收起时新标注的飞点落在开关上：到达后开关弹跳一下
+watch(
+  () => annotationStore.badgePulse,
+  () => {
+    if (bpanelOpen.value || prefersReducedMotion()) return
+    panelToggleEl.value?.animate(
+      [{ transform: 'scale(1)' }, { transform: 'scale(1.16)' }, { transform: 'scale(1)' }],
+      { duration: 300, easing: 'cubic-bezier(0.18, 1.28, 0.36, 1)' }
+    )
+  }
+)
 
 // 标签拖回标签栏（顶栏右文档名的 return-drag，PHASE2-SPEC §3.4）：
 // dragstart 时高亮投放区——多文档态=标签条（accentSoft 底 + accent 环）；
@@ -704,12 +775,66 @@ onBeforeUnmount(() => {
 }
 .editor-tabs.single .tb-toggle:hover,
 .editor-tabs.single .tb-toggle.on,
-.editor-tabs.single .tb-toggle.rolled {
+.editor-tabs.single .tb-toggle.has-dot {
   opacity: 1;
 }
 /* 单文档态无标签，右开关靠 margin 顶到右端（与多文档位置一致） */
 .editor-tabs.single .tb-toggle.panel-toggle {
   margin-left: auto;
+}
+
+/* ── 右侧栏开关（feat/right-panel-redesign）：同形图标 + 填充表示开合 ── */
+.editor-tabs {
+  padding-right: 6px;
+}
+.tb-toggle.panel-toggle {
+  position: relative;
+}
+.tb-toggle.panel-toggle:active {
+  transform: scale(0.94);
+}
+.pt-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pt-icon .pfill {
+  fill: currentColor;
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: right center;
+  transform: scaleX(0);
+  transition: transform 0.32s var(--ease-panel);
+}
+.tb-toggle.panel-toggle.on .pfill {
+  transform: scaleX(1);
+}
+.tb-toggle.panel-toggle .tdot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+  transform: scale(0);
+  transition: transform 0.25s var(--ease-panel);
+}
+.tb-toggle.panel-toggle.has-dot .tdot {
+  transform: scale(1);
+}
+.tb-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-icon .pfill,
+  .tb-toggle.panel-toggle .tdot {
+    transition: none;
+  }
 }
 
 .tabstrip {

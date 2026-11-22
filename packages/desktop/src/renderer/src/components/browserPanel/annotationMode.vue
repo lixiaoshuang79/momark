@@ -743,62 +743,82 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: transparent;
 }
+/* 「当前 / 历史」二级 tab（feat/right-panel-redesign）：文字 + 2px 下划线表示
+   选中，与一级的分段控件区分层级；右侧是计数。 */
 .ann-head {
-  padding: 12px 12px 9px;
-  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex: none;
+  height: 36px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border-bottom: 0.5px solid var(--line);
 }
-/* 「当前 / 历史」滑块：与顶部「网页/文档/标注」同一套视觉语言——
-   白卡滑块在选项间滑动（同款回弹缓动），按钮只做文字颜色过渡。 */
 .seg2 {
   position: relative;
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 8px;
-  margin-bottom: 9px;
-  background: var(--hover);
-  height: 29px;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  flex: none;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  background: none;
 }
 .seg2-slider {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: calc(50% - 3px);
-  height: calc(100% - 4px);
-  background: var(--surface-2);
-  border-radius: 6px;
-  box-shadow: 0 0 0 1px var(--line-strong);
-  transition: transform 0.34s cubic-bezier(0.3, 1.35, 0.4, 1);
+  left: 0;
+  bottom: -0.5px;
+  width: 50%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ink);
+  transition: transform 0.26s cubic-bezier(0.2, 0, 0, 1);
   z-index: 0;
 }
-[data-theme='dark'] .seg2-slider {
-  background: #3d5a80;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
-}
 .seg2-slider.right {
-  transform: translateX(calc(100% + 2px));
+  transform: translateX(100%);
 }
 .seg2 button {
   position: relative;
   z-index: 1;
-  flex: 1;
   display: grid;
   place-items: center;
+  padding: 0 8px;
   border: none;
   background: transparent;
-  border-radius: 6px;
   font-size: 12.5px;
   font-family: inherit;
   color: var(--muted);
+  white-space: nowrap;
   cursor: pointer;
   transition: color 0.14s ease;
 }
+.seg2 button:hover {
+  color: var(--ink);
+}
+.seg2 button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 6px;
+}
 .seg2 button[aria-selected='true'] {
   color: var(--ink);
-  font-weight: 500;
+  font-weight: 560;
+}
+@media (prefers-reduced-motion: reduce) {
+  .seg2-slider {
+    transition: none;
+  }
 }
 .counts {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11.5px;
   color: var(--faint);
 }

@@ -13,32 +13,35 @@
         :title-saved="titleStats.isSaved"
       />
 
-      <!-- 标签栏：win-body 之上的全宽行（PHASE2-SPEC §1：标题栏 40px /
-           标签栏 40px）。面包屑行已按用户要求取消——路径信息只在顶栏显示。
-           单文档态同样渲染该行（只保留两端侧栏开关、标签条隐藏）：
-           左右开关单/多文档位置统一（用户拍板）。 -->
-      <div v-if="(hasCurrentFile || splitActive) && init" class="editor-chrome">
-        <editor-tabs />
-      </div>
-
-      <!-- 主体：标题轨 / 编辑区列 / 分隔线 / 右侧浏览器面板
-           （PHASE2-SPEC §1/§3：win-body 行从面包屑行之下开始）。左侧边栏已移除
-           （feat/heading-rail）：文档结构由标题轨承担，同目录文件由文件夹抽屉承担。 -->
+      <!-- 主体：左列（标签栏 + 标题轨 / 编辑区）/ 分隔线 / 右侧栏
+           feat/right-panel-redesign：右侧栏从标签栏那一行开始（面板头部的
+           「网页 / 文档 / 标注」与标签栏同高、对齐成一行），标签栏只在左列，
+           最右端是面板开关。左侧边栏已移除（feat/heading-rail）。 -->
       <div class="win-body" :class="winBodyClasses">
-        <heading-rail v-if="init" />
+        <div class="win-main">
+          <!-- 标签栏（PHASE2-SPEC §1：标题栏 40px / 标签栏 40px）。单文档态同样渲染该行
+               （左右开关单/多文档位置统一，用户拍板）。 -->
+          <div v-if="(hasCurrentFile || splitActive) && init" class="editor-chrome">
+            <editor-tabs />
+          </div>
 
-        <div class="editor-main-col">
-          <div v-if="!init" class="editor-placeholder" />
-          <recent v-if="!hasCurrentFile && init" />
-          <editor-with-tabs
-            v-if="hasCurrentFile && init"
-            :markdown="markdown"
-            :cursor="cursor"
-            :muya-index-cursor="muyaIndexCursor"
-            :source-code="sourceCode"
-            :text-direction="textDirection"
-            :platform="platform"
-          />
+          <div class="win-main-body">
+            <heading-rail v-if="init" />
+
+            <div class="editor-main-col">
+              <div v-if="!init" class="editor-placeholder" />
+              <recent v-if="!hasCurrentFile && init" />
+              <editor-with-tabs
+                v-if="hasCurrentFile && init"
+                :markdown="markdown"
+                :cursor="cursor"
+                :muya-index-cursor="muyaIndexCursor"
+                :source-code="sourceCode"
+                :text-direction="textDirection"
+                :platform="platform"
+              />
+            </div>
+          </div>
         </div>
 
         <splitter v-if="showSplitter" />
@@ -390,7 +393,19 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
 }
-/* 主体三栏行：编辑区列 / 分隔线 / 右栏 */
+/* 主体左列：标签栏 + （标题轨 / 编辑区）；右侧栏与它并排、从同一行开始 */
+.win-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.win-main-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+}
 .editor-main-col {
   flex: 1;
   min-width: 0;
