@@ -1,18 +1,9 @@
 <template>
   <!-- 面板头部（feat/right-panel-redesign，DESIGN-NOTES §3.3）：铺满面板宽度的分段
        控件「网页 / 文档 / 标注」，与标签栏同高；选中块「拉伸 → 收拢」；只剩一个
-       tab 时改为标题。浮层模式左端多一个「收起 ›」。 -->
+       tab 时改为标题。右端留出位置给钉在 win-body 右上角的面板开关（round2：开关
+       常驻可见，浮层模式也不会被盖住，原「收起 ›」按钮随之去掉；Esc 仍可收起）。 -->
   <div class="rp-head" :class="{ entering }">
-    <button
-      v-if="overlay"
-      class="rp-ib rp-collapse"
-      :title="t('rightPanel.collapse') + ' Esc'"
-      :aria-label="t('rightPanel.collapse')"
-      @click="emit('collapse')"
-    >
-      <mo-icon name="i-chev-right" />
-    </button>
-
     <div
       v-if="tabs.length > 1"
       ref="segEl"
@@ -66,8 +57,7 @@ import { useBrowserPanelStore, type BpActiveTab } from '@/store/browserPanel'
 import { usePreferencesStore } from '@/store/preferences'
 import { useSplitStore } from '@/store/split'
 
-defineProps<{ overlay: boolean; entering: boolean }>()
-const emit = defineEmits<{ (e: 'collapse'): void }>()
+defineProps<{ entering: boolean }>()
 
 const bpStore = useBrowserPanelStore()
 const annotationStore = useAnnotationStore()

@@ -58,7 +58,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px;
+  /* 右端让给面板开关（钉在 win-body 右上角，32px + 与分段控件 6px 间距） */
+  padding: 0 calc(var(--panel-toggle-inset, 5px) + 32px + 6px) 0 8px;
   box-sizing: border-box;
 }
 .rp-seg {
@@ -319,12 +320,6 @@
 .rp-btn svg {
   width: 13px;
   height: 13px;
-}
-
-/* 收起 ›（浮层模式） */
-.rp-collapse svg {
-  width: 14px;
-  height: 14px;
 }
 
 /* ── 网页 pane ── */

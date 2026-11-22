@@ -12,6 +12,22 @@
   display: flex;
   min-height: 0;
   position: relative;
+  /* 右侧栏开关（PanelToggle.vue）的固定位置：距窗口右缘 = 面板外边距 + 卡片内缩。
+     收起时标签条右侧为它预留 --panel-toggle-reserve；展开（停靠）后它在面板头部里，
+     标签条不再预留。 */
+  --panel-gutter: 0px;
+  --panel-toggle-inset: 5px;
+  --panel-toggle-right: calc(var(--panel-gutter) + var(--panel-toggle-inset));
+  --panel-toggle-reserve: calc(var(--panel-toggle-right) + 32px + 8px);
+  /* 面板开合曲线（round2）：v1 的 --ease-panel(.22,1,.36,1) 前段极陡，418px 的
+     宽度在头 60ms 就走完九成，观感是「被顶开」。改为 (.32,.72,0,1)：起步更柔、
+     尾段长滑，和标题轨（小位移 + --ease-panel）在体感上同样顺。 */
+  --panel-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --panel-open-dur: 0.42s;
+  --panel-close-dur: 0.3s;
+}
+.win-body.panel-open:not(.panel-overlay) {
+  --panel-toggle-reserve: 6px;
 }
 
 /* 双屏分栏：左栏与右文档窗格内容顶部对齐、padding 对称。
@@ -53,7 +69,7 @@
   cursor: col-resize;
   touch-action: none;
   outline: none;
-  transition: right 0.38s var(--ease-panel);
+  transition: right var(--panel-open-dur) var(--panel-ease);
 }
 .win-body.dragging-split .splitter {
   transition: none;
@@ -202,10 +218,10 @@
   position: relative;
   /* 开合动画 380ms --ease-panel：显式宽度动画（内联 width 驱动）；
      收起 260ms 标准减速（.collapsed 覆盖）。 */
-  transition: width 0.38s var(--ease-panel);
+  transition: width var(--panel-open-dur) var(--panel-ease);
 }
 .bpanel.collapsed {
-  transition: width 0.26s cubic-bezier(0.2, 0, 0, 1);
+  transition: width var(--panel-close-dur) var(--panel-ease);
 }
 /* 窄窗（可用宽 − 280 < 480）：面板浮在正文上方，正文宽度不变。 */
 .bpanel.overlay {

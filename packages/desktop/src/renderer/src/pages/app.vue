@@ -47,6 +47,9 @@
         <splitter v-if="showSplitter" />
         <split-drop-zone />
         <browser-panel />
+        <!-- 右侧栏开关（round2）：不属于左列也不属于面板，钉在本行右上角，
+             开合时位置不动（PanelToggle.vue）。 -->
+        <panel-toggle v-if="(hasCurrentFile || splitActive) && init" />
       </div>
 
       <!-- round10：底部状态栏已移除——侧栏/编辑区直接延伸到窗口底，
@@ -81,6 +84,7 @@ import ExportSettingDialog from '@/components/exportSettings/index.vue'
 import Rename from '@/components/rename/index.vue'
 import ImportModal from '@/components/import/index.vue'
 import BrowserPanel from '@/components/browserPanel/index.vue'
+import PanelToggle from '@/components/browserPanel/PanelToggle.vue'
 import Splitter from '@/components/splitter.vue'
 import SplitDropZone from '@/components/splitDropZone.vue'
 import bus from '@/bus'
@@ -226,6 +230,7 @@ const hasCurrentFile = computed<boolean>(() => {
 // .dragging-split = 分隔线拖动中（禁用面板宽度过渡 + 全局 col-resize）。
 const winBodyClasses = computed(() => ({
   'panel-open': bpanelOpen.value,
+  'panel-overlay': workspaceStore.panelOverlay,
   split: splitActive.value,
   'dragging-split': draggingSplit.value
 }))

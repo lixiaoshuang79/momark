@@ -17,7 +17,7 @@
     @keydown.esc="onEsc"
   >
     <div ref="innerEl" class="bp-inner">
-      <bp-head :overlay="panelOverlay" :entering="entering" @collapse="bpStore.SET_OPEN(false)" />
+      <bp-head :entering="entering" />
       <!-- 头部下方 2px 墨蓝进度线（任何激活页加载中即显示） -->
       <div class="bp-track" :class="{ show: activePageLoading }" />
 
@@ -258,7 +258,7 @@ watch(bpanelOpen, (isOpen) => {
   leaving.value = null
   const active = document.activeElement
   if (active && panelEl.value?.contains(active)) {
-    document.querySelector<HTMLElement>('.editor-tabs .panel-toggle')?.focus()
+    document.querySelector<HTMLElement>('.win-body > .panel-toggle')?.focus()
   }
 })
 
@@ -302,7 +302,7 @@ const FLY_APEX = 36
 
 const flyTargetFor = (): HTMLElement | null => {
   if (!bpanelOpen.value) {
-    return document.querySelector<HTMLElement>('.editor-tabs .panel-toggle')
+    return document.querySelector<HTMLElement>('.win-body > .panel-toggle')
   }
   const tab = document.querySelector<HTMLElement>('.rp-head .rp-tab-annotation')
   if (!tab) return null
