@@ -92,9 +92,10 @@ import bus from '../../bus'
 import './rightPanel.css'
 
 /**
- * 右侧栏容器（feat/right-panel-redesign，DESIGN-NOTES §3）：
- * 宽度 = workspace.panelWidthPx（按比例派生）；收起宽 0。内容固定在目标宽度、
- * 贴右侧（像抽屉一样滑出，过程中不重新排版）。窄窗下 .overlay 浮在正文上方。
+ * 右侧栏容器（feat/right-panel-redesign，DESIGN-NOTES §3；round3）：
+ * 宽度 = workspace.panelWidthPx（按比例派生）；收起宽 0。面板贴窗口右缘与底缘，
+ * 内容固定在目标宽度、钉在右侧——开合时只有左缘移动，内容原地揭开 / 盖上，
+ * 不平移、不重排。窄窗下 .overlay 浮在正文上方。
  * 面板整体是标签拖放目标（.drop-ok 显示虚线投放框）。
  */
 
@@ -208,46 +209,27 @@ watch(activeTab, async (to, from) => {
   }
 })
 
-// ══ 开合节奏（DESIGN-NOTES §3.2）══
-// 打开：宽度 0 → 目标 380ms（CSS）；三个 tab 90/135/180ms 依次从右侧 18px 外淡入
-// （300ms）；当前内容 170ms 上移 8px 淡入；选中块 210ms 从 0.9 倍淡入。
-// 收起：内容 80ms 淡出，宽度 260ms 收回（CSS）；焦点在面板里则还给开关按钮。
+// ══ 开合节奏（round3）══
+// 打开：列宽 0 → 目标（CSS，340ms），内容钉在右侧不动，被左缘原地揭开。头部
+// （三个 tab + 开关）完全不动；只有当前 pane 的正文在揭开过程中淡入（不位移），
+// 避免空白的大块先露出来。收起：不做内容动画，左缘向右收回、把内容盖上（260ms）；
+// 焦点在面板里则还给开关按钮。
 const entering = ref(false)
 let enterTimer: ReturnType<typeof setTimeout> | null = null
 const playOpen = (): void => {
   if (prefersReducedMotion()) return
-  const root = innerEl.value
-  if (!root) return
   entering.value = true
   if (enterTimer) clearTimeout(enterTimer)
   enterTimer = setTimeout(() => {
     entering.value = false
     enterTimer = null
-  }, 600)
-  const ease = 'cubic-bezier(0.2, 0, 0, 1)'
-  root.querySelectorAll<HTMLElement>('.rp-seg > button').forEach((btn, i) => {
-    btn.animate(
-      [
-        { opacity: 0, transform: 'translateX(18px)' },
-        { opacity: 1, transform: 'none' }
-      ],
-      { duration: 300, delay: 90 + i * 45, easing: ease, fill: 'backwards' }
-    )
+  }, 400)
+  paneOf(activeTab.value)?.animate([{ opacity: 0 }, { opacity: 1 }], {
+    duration: 240,
+    delay: 50,
+    easing: 'cubic-bezier(0.2, 0, 0, 1)',
+    fill: 'backwards'
   })
-  root.querySelector<HTMLElement>('.rp-seg-ind')?.animate(
-    [
-      { opacity: 0, transform: 'scale(0.9)' },
-      { opacity: 1, transform: 'none' }
-    ],
-    { duration: 240, delay: 210, easing: ease, fill: 'backwards' }
-  )
-  paneOf(activeTab.value)?.animate(
-    [
-      { opacity: 0, transform: 'translateY(8px)' },
-      { opacity: 1, transform: 'none' }
-    ],
-    { duration: 300, delay: 170, easing: ease, fill: 'backwards' }
-  )
 }
 
 watch(bpanelOpen, (isOpen) => {

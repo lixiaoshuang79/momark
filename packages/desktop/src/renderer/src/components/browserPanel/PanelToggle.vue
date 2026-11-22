@@ -100,7 +100,7 @@ watch(
 <style scoped>
 /* 定位：win-body 右上角、与标签栏同一行（标签栏 40px，按钮 32px，上下各 4px）。
    right 由 --panel-toggle-right 给出（browserPanel.css），展开后正好落在面板
-   卡片头部右端、与卡片圆角同心。 */
+   头部右端（round3：面板贴窗口右缘，开关距右缘 6px）。 */
 .panel-toggle {
   position: absolute;
   top: 4px;

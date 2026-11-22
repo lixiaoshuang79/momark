@@ -1,9 +1,10 @@
 /* ============================================================
-   右侧栏 v1 + round2（feat/right-panel-redesign，DESIGN-NOTES §3）
-   round2：面板回到 1.8.0 用户认可的「悬浮卡片」——白底、.5px 描边、12px 圆角、
-   轻投影，右/下留 8px 画布（--panel-gutter），顶边与标签栏同一行；卡片左缘就是
-   与正文的边界（分隔线热区压在这条边上）。开合时卡片整张从窗口右缘滑入/滑出，
-   内容在目标宽度上不重排；右上角的面板开关（PanelToggle）位置不动，卡片滑到它下面。
+   右侧栏 v1 + round2 + round3（feat/right-panel-redesign，DESIGN-NOTES §3）
+   round3（用户拍板）：面板贴窗口右缘与底缘，只画左边与上边两条边（左上角 12px
+   圆角），右边、下边直接延伸到窗口外，不留画布、不画边。边线画在面板盒内
+   （::after），不会再被 .win-body 的裁切吞掉。
+   开合：列宽 0 ↔ 目标宽，只有左缘在动；内容钉在右侧、固定目标宽，被原地揭开 /
+   盖上（与标题轨同一种原地展开）。右上角的面板开关位置不动。
    全部取值来自 tokens.css 令牌，深浅主题自动生效。
    曲线：空间位移 cubic-bezier(.2,0,0,1)；面板开合 --panel-ease；退出 (.4,0,1,1)。
    ============================================================ */
@@ -13,54 +14,58 @@
   --rp-exit: cubic-bezier(0.4, 0, 1, 1);
   --rp-head-h: 40px;
   --rp-radius: 12px;
-  /* 卡片底色：浅色纯白（比画布 --bg 亮一级），深色 surface-1（比画布亮一级） */
+  /* 面板底色：浅色纯白（比画布 --bg 亮一级），深色 surface-1（比画布亮一级） */
   --rp-surface: var(--surface-2);
-  --rp-card-ring: 0 0 0 0.5px rgba(11, 11, 11, 0.13);
-  --rp-card-shadow: 0 2px 8px rgba(0, 0, 0, 0.07), 0 12px 32px -16px rgba(0, 0, 0, 0.12);
-  --rp-card-shadow-float: 0 4px 12px rgba(0, 0, 0, 0.08), 0 24px 56px -12px rgba(0, 0, 0, 0.26);
+  /* 左 / 上两条边：.5px 发丝线（比 1.8.0 卡片描边略深一级：没有四周投影托底，边线要自己立住） */
+  --rp-edge: rgba(11, 11, 11, 0.2);
+  /* 左缘外侧一层很淡的投影，只朝正文方向，帮助边界在浅色下立住 */
+  --rp-edge-shadow: -1px 0 10px -4px rgba(0, 0, 0, 0.07);
+  --rp-edge-shadow-float: -10px 0 36px -8px rgba(0, 0, 0, 0.2);
+  background: var(--rp-surface);
+  border-top-left-radius: var(--rp-radius);
+  box-shadow: var(--rp-edge-shadow);
 }
 [data-theme='dark'] .bpanel {
   --rp-surface: var(--surface-1);
-  --rp-card-ring: 0 0 0 0.5px rgba(255, 255, 255, 0.09);
-  --rp-card-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
-  --rp-card-shadow-float: 0 4px 14px rgba(0, 0, 0, 0.4), 0 24px 56px -12px rgba(0, 0, 0, 0.6);
+  --rp-edge: rgba(255, 255, 255, 0.13);
+  --rp-edge-shadow: -1px 0 12px -4px rgba(0, 0, 0, 0.45);
+  --rp-edge-shadow-float: -10px 0 40px -8px rgba(0, 0, 0, 0.6);
+}
+/* 左边 + 上边：画在面板盒内、盖在内容（含 webview）之上，随左缘一起移动 */
+.bpanel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-top: 0.5px solid var(--rp-edge);
+  border-left: 0.5px solid var(--rp-edge);
+  border-top-left-radius: var(--rp-radius);
+}
+/* 浮层（窄窗）：同一块面板，左缘投影加深，表示它浮在正文之上 */
+.bpanel.overlay:not(.collapsed) {
+  box-shadow: var(--rp-edge-shadow-float);
 }
 
-/* 面板本体：卡片。贴面板列左缘（= 分隔线），宽 = 列宽 − 右侧画布留白。
-   列宽从 0 长到目标宽时，卡片随左缘一起从窗口右缘滑入（win-body 负责裁切）。 */
-.bpanel .bp-inner {
+/* 面板内容：钉在右侧、固定目标宽（--panel-w），开合时不平移、不重排。
+   左上圆角由列的 overflow + 圆角裁出。 */
+.bpanel .bp-inner,
+[data-theme='dark'] .bpanel .bp-inner {
   position: absolute;
   top: 0;
-  left: 0;
-  bottom: var(--panel-gutter, 8px);
-  width: calc(var(--panel-w) - var(--panel-gutter, 8px));
+  right: 0;
+  bottom: 0;
+  left: auto;
+  width: var(--panel-w);
   flex: none;
   margin: 0;
   border: 0;
-  border-radius: var(--rp-radius);
-  box-shadow: var(--rp-card-ring), var(--rp-card-shadow);
+  border-radius: 0;
+  box-shadow: none;
   background: var(--rp-surface);
   container-type: inline-size;
   container-name: rpanel;
   overflow: hidden;
-  visibility: visible;
-  transition: visibility 0s;
-}
-[data-theme='dark'] .bpanel .bp-inner {
-  background: var(--rp-surface);
-  border: 0;
-  box-shadow: var(--rp-card-ring), var(--rp-card-shadow);
-}
-/* 收起：卡片带着内容整张滑出（不再先淡出内容），滑完后才隐藏——否则停在窗口
-   右缘外的卡片投影会在右边漏出一道阴影。 */
-.bpanel.collapsed .bp-inner {
-  visibility: hidden;
-  transition: visibility 0s linear var(--panel-close-dur, 0.3s);
-}
-/* 浮层（窄窗）：同一张卡片，投影加深，表示它浮在正文之上 */
-.bpanel.overlay:not(.collapsed) .bp-inner,
-[data-theme='dark'] .bpanel.overlay:not(.collapsed) .bp-inner {
-  box-shadow: var(--rp-card-ring), var(--rp-card-shadow-float);
 }
 .bpanel.drop-ok .bp-inner {
   outline: none;

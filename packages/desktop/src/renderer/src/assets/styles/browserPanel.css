@@ -12,21 +12,24 @@
   display: flex;
   min-height: 0;
   position: relative;
-  /* 面板卡片从窗口右缘外滑入：在这里裁掉露在窗口外的部分 */
+  /* 面板贴窗口右缘与底缘，开合时由列宽从右向左「揭开」；这里裁掉面板左缘
+     投影越过窗口上缘的部分。 */
   overflow: clip;
-  /* 右侧栏开关（PanelToggle.vue）的固定位置：距窗口右缘 = 面板外边距 + 卡片内缩。
+  /* 右侧栏开关（PanelToggle.vue）的固定位置：距窗口右缘 --panel-toggle-inset。
      收起时标签条右侧为它预留 --panel-toggle-reserve；展开（停靠）后它在面板头部里，
-     标签条不再预留。 */
-  --panel-gutter: 8px;
-  --panel-toggle-inset: 5px;
-  --panel-toggle-right: calc(var(--panel-gutter) + var(--panel-toggle-inset));
+     标签条不再预留。round3：面板不再留右/下画布，开关只算内缩。 */
+  --panel-toggle-inset: 6px;
+  --panel-toggle-right: var(--panel-toggle-inset);
   --panel-toggle-reserve: calc(var(--panel-toggle-right) + 32px + 8px);
-  /* 面板开合曲线（round2）：v1 的 --ease-panel(.22,1,.36,1) 前段极陡，418px 的
-     宽度在头 60ms 就走完九成，观感是「被顶开」。改为 (.32,.72,0,1)：起步更柔、
-     尾段长滑，和标题轨（小位移 + --ease-panel）在体感上同样顺。 */
-  --panel-ease: cubic-bezier(0.32, 0.72, 0, 1);
-  --panel-open-dur: 0.42s;
-  --panel-close-dur: 0.3s;
+  /* 面板开合（round3）：只有面板左缘在动——列宽 0 ↔ 目标宽，内容钉在窗口右缘、
+     不随列平移（与标题轨同一种「原地展开」）。
+     打开 360ms (.2,0,0,1)：起步有一小段加速，不会头一帧就跳出一大块，再平稳减速停住；
+     收起 260ms (.4,0,.2,1)：对称的标准曲线，看得见左缘一路收回，不是「啪」一下没了。
+     round2 的 (.32,.72,0,1) 前段太陡：实测 90ms 时已走完九成以上。 */
+  --panel-ease: cubic-bezier(0.2, 0, 0, 1);
+  --panel-ease-close: cubic-bezier(0.4, 0, 0.2, 1);
+  --panel-open-dur: 0.36s;
+  --panel-close-dur: 0.26s;
 }
 .win-body.panel-open:not(.panel-overlay) {
   --panel-toggle-reserve: 6px;
@@ -79,9 +82,9 @@
 .splitter .sp-line {
   position: absolute;
   left: 4px;
-  /* 只画在卡片左缘的直边段上（避开上下圆角与底部画布留白） */
+  /* 只画在面板左缘的直边段上（避开左上圆角；底部直接到窗口底） */
   top: 12px;
-  bottom: calc(var(--panel-gutter) + 12px);
+  bottom: 0;
   border-radius: 1px;
   width: 1px;
   background: transparent;
@@ -211,20 +214,27 @@
 }
 
 /* ── 右侧面板列（收起宽 0；展开宽 = workspace.panelWidthPx）──
-   列本身透明（画布 --bg 透出），面板本体是列里的悬浮卡片（rightPanel.css）。
-   overflow 可见：卡片投影要能落到正文一侧；露出窗口右缘的部分由 .win-body 裁掉。 */
+   round3：列本身就是面板——贴窗口右缘与底缘，只有左边与上边两条边（rightPanel.css
+   ::after 画线，左上角圆角）。内容 .bp-inner 钉在右侧、固定目标宽；列宽变化时
+   只有左缘移动，内容被原地揭开 / 盖上，不平移、不重排。 */
 .bpanel {
   flex: none;
-  background: transparent;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
   position: relative;
+  visibility: visible;
   /* 开合：显式宽度动画（内联 width 驱动），曲线/时长见 .win-body 令牌。 */
-  transition: width var(--panel-open-dur) var(--panel-ease);
+  transition:
+    width var(--panel-open-dur) var(--panel-ease),
+    visibility 0s;
 }
+/* 收起：宽度收完后才隐藏（否则 0 宽时左缘的边线与投影会留在窗口右缘） */
 .bpanel.collapsed {
-  transition: width var(--panel-close-dur) var(--panel-ease);
+  visibility: hidden;
+  transition:
+    width var(--panel-close-dur) var(--panel-ease-close),
+    visibility 0s linear var(--panel-close-dur);
 }
 /* 窄窗（可用宽 − 280 < 480）：面板浮在正文上方，正文宽度不变。 */
 .bpanel.overlay {
@@ -237,7 +247,6 @@
 @media (prefers-reduced-motion: reduce) {
   .bpanel,
   .bpanel.collapsed,
-  .bpanel.collapsed .bp-inner,
   .splitter {
     transition: none;
   }
