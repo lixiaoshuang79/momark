@@ -2,7 +2,7 @@
   <div
     class="split-drop-zone"
     :class="{
-      show: !!splitStore.dragTabId,
+      show: !!splitStore.dragTabId && !bpStore.open,
       over: zoneHover,
       blocked
     }"
@@ -12,7 +12,7 @@
   >
     <div class="drop-message">
       <mo-icon name="i-partition" />
-      <span>{{ blocked ? '该文件已在右侧分屏' : '拖动到此，分屏展开' }}</span>
+      <span>{{ blocked ? '该文件已在右侧分屏' : t('rightPanel.drop.edge') }}</span>
     </div>
   </div>
 </template>
@@ -21,6 +21,8 @@
 import { computed, ref } from 'vue'
 import MoIcon from '@/components/icons/MoIcon.vue'
 import { useSplitStore } from '@/store/split'
+import { useBrowserPanelStore } from '@/store/browserPanel'
+import { t } from '../i18n'
 
 /**
  * 标签拖入投放区（PHASE2-SPEC §3.1/3.2）：任意标签 dragstart → 右缘 38%
@@ -30,6 +32,9 @@ import { useSplitStore } from '@/store/split'
  */
 
 const splitStore = useSplitStore()
+// feat/right-panel-redesign：面板开着时由面板自己的虚线投放框承接；
+// 面板收起时窗口右缘出现 84px 的投放条，松手后面板直接打开到文档 tab。
+const bpStore = useBrowserPanelStore()
 const zoneHover = ref(false)
 
 const blocked = computed(

@@ -12,6 +12,27 @@
   display: flex;
   min-height: 0;
   position: relative;
+  /* 面板贴窗口右缘与底缘，开合时由列宽从右向左「揭开」；这里裁掉面板左缘
+     投影越过窗口上缘的部分。 */
+  overflow: clip;
+  /* 右侧栏开关（PanelToggle.vue）的固定位置：距窗口右缘 --panel-toggle-inset。
+     收起时标签条右侧为它预留 --panel-toggle-reserve；展开（停靠）后它在面板头部里，
+     标签条不再预留。round3：面板不再留右/下画布，开关只算内缩。 */
+  --panel-toggle-inset: 6px;
+  --panel-toggle-right: var(--panel-toggle-inset);
+  --panel-toggle-reserve: calc(var(--panel-toggle-right) + 32px + 8px);
+  /* 面板开合（round3）：只有面板左缘在动——列宽 0 ↔ 目标宽，内容钉在窗口右缘、
+     不随列平移（与标题轨同一种「原地展开」）。
+     打开 360ms (.2,0,0,1)：起步有一小段加速，不会头一帧就跳出一大块，再平稳减速停住；
+     收起 260ms (.4,0,.2,1)：对称的标准曲线，看得见左缘一路收回，不是「啪」一下没了。
+     round2 的 (.32,.72,0,1) 前段太陡：实测 90ms 时已走完九成以上。 */
+  --panel-ease: cubic-bezier(0.2, 0, 0, 1);
+  --panel-ease-close: cubic-bezier(0.4, 0, 0.2, 1);
+  --panel-open-dur: 0.36s;
+  --panel-close-dur: 0.26s;
+}
+.win-body.panel-open:not(.panel-overlay) {
+  --panel-toggle-reserve: 6px;
 }
 
 /* 双屏分栏：左栏与右文档窗格内容顶部对齐、padding 对称。
@@ -27,16 +48,8 @@
   padding: 12px 0 100px 2.5%;
 }
 
-/* round27 四次（用户拍板）：左文档滚动条挪进左右文档中间的分隔带正中
-   （容器右缘右移 ~5px，滚动条落在 ~9px 分隔带的中央）。
-   右栏编辑器（.bpanel 内）不受影响，滚动条留在面板右缘。 */
-.win-body.split .editor-component {
-  margin-right: -5px;
-}
-
-.win-body.split .bpanel .editor-component {
-  margin-right: 0;
-}
+/* feat/right-panel-redesign：分隔线改为盖在面板左缘上的 9px 热区（不再占
+   布局宽度），左文档滚动条贴着面板左缘即可，原先 -5px 的挪位取消。 */
 
 .win-body.dragging-split,
 .win-body.dragging-split * {
@@ -44,16 +57,105 @@
   user-select: none;
 }
 
-/* 双屏分栏分隔线（8px 命中区 + 中间 1px --line；hover 变 accent） */
-.splitter {
-  width: 8px;
-  flex: none;
-  cursor: col-resize;
-  position: relative;
-  background: transparent;
-  z-index: 5;
+/* 拖动中面板宽度直接跟手（不做过渡）；松手后恢复过渡，380ms 收到最终值。 */
+.win-body.dragging-split .bpanel {
+  transition: none !important;
 }
-/* round13（用户拍板）：分隔条 hover/拖动都不再显示竖线，仅保留 8px 拖拽热区。 */
+
+/* ── 分隔线（feat/right-panel-redesign，DESIGN-NOTES §1）──
+   9px 热区、视觉 1px；悬停 100ms 后变 2px 墨蓝线；拖动时读数气泡；越界变警示色。
+   绝对定位在面板左缘（right = 面板宽 − 4.5px），不占布局宽度。 */
+.splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  z-index: 30;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+  transition: right var(--panel-open-dur) var(--panel-ease);
+}
+.win-body.dragging-split .splitter {
+  transition: none;
+}
+.splitter .sp-line {
+  position: absolute;
+  left: 4px;
+  /* 只画在面板左缘的直边段上（避开左上圆角；底部直接到窗口底） */
+  top: 12px;
+  bottom: 0;
+  border-radius: 1px;
+  width: 1px;
+  background: transparent;
+  transition:
+    background-color 0.15s ease 0.1s,
+    width 0.15s ease 0.1s,
+    left 0.15s ease 0.1s;
+}
+.splitter:hover .sp-line,
+.splitter.drag .sp-line,
+.splitter:focus-visible .sp-line {
+  background: var(--accent);
+  width: 2px;
+  left: 3.5px;
+}
+.splitter.limit .sp-line {
+  background: var(--warn) !important;
+}
+.splitter .sp-chip {
+  position: absolute;
+  top: 52px;
+  right: 14px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: var(--hudbg);
+  color: var(--hudfg);
+  font: 11px/1 var(--font-mono);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(4px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+  pointer-events: none;
+}
+.splitter.drag .sp-chip,
+.splitter.kbd .sp-chip {
+  opacity: 1;
+  transform: none;
+}
+.splitter-snaps {
+  position: absolute;
+  inset: 0;
+  z-index: 29;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.splitter-snaps.show {
+  opacity: 1;
+}
+.splitter-snaps .sp-snap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed var(--line-strong);
+}
+.splitter-snaps .sp-snap b {
+  position: absolute;
+  top: 8px;
+  left: 4px;
+  font: 500 10px/1 var(--font-mono);
+  color: var(--faint);
+}
+.splitter-snaps .sp-snap.hit {
+  border-left-color: var(--accent);
+}
+.splitter-snaps .sp-snap.hit b {
+  color: var(--accent);
+}
 
 /* ── 标签拖入投放区（右 38% 宽，无需预先打开右栏）── */
 .split-drop-zone {
@@ -111,18 +213,43 @@
   color: var(--accent);
 }
 
-/* ── 右侧浏览器面板（默认收起宽 0；展开 288px；分屏文档态 min(480px,60%)）──
-   dock-panel 卡片化（用户拍板，参考 claude-visual-gallery section.dock-panel）：
-   画布（--bg）透出，面板本体 = 悬浮卡片（白底、.5px 发丝边、13px 圆角、轻投影）。 */
+/* ── 右侧面板列（收起宽 0；展开宽 = workspace.panelWidthPx）──
+   round3：列本身就是面板——贴窗口右缘与底缘，只有左边与上边两条边（rightPanel.css
+   ::after 画线，左上角圆角）。内容 .bp-inner 钉在右侧、固定目标宽；列宽变化时
+   只有左缘移动，内容被原地揭开 / 盖上，不平移、不重排。 */
 .bpanel {
   flex: none;
-  background: transparent;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  /* 开合动画 .42s cubic-bezier(.22,1,.36,1)：显式宽度动画（内联 width 驱动） */
-  transition: width 0.42s var(--ease-panel);
+  visibility: visible;
+  /* 开合：显式宽度动画（内联 width 驱动），曲线/时长见 .win-body 令牌。 */
+  transition:
+    width var(--panel-open-dur) var(--panel-ease),
+    visibility 0s;
+}
+/* 收起：宽度收完后才隐藏（否则 0 宽时左缘的边线与投影会留在窗口右缘） */
+.bpanel.collapsed {
+  visibility: hidden;
+  transition:
+    width var(--panel-close-dur) var(--panel-ease-close),
+    visibility 0s linear var(--panel-close-dur);
+}
+/* 窄窗（可用宽 − 280 < 480）：面板浮在正文上方，正文宽度不变。 */
+.bpanel.overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 26;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bpanel,
+  .bpanel.collapsed,
+  .splitter {
+    transition: none;
+  }
 }
 .bpanel.drop-ok .bp-inner {
   outline: 2px dashed var(--accent);

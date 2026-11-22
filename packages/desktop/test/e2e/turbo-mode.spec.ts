@@ -157,7 +157,7 @@ test.describe.serial('turbo mode', () => {
     // 网页档整个移除；默认开着标注时只剩「文档 / 标注」两档。
     expect(
       await page.evaluate(() =>
-        [...document.querySelectorAll('.bp-modes button')].map((btn) =>
+        [...document.querySelectorAll('.rp-seg button')].map((btn) =>
           (btn.textContent ?? '').trim()
         )
       )
@@ -201,7 +201,7 @@ test.describe.serial('turbo mode', () => {
       .toMatchObject({ blocks: 3, disabledBlocks: 0, imgs: 1, iframes: 2, webviews: 0 })
     expect(
       await page.evaluate(() => {
-        const urlBtn = [...document.querySelectorAll('.bp-modes button')].find((btn) =>
+        const urlBtn = [...document.querySelectorAll('.rp-seg button')].find((btn) =>
           (btn.textContent ?? '').includes('网页')
         ) as HTMLButtonElement | undefined
         return { exists: !!urlBtn, disabled: urlBtn?.disabled ?? null }

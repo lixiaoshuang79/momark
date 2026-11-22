@@ -402,6 +402,16 @@
     "type": "boolean",
     "default": false
   },
+  "rightPanelRatio": {
+    "description": "View--Width of the right panel (web / document / annotations) as a fraction of the window width; kept when the window is resized.--internal",
+    "type": "number",
+    "default": 0.3
+  },
+  "rightSplitRatio": {
+    "description": "View--Width of the right panel while a split document is open, as a fraction of the window width.--internal",
+    "type": "number",
+    "default": 0.5
+  },
   "tabBarVisibility": {
     "description": "View--Whether the tabs are shown.--internal",
     "type": "boolean",

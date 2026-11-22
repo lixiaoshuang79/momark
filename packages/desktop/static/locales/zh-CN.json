@@ -121,7 +121,11 @@
       "focusMode": "专注模式",
       "reloadImages": "重新加载图片",
       "showDeveloperTools": "显示开发者工具",
-      "reloadWindow": "重新加载窗口"
+      "reloadWindow": "重新加载窗口",
+      "rightPanel": "右侧栏",
+      "rightPanelWeb": "右侧栏：网页",
+      "rightPanelDoc": "右侧栏：文档",
+      "rightPanelAnnotation": "右侧栏：标注"
     },
     "format": {
       "format": "格式",
@@ -247,10 +251,22 @@
     "filterPlaceholder": "筛选文件名",
     "current": "当前",
     "noFolder": "当前文档还没有保存到文件夹里",
-    "noMatch": "没有匹配的文件",
-    "noFiles": "这个文件夹里没有其他 Markdown 文件",
-    "openFile": "打开文件…",
-    "openFolder": "打开文件夹…"
+    "noFiles": "这个文件夹里没有其他 Markdown 或 HTML 文件",
+    "noFolderHint": "保存后这里会列出同目录的 Markdown 与 HTML",
+    "noMatchQuery": "没有匹配「{query}」的文件",
+    "clearFilter": "清除筛选",
+    "typeAll": "全部",
+    "sortByName": "按名称排序 · 点击改为按修改时间",
+    "sortByMtime": "按修改时间排序 · 点击改为按名称",
+    "opened": "已打开",
+    "readOnly": "只读",
+    "openInSplit": "在右侧打开",
+    "revealItem": "在 Finder 中显示",
+    "keyOpen": "打开",
+    "save": "保存…",
+    "openInFinder": "在 Finder 中打开",
+    "openInFinderTitle": "在 Finder 中打开这个文件夹，并选中当前文件",
+    "openOther": "打开其他…"
   },
   "commandPalette": {
     "placeholder": "输入要执行的命令",
@@ -919,7 +935,11 @@
       "devToggleDeveloperTools": "切换开发者工具",
       "devReload": "开发者重载",
       "reloadImages": "重新加载图片",
-      "textDirection": "文本方向"
+      "textDirection": "文本方向",
+      "rightPanel": "右侧栏",
+      "rightPanelWeb": "右侧栏：网页",
+      "rightPanelDoc": "右侧栏：文档",
+      "rightPanelAnnotation": "右侧栏：标注"
     },
     "tabs": {
       "cycleForward": "向前循环",
@@ -1147,7 +1167,7 @@
     },
     "orphanGroup": "失效（{n}）",
     "orphanGroupNote": "正文无高亮",
-    "copyAll": "复制所有标注（{n}）",
+    "copyAll": "复制 {n} 条未复制的标注",
     "copyAllHint": "仅复制未复制的 {n} 条",
     "copiedDone": "已复制 ✓",
     "copiedText": "已复制文本",
@@ -1287,5 +1307,80 @@
     "noRecentText": "还没有打开过文档\n从左侧「新建文档」开始你的第一篇",
     "timeToday": "今天",
     "timeYesterday": "昨天"
+  },
+  "rightPanel": {
+    "divider": {
+      "label": "调整右侧栏宽度",
+      "title": "拖动调整宽度 · 双击恢复默认",
+      "min": "最小 {px}px",
+      "max": "最大 60%",
+      "editor": "为正文保留 {px}px",
+      "snap": {
+        "third": "⅓",
+        "half": "½",
+        "default": "默认"
+      }
+    },
+    "label": "右侧栏",
+    "collapse": "收起右侧栏",
+    "tabsLabel": "右侧栏内容",
+    "soloHint": "网页、标注均已关闭",
+    "tab": {
+      "web": "网页",
+      "doc": "文档"
+    },
+    "toggle": {
+      "open": "打开右侧栏",
+      "close": "收起右侧栏",
+      "openWithPending": "打开右侧栏 · {n} 条标注未复制",
+      "openTo": "打开到{tab}"
+    },
+    "drop": {
+      "title": "松手在右侧打开「{name}」",
+      "sub": "左边继续编辑当前文档",
+      "edge": "拖到这里\n右侧分屏"
+    },
+    "web": {
+      "back": "后退",
+      "forward": "前进",
+      "reload": "重新加载",
+      "address": "地址栏",
+      "addressPlaceholder": "输入网址或搜索",
+      "more": "更多",
+      "zoom": "缩放",
+      "fitWidth": "适应面板宽度",
+      "fitShort": "适应",
+      "mobile": "移动端样式",
+      "openExternal": "在浏览器中打开",
+      "copyLink": "复制链接",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "zoomReset": "恢复 100%",
+      "copied": "已复制链接",
+      "pages": "网页",
+      "newPage": "新建网页",
+      "closePage": "关闭此网页",
+      "closeNamed": "关闭「{name}」",
+      "closeOthers": "关闭其他网页",
+      "closeRight": "关闭右侧网页",
+      "closedNamed": "已关闭「{name}」",
+      "undo": "撤销",
+      "allClosed": "网页都已关闭 · 在上方输入网址或搜索",
+      "emptyHint": "在上方输入网址或搜索",
+      "justClosed": "刚关闭：",
+      "reopen": "重新打开",
+      "failed": "无法打开这个网页",
+      "retry": "重试",
+      "loading": "正在加载…"
+    },
+    "doc": {
+      "dragBack": "拖回标签栏结束分屏",
+      "swap": "与左侧交换",
+      "close": "关闭右侧文档",
+      "dropTitle": "把标签拖到这里",
+      "dropSub": "左右分屏对照阅读、编辑",
+      "openFile": "打开文件…",
+      "newFile": "新建"
+    }
   }
 }

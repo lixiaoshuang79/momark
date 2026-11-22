@@ -951,9 +951,15 @@ ipcMain.on('mt::html::open-externally', (_e, pathname: string) => {
 
 // --- commands -------------------------------------
 
-ipcMain.on('mt::cmd-open-file', (e) => {
+// 同目录抽屉「打开其他…」（feat/right-panel-redesign）：可带 defaultPath，
+// 让系统打开面板从当前目录开始。只接受绝对路径的字符串，其余忽略。
+ipcMain.on('mt::cmd-open-file', (e, options?: { defaultPath?: unknown }) => {
   const win = BrowserWindow.fromWebContents(e.sender)
-  openFile(win)
+  const defaultPath =
+    options && typeof options.defaultPath === 'string' && path.isAbsolute(options.defaultPath)
+      ? options.defaultPath
+      : undefined
+  openFile(win, defaultPath ? { defaultPath } : undefined)
 })
 
 ipcMain.on('mt::cmd-new-editor-window', () => {
@@ -1019,11 +1025,15 @@ export const printDocument = (win: Win): void => {
   }
 }
 
-export const openFile = async (win: BrowserWindow | null): Promise<void> => {
+export const openFile = async (
+  win: BrowserWindow | null,
+  options?: { defaultPath?: string }
+): Promise<void> => {
   if (!win) {
     return
   }
   const { filePaths } = await dialog.showOpenDialog(win, {
+    ...(options?.defaultPath ? { defaultPath: options.defaultPath } : {}),
     properties: ['openFile', 'multiSelections'],
     filters: [
       {

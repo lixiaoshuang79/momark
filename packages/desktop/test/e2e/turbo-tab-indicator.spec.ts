@@ -60,7 +60,7 @@ test.describe('turbo mode: tab indicator follows the active tab', () => {
     await page.evaluate(() => {
       window.electron.ipcRenderer.send('mt::set-user-preference', { turboMode: true })
     })
-    await page.waitForFunction(() => !document.querySelector('.bp-modes button[title="网页模式"]'))
+    await page.waitForFunction(() => !document.querySelector('#rp-tab-url'))
 
     // 再切回第一个标签：保留的 300ms 滑轨动画结束后，指示条必须落在活动标签上。
     await page.locator('.tab').nth(0).click()

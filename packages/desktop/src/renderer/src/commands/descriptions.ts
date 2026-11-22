@@ -164,6 +164,10 @@ const COMMAND_KEY_MAP: Record<string, string> = {
   // UI toggles
   'view.toggle-heading-labels': 'commands.view.toggleHeadingLabels',
   'view.folder-drawer': 'commands.view.folderDrawer',
+  'view.right-panel': 'commands.view.rightPanel',
+  'view.right-panel-web': 'commands.view.rightPanelWeb',
+  'view.right-panel-doc': 'commands.view.rightPanelDoc',
+  'view.right-panel-annotation': 'commands.view.rightPanelAnnotation',
   'view.toggle-tabbar': 'commands.view.toggleTabbar',
 
   // Edit modes

@@ -1,0 +1,1052 @@
+/* ============================================================
+   右侧栏 v1 + round2 + round3（feat/right-panel-redesign，DESIGN-NOTES §3）
+   round3（用户拍板）：面板贴窗口右缘与底缘，只画左边与上边两条边（左上角 12px
+   圆角），右边、下边直接延伸到窗口外，不留画布、不画边。边线画在面板盒内
+   （::after），不会再被 .win-body 的裁切吞掉。
+   开合：列宽 0 ↔ 目标宽，只有左缘在动；内容钉在右侧、固定目标宽，被原地揭开 /
+   盖上（与标题轨同一种原地展开）。右上角的面板开关位置不动。
+   全部取值来自 tokens.css 令牌，深浅主题自动生效。
+   曲线：空间位移 cubic-bezier(.2,0,0,1)；面板开合 --panel-ease；退出 (.4,0,1,1)。
+   ============================================================ */
+
+.bpanel {
+  --rp-ease: cubic-bezier(0.2, 0, 0, 1);
+  --rp-exit: cubic-bezier(0.4, 0, 1, 1);
+  --rp-head-h: 40px;
+  --rp-radius: 12px;
+  /* 面板底色：浅色纯白（比画布 --bg 亮一级），深色 surface-1（比画布亮一级） */
+  --rp-surface: var(--surface-2);
+  /* 左 / 上两条边：.5px 发丝线（比 1.8.0 卡片描边略深一级：没有四周投影托底，边线要自己立住） */
+  --rp-edge: rgba(11, 11, 11, 0.2);
+  /* 左缘外侧一层很淡的投影，只朝正文方向，帮助边界在浅色下立住 */
+  --rp-edge-shadow: -1px 0 10px -4px rgba(0, 0, 0, 0.07);
+  --rp-edge-shadow-float: -10px 0 36px -8px rgba(0, 0, 0, 0.2);
+  background: var(--rp-surface);
+  border-top-left-radius: var(--rp-radius);
+  box-shadow: var(--rp-edge-shadow);
+}
+[data-theme='dark'] .bpanel {
+  --rp-surface: var(--surface-1);
+  --rp-edge: rgba(255, 255, 255, 0.13);
+  --rp-edge-shadow: -1px 0 12px -4px rgba(0, 0, 0, 0.45);
+  --rp-edge-shadow-float: -10px 0 40px -8px rgba(0, 0, 0, 0.6);
+}
+/* 左边 + 上边：画在面板盒内、盖在内容（含 webview）之上，随左缘一起移动 */
+.bpanel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-top: 0.5px solid var(--rp-edge);
+  border-left: 0.5px solid var(--rp-edge);
+  border-top-left-radius: var(--rp-radius);
+}
+/* 浮层（窄窗）：同一块面板，左缘投影加深，表示它浮在正文之上 */
+.bpanel.overlay:not(.collapsed) {
+  box-shadow: var(--rp-edge-shadow-float);
+}
+
+/* 面板内容：钉在右侧、固定目标宽（--panel-w），开合时不平移、不重排。
+   左上圆角由列的 overflow + 圆角裁出。 */
+.bpanel .bp-inner,
+[data-theme='dark'] .bpanel .bp-inner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  width: var(--panel-w);
+  flex: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--rp-surface);
+  container-type: inline-size;
+  container-name: rpanel;
+  overflow: hidden;
+}
+.bpanel.drop-ok .bp-inner {
+  outline: none;
+}
+
+/* ── 头部：分段控件 ── */
+.rp-head {
+  flex: none;
+  height: var(--rp-head-h);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* 右端让给面板开关（钉在 win-body 右上角，32px + 与分段控件 6px 间距） */
+  padding: 0 calc(var(--panel-toggle-inset, 5px) + 32px + 6px) 0 8px;
+  box-sizing: border-box;
+}
+.rp-seg {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  height: 28px;
+  padding: 2px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--hover);
+}
+.rp-seg-ind {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: calc(2px + var(--i) * (100% - 4px) / var(--n));
+  width: calc((100% - 4px) / var(--n));
+  border-radius: 6px;
+  background: var(--surface-2);
+  box-shadow:
+    0 0 0 0.5px var(--line-strong),
+    0 1px 2px rgba(0, 0, 0, 0.07);
+}
+[data-theme='dark'] .rp-seg-ind {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.rp-seg button {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: var(--f12);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+.rp-seg button:hover {
+  color: var(--ink);
+}
+.rp-seg button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.rp-seg button .ic {
+  position: relative;
+  display: grid;
+  place-items: center;
+  transition:
+    transform 0.15s ease,
+    color 0.2s ease;
+}
+.rp-seg button:active .ic {
+  transform: scale(0.88);
+}
+.rp-seg button svg {
+  width: 14px;
+  height: 14px;
+}
+.rp-seg button[aria-selected='true'] {
+  color: var(--ink);
+  font-weight: 560;
+}
+.rp-seg button[aria-selected='true'] .ic {
+  color: var(--accent);
+}
+.rp-seg button .lb {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rp-seg .spin {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  animation: rpSpin 0.9s linear infinite;
+}
+@keyframes rpSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.rp-seg .ddot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.rp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-on);
+  font: 500 9.5px/1 var(--font-mono);
+  flex: none;
+}
+.rp-solo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 4px;
+  font-size: var(--f12);
+  font-weight: 560;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.rp-solo .ic {
+  display: grid;
+  color: var(--accent);
+}
+.rp-solo .ic svg {
+  width: 14px;
+  height: 14px;
+}
+.rp-solo small {
+  font-weight: 400;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 进度线：头部下方 2px */
+.bpanel .bp-track {
+  top: var(--rp-head-h);
+  border-radius: 0;
+  background: transparent;
+}
+
+/* ── 内容区：三个 pane 叠放，切换时共享 X 轴 ── */
+.rp-panes {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  border-top: 0.5px solid var(--line);
+}
+.rp-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--rp-surface);
+}
+
+/* ── 通用小部件 ── */
+.rp-sub {
+  flex: none;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  border-bottom: 0.5px solid var(--line);
+  box-sizing: border-box;
+}
+.rp-ib {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+.rp-ib:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+.rp-ib:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.rp-ib:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.rp-ib.on {
+  background: var(--selected);
+  color: var(--ink);
+}
+.rp-ib:focus-visible,
+.rp-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.rp-ib svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rp-ib circle {
+  fill: currentColor;
+  stroke: none;
+}
+.rp-btn {
+  height: 30px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow:
+    0 0 0 0.5px var(--line-strong),
+    0 1px 2px rgba(0, 0, 0, 0.05);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--f12);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease;
+}
+.rp-btn:hover {
+  background: var(--hover);
+}
+.rp-btn:active {
+  transform: scale(0.98);
+}
+.rp-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ── 网页 pane ── */
+.bpanel .bp-url {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  position: relative;
+}
+.rp-addr {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  margin: 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: var(--hover);
+  font-size: var(--f12);
+  color: var(--faint);
+  cursor: text;
+  outline: none;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.rp-addr:hover {
+  background: var(--selected);
+}
+.rp-addr:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.rp-addr.edit {
+  background: var(--surface-2);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    var(--focus-ring);
+}
+.rp-addr .host {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: none;
+  max-width: 70%;
+}
+.rp-addr .path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+@container rpanel (max-width: 360px) {
+  .rp-addr .host + .path {
+    display: none;
+  }
+}
+.rp-addr input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  padding: 0;
+}
+.rp-lock {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--faint);
+}
+.rp-more {
+  position: relative;
+}
+
+/* 网页条 */
+.rp-pages {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-bottom: 0.5px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rp-pages::-webkit-scrollbar {
+  display: none;
+}
+.rp-page {
+  flex: none;
+  display: flex;
+  align-items: center;
+  max-width: 168px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--muted);
+  overflow: hidden;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.rp-page:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.rp-page.on {
+  /* 卡片本身已是白底：当前页改用浅灰底 + 发丝描边区分 */
+  background: var(--hover);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.rp-page.closing {
+  pointer-events: none;
+}
+.rp-page-main {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.rp-page-main:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.rp-page .fav {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--selected);
+  color: var(--muted);
+  font: 600 9px var(--font-mono);
+}
+.rp-page .fav img {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+.rp-page .fav .ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: var(--accent);
+  animation: rpSpin 0.9s linear infinite;
+}
+.rp-page .t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 关闭：位置常驻（出现时不挤动标题）；当前页常显，其余悬停/聚焦出现 */
+.rp-page-x {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-right: 3px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--faint);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+.rp-page-x svg {
+  width: 11px;
+  height: 11px;
+}
+.rp-page.on .rp-page-x {
+  opacity: 0.75;
+}
+.rp-page:hover .rp-page-x,
+.rp-page:focus-within .rp-page-x {
+  opacity: 1;
+}
+.rp-page-x:hover {
+  background: var(--selected);
+  color: var(--ink);
+}
+.rp-page-x:active {
+  transform: scale(0.9);
+}
+.rp-new {
+  width: 24px;
+  height: 24px;
+}
+.rp-new svg {
+  width: 13px;
+  height: 13px;
+}
+
+.rp-wview {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: var(--rp-surface);
+}
+.rp-wempty,
+.rp-werr {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  font-size: var(--f12);
+  color: var(--muted);
+  background: var(--rp-surface);
+}
+.rp-wempty > svg,
+.rp-werr > svg {
+  width: 22px;
+  height: 22px;
+  color: var(--faint);
+}
+.rp-wempty p,
+.rp-werr p {
+  margin: 0;
+  line-height: 1.6;
+}
+.rp-wempty .reopen {
+  color: var(--faint);
+}
+.rp-wempty .reopen button {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  padding: 2px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.rp-wempty .reopen button:hover {
+  background: var(--hover);
+}
+.rp-werr b {
+  color: var(--ink);
+  font-size: 13px;
+}
+.rp-werr .why {
+  color: var(--faint);
+  word-break: break-all;
+}
+.rp-werr .row {
+  display: flex;
+  gap: 6px;
+}
+
+/* 关闭网页后的撤销条（面板内） */
+.rp-undo {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 24px);
+  padding: 6px 6px 6px 12px;
+  border-radius: 11px;
+  background: var(--hudbg);
+  color: var(--hudfg);
+  font-size: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.rp-undo span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rp-undo button {
+  flex: none;
+  border: none;
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.14);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.rp-undo-enter-active,
+.rp-undo-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.24s var(--rp-ease);
+}
+.rp-undo-enter-from,
+.rp-undo-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+}
+
+/* ── 弹出菜单（⋯ / 网页条右键）· round2 重做 ──
+   外壳：比卡片再高一级（浅色纯白 + 更深的投影，深色 surface-2），11px 圆角与 5px
+   内边距同心（条目 7px 圆角）。条目 30px 高：15px 线性图标（muted）+ 文案（ink）
+   + 右侧附件（开关 / 快捷键）。hover 与键盘焦点同一底色。 */
+.rp-pop {
+  --mi-h: 30px;
+  --mi-hover: color-mix(in oklab, var(--ink) 6.5%, transparent);
+  position: absolute;
+  z-index: 40;
+  min-width: 180px;
+  padding: 5px;
+  box-sizing: border-box;
+  border-radius: 11px;
+  background: var(--surface-2);
+  box-shadow:
+    0 0 0 0.5px rgba(11, 11, 11, 0.12),
+    0 3px 8px rgba(0, 0, 0, 0.06),
+    0 14px 36px -8px rgba(0, 0, 0, 0.2);
+  font-size: var(--f12);
+  color: var(--ink);
+  transform-origin: top right;
+}
+[data-theme='dark'] .rp-pop {
+  --mi-hover: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.1),
+    0 3px 8px rgba(0, 0, 0, 0.3),
+    0 16px 40px -8px rgba(0, 0, 0, 0.6);
+}
+.rp-menu {
+  width: 248px;
+}
+.rp-more .rp-pop {
+  top: 34px;
+  right: 0;
+}
+.rp-ctx {
+  transform-origin: top left;
+}
+.rp-pop button[role^='menuitem']:not([data-row]) {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: var(--mi-h);
+  padding: 0 8px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+.rp-ctx button[role^='menuitem'] {
+  padding: 0 10px;
+}
+.rp-pop button[role^='menuitem']:not([data-row]):hover:not(:disabled),
+.rp-pop button[role^='menuitem']:not([data-row]):focus-visible {
+  outline: none;
+  background: var(--mi-hover);
+}
+.rp-pop button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+.rp-pop .mi-ic {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.rp-pop .mi-ic svg,
+.rp-stepper svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rp-pop .mi-lb {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rp-pop button.done .mi-ic,
+.rp-pop button.done .mi-lb {
+  color: var(--accent);
+}
+.rp-pop kbd {
+  flex: none;
+  margin-left: 12px;
+  font: 500 var(--f11) var(--font-mono);
+  color: var(--faint);
+}
+.rp-pop hr {
+  border: none;
+  height: 0.5px;
+  background: var(--line);
+  margin: 5px 8px;
+}
+
+/* 迷你开关（menuitemcheckbox 的右侧附件）：24×14，开 = 墨蓝 */
+.rp-pop .mi-switch {
+  flex: none;
+  position: relative;
+  width: 24px;
+  height: 14px;
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--ink) 16%, transparent);
+  transition: background-color 0.18s ease;
+}
+.rp-pop .mi-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.22s var(--rp-ease);
+}
+.rp-pop [aria-checked='true'] .mi-switch {
+  background: var(--accent);
+}
+.rp-pop [aria-checked='true'] .mi-switch::after {
+  transform: translateX(10px);
+}
+
+/* 缩放行：图标 + 「缩放」+ 步进胶囊（− / 百分比 / ＋） */
+.rp-zoom {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: calc(var(--mi-h) + 4px);
+  padding: 0 3px 2px 8px;
+}
+.rp-stepper {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 1px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--hover);
+}
+.rp-stepper button {
+  height: 24px;
+  min-width: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 0.1s ease,
+    color 0.1s ease;
+}
+.rp-stepper button.val {
+  min-width: 52px;
+  font: 500 var(--f11) / 1 var(--font-mono);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.rp-stepper button.val.fit {
+  color: var(--accent);
+}
+.rp-stepper button.val:disabled {
+  opacity: 1;
+}
+.rp-stepper button:hover:not(:disabled),
+.rp-stepper button:focus-visible {
+  outline: none;
+  background: var(--surface-2);
+  color: var(--ink);
+  box-shadow:
+    0 0 0 0.5px var(--line-strong),
+    0 1px 2px rgba(0, 0, 0, 0.06);
+}
+[data-theme='dark'] .rp-stepper button:hover:not(:disabled),
+[data-theme='dark'] .rp-stepper button:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.rp-pop-enter-active {
+  transition:
+    opacity 0.14s ease,
+    transform 0.18s var(--rp-ease);
+}
+.rp-pop-leave-active {
+  transition:
+    opacity 0.1s ease,
+    transform 0.1s var(--rp-exit);
+}
+.rp-pop-enter-from {
+  opacity: 0;
+  transform: translateY(-3px) scale(0.97);
+}
+.rp-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-pop-enter-active,
+  .rp-pop-leave-active,
+  .rp-pop .mi-switch::after {
+    transition: opacity 0.1s ease;
+  }
+  .rp-pop-enter-from,
+  .rp-pop-leave-to {
+    transform: none;
+  }
+}
+
+/* ── 文档 pane ── */
+.bpanel .bp-doc {
+  position: relative;
+  inset: auto;
+  flex: 1;
+  min-height: 0;
+}
+.rp-docview {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.rp-docempty {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 40px;
+  gap: 12px;
+}
+.rp-dropbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 22px 12px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--line-strong);
+  text-align: center;
+  font-size: var(--f12);
+  color: var(--faint);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.rp-dropbox svg {
+  width: 20px;
+  height: 20px;
+  margin-bottom: 4px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+}
+.rp-dropbox b {
+  color: var(--ink);
+  font-weight: 560;
+}
+.rp-docbtns {
+  display: flex;
+  gap: 6px;
+}
+.rp-docbtns .rp-btn {
+  flex: 1;
+}
+.rp-docempty .bp-recents-title {
+  padding-top: 6px;
+}
+
+/* 拖标签进面板：虚线投放框 */
+.rp-dropov {
+  position: absolute;
+  inset: 6px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--accent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  text-align: center;
+  font-size: var(--f12);
+  color: var(--muted);
+  opacity: 0;
+  transform: scale(0.98);
+  pointer-events: none;
+  transition:
+    opacity 0.16s ease,
+    transform 0.22s var(--ease-panel);
+}
+.rp-dropov div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rp-dropov b {
+  color: var(--ink);
+}
+.bpanel.drop-ok .rp-dropov {
+  opacity: 1;
+  transform: none;
+}
+
+/* 面板收起时窗口右缘的 84px 投放条（替代原来的右侧 38% 投放区） */
+.win-body .split-drop-zone {
+  /* 从开关下方开始，不与钉在右上角的面板开关重叠 */
+  top: 44px;
+  right: 8px;
+  bottom: 8px;
+  width: 84px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--line-strong);
+  background: var(--surface-0);
+  box-shadow: none;
+  transform: translateX(12px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.24s var(--ease-panel),
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.win-body .split-drop-zone.show {
+  transform: none;
+  border-left-color: var(--line-strong);
+}
+.win-body .split-drop-zone.over {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  box-shadow: none;
+}
+.win-body .split-drop-zone .drop-message {
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: none;
+  box-shadow: none;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--muted);
+  text-align: center;
+  white-space: pre-line;
+}
+.win-body .split-drop-zone.over .drop-message {
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-seg .spin,
+  .rp-page .fav .ring {
+    animation-duration: 2.4s;
+  }
+  .rp-dropov,
+  .rp-undo-enter-active,
+  .rp-undo-leave-active,
+  .rp-pop-enter-active {
+    transition: opacity 0.12s linear;
+  }
+  .win-body .bpanel.collapsed {
+    transition-delay: 0s;
+  }
+}

@@ -101,6 +101,11 @@ const keybindings: Map<string, string> = new Map([
   ['view.focus-mode', 'Ctrl+Shift+J'],
   ['view.toggle-heading-labels', 'Ctrl+\\'],
   ['view.folder-drawer', ''],
+  // Ctrl+Alt+1/2/3 已是「标题 1–3」，这三个不设默认键。
+  ['view.right-panel', 'Ctrl+Alt+\\'],
+  ['view.right-panel-web', ''],
+  ['view.right-panel-doc', ''],
+  ['view.right-panel-annotation', ''],
   ['view.toggle-tabbar', 'Ctrl+Shift+B'],
   ['view.toggle-dev-tools', 'Ctrl+Alt+I'],
   ['view.dev-reload', 'Ctrl+F5'],

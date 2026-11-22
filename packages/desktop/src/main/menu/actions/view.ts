@@ -59,6 +59,23 @@ export const toggleFolderDrawer = (win: Win): void => {
   toggleLayout(win, 'folderDrawer')
 }
 
+// 右侧栏（feat/right-panel-redesign）：复用布局入口通道，渲染层转给右侧栏。
+export const toggleRightPanel = (win: Win): void => {
+  toggleLayout(win, 'rightPanel')
+}
+
+export const openRightPanelWeb = (win: Win): void => {
+  toggleLayout(win, 'rightPanelWeb')
+}
+
+export const openRightPanelDoc = (win: Win): void => {
+  toggleLayout(win, 'rightPanelDoc')
+}
+
+export const openRightPanelAnnotation = (win: Win): void => {
+  toggleLayout(win, 'rightPanelAnnotation')
+}
+
 export const toggleTabBar = (win: Win): void => {
   toggleLayout(win, 'showTabBar')
 }
@@ -86,6 +103,10 @@ export const loadViewCommands = (commandManager: CommandManager): void => {
   commandManager.add(COMMANDS.VIEW_SOURCE_CODE_MODE, toggleSourceCodeMode)
   commandManager.add(COMMANDS.VIEW_TOGGLE_HEADING_LABELS, toggleHeadingLabels)
   commandManager.add(COMMANDS.VIEW_FOLDER_DRAWER, toggleFolderDrawer)
+  commandManager.add(COMMANDS.VIEW_RIGHT_PANEL, toggleRightPanel)
+  commandManager.add(COMMANDS.VIEW_RIGHT_PANEL_WEB, openRightPanelWeb)
+  commandManager.add(COMMANDS.VIEW_RIGHT_PANEL_DOC, openRightPanelDoc)
+  commandManager.add(COMMANDS.VIEW_RIGHT_PANEL_ANNOTATION, openRightPanelAnnotation)
   commandManager.add(COMMANDS.VIEW_TOGGLE_TABBAR, toggleTabBar)
   commandManager.add(COMMANDS.VIEW_TYPEWRITER_MODE, toggleTypewriterMode)
 

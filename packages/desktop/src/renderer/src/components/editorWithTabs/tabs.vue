@@ -70,15 +70,8 @@
     <!-- 右栏文档指示已移到窗口顶栏（titleBar，「文件A | 文件B」竖线分隔、
          可拖回标签栏）。 -->
 
-    <button
-      class="tb-toggle panel-toggle"
-      :class="{ rolled: bpanelOpen }"
-      :title="t('sideBar.rightPanelTitle')"
-      @click.stop="toggleBpPanel"
-    >
-      <mo-icon :name="bpanelOpen ? 'i-x' : 'i-partition'" />
-    </button>
-    <bp-modes :shown="bpanelOpen" />
+    <!-- 右侧栏开关已移出标签条（round2）：见 browserPanel/PanelToggle.vue，
+         钉在 win-body 右上角，开合时位置不变。标签条右侧为它预留位置。 -->
   </div>
 </template>
 
@@ -100,7 +93,6 @@ import type { IFileState } from '@shared/types/files'
 import { useBrowserPanelStore } from '@/store/browserPanel'
 import { useSplitStore } from '@/store/split'
 import { useWorkspaceStore } from '@/store/workspace'
-import BpModes from '@/components/browserPanel/bpModes.vue'
 import { motionReduced } from '@/util/motion'
 import { getTabLabels } from '@/util/tabLabels'
 // 正文整屏滑出/滑入动效的全局样式（类名挂在兄弟组件的根节点上，
@@ -116,7 +108,6 @@ const workspaceStore = useWorkspaceStore()
 const { currentFile, tabs } = storeToRefs(editorStore)
 const { folderDrawerOpen } = storeToRefs(layoutStore)
 const { headingRailPinned } = storeToRefs(usePreferencesStore())
-const { open: bpanelOpen } = storeToRefs(bpStore)
 const { visibleTabs, scene } = storeToRefs(workspaceStore)
 
 const tabLabels = computed(() => getTabLabels(visibleTabs.value))
@@ -156,10 +147,6 @@ const shortcutHint = (key: string, shift = false): string => {
   if (isOsx) return `${shift ? '⇧' : ''}⌘${key}`
   if (isLinux && shift) return ''
   return `Ctrl+${shift ? 'Shift+' : ''}${key}`
-}
-
-const toggleBpPanel = () => {
-  bpStore.TOGGLE_PANEL()
 }
 
 // 标签拖回标签栏（顶栏右文档名的 return-drag，PHASE2-SPEC §3.4）：
@@ -703,13 +690,17 @@ onBeforeUnmount(() => {
   opacity: 0.42;
 }
 .editor-tabs.single .tb-toggle:hover,
-.editor-tabs.single .tb-toggle.on,
-.editor-tabs.single .tb-toggle.rolled {
+.editor-tabs.single .tb-toggle.on {
   opacity: 1;
 }
-/* 单文档态无标签，右开关靠 margin 顶到右端（与多文档位置一致） */
-.editor-tabs.single .tb-toggle.panel-toggle {
-  margin-left: auto;
+.tb-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* 右侧栏开关钉在 win-body 右上角（PanelToggle.vue），面板收起时标签条右侧为它
+   让位；面板展开后开关落在面板头部里，标签条不必再让。 */
+.editor-tabs {
+  padding-right: var(--panel-toggle-reserve, 46px);
 }
 
 .tabstrip {

@@ -629,6 +629,30 @@ const commands: CommandDescriptor[] = [
     }
   },
   {
+    id: 'view.right-panel',
+    execute: async () => {
+      bus.emit('view:toggle-layout-entry', 'rightPanel')
+    }
+  },
+  {
+    id: 'view.right-panel-web',
+    execute: async () => {
+      bus.emit('view:toggle-layout-entry', 'rightPanelWeb')
+    }
+  },
+  {
+    id: 'view.right-panel-doc',
+    execute: async () => {
+      bus.emit('view:toggle-layout-entry', 'rightPanelDoc')
+    }
+  },
+  {
+    id: 'view.right-panel-annotation',
+    execute: async () => {
+      bus.emit('view:toggle-layout-entry', 'rightPanelAnnotation')
+    }
+  },
+  {
     id: 'view.toggle-tabbar',
     execute: async () => {
       bus.emit('view:toggle-layout-entry', 'showTabBar')

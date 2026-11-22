@@ -67,6 +67,38 @@ export default function (keybindings: Keybindings): MenuItemConstructorOptions {
       }
     },
     {
+      label: t('menu.view.rightPanel'),
+      id: 'rightPanelMenuItem',
+      accelerator: keybindings.getAccelerator('view.right-panel') ?? undefined,
+      click(_item, focusedWindow) {
+        actions.toggleRightPanel(focusedWindow as BrowserWindow | undefined)
+      }
+    },
+    {
+      label: t('menu.view.rightPanelWeb'),
+      id: 'rightPanelWebMenuItem',
+      accelerator: keybindings.getAccelerator('view.right-panel-web') ?? undefined,
+      click(_item, focusedWindow) {
+        actions.openRightPanelWeb(focusedWindow as BrowserWindow | undefined)
+      }
+    },
+    {
+      label: t('menu.view.rightPanelDoc'),
+      id: 'rightPanelDocMenuItem',
+      accelerator: keybindings.getAccelerator('view.right-panel-doc') ?? undefined,
+      click(_item, focusedWindow) {
+        actions.openRightPanelDoc(focusedWindow as BrowserWindow | undefined)
+      }
+    },
+    {
+      label: t('menu.view.rightPanelAnnotation'),
+      id: 'rightPanelAnnotationMenuItem',
+      accelerator: keybindings.getAccelerator('view.right-panel-annotation') ?? undefined,
+      click(_item, focusedWindow) {
+        actions.openRightPanelAnnotation(focusedWindow as BrowserWindow | undefined)
+      }
+    },
+    {
       label: t('menu.view.toggleTabbar'),
       id: 'tabBarMenuItem',
       accelerator: keybindings.getAccelerator('view.toggle-tabbar') ?? undefined,

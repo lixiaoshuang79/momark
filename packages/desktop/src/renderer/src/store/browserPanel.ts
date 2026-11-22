@@ -66,9 +66,8 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   const activePageId = ref<string | null>(null)
   const dockAddrOpen = ref(false)
   const dragState = ref<BpDragState>('none')
-  // 网页模式面板宽度（分隔线可拖动，240px ≤ w ≤ 60% 窗宽；会话内保持，
-  // 不落盘，重启回 288px 默认）。文档分屏的宽度归 split.width 管。
-  const urlWidth = ref(288)
+  // 面板宽度已改为比例（feat/right-panel-redesign）：见 workspace.panelWidthPx
+  // 与 store/panelGeometry.ts。
 
   // ── 内容标注 tab（feat/annotations）──────────────────────────────
   // 第三 tab 是叠加态：打开时压住 url/doc 两个模式（内容都保活），关闭后
@@ -88,13 +87,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   let unlistenZoomCommand: (() => void) | null = null
   let unlistenInputContext: (() => void) | null = null
 
-  function SET_URL_WIDTH(value: number): void {
-    const win = window.innerWidth
-    const min = 240
-    const max = Math.max(min, win * 0.6)
-    urlWidth.value = Math.round(Math.max(min, Math.min(max, value)))
-  }
-
   function SET_OPEN(value: boolean): void {
     open.value = value
     if (!value) {
@@ -109,6 +101,20 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
   // 顶栏右文档名 × / 拖回标签栏。
   function TOGGLE_PANEL(): void {
     SET_OPEN(!open.value)
+  }
+
+  /**
+   * ⌥⌘1/2/3 与开关右键菜单（DESIGN-NOTES §3.1）：直接打开到某个 tab；
+   * 面板已开着且正停在这个 tab 时，再按一次就收起。
+   */
+  function OPEN_TO_TAB(tab: BpActiveTab): void {
+    if (tab === 'url' && turboMode.value) return
+    if (open.value && activeTab.value === tab) {
+      SET_OPEN(false)
+      return
+    }
+    SET_OPEN(true)
+    SET_TAB(tab)
   }
 
   function SET_MODE(next: BpMode): void {
@@ -191,17 +197,83 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     window.bp.activate(id)
   }
 
+  // ── 关闭网页（feat/right-panel-redesign，DESIGN-NOTES §3.4 网页 · 关闭网页）──
+  // 关闭当前页 → 激活右邻，没有右邻激活左邻；关闭的不是当前页 → 当前页不变。
+  // 只记最近一次关闭，供「撤销 / 重新打开」。
+  const lastClosedPage = ref<{ url: string; title: string; index: number; seq: number } | null>(
+    null
+  )
+  let closeSeq = 0
+
   async function CLOSE_PAGE(id: string): Promise<void> {
     const index = urlPages.value.findIndex((p) => p.id === id)
     if (index === -1) return
-    urlPages.value.splice(index, 1)
+    const [closed] = urlPages.value.splice(index, 1)
     window.bp.closePage(id)
+    if (closed) {
+      lastClosedPage.value = {
+        url: closed.url,
+        title: closed.title || closed.url,
+        index,
+        seq: ++closeSeq
+      }
+    }
     // round18：页数变化会换「+ / 搜索栏」的落点，顺手收起展开态（同上）。
     dockAddrOpen.value = false
     if (activePageId.value === id) {
       const next = urlPages.value[Math.min(index, urlPages.value.length - 1)] ?? null
       activePageId.value = next ? next.id : null
+      if (next) window.bp.activate(next.id)
     }
+  }
+
+  function CLOSE_OTHER_PAGES(id: string): void {
+    for (const page of urlPages.value.filter((p) => p.id !== id)) {
+      window.bp.closePage(page.id)
+    }
+    urlPages.value = urlPages.value.filter((p) => p.id === id)
+    if (urlPages.value.length) ACTIVATE_PAGE(id)
+  }
+
+  function CLOSE_PAGES_TO_RIGHT(id: string): void {
+    const index = urlPages.value.findIndex((p) => p.id === id)
+    if (index === -1) return
+    for (const page of urlPages.value.slice(index + 1)) window.bp.closePage(page.id)
+    const kept = urlPages.value.slice(0, index + 1)
+    const activeKept = kept.some((p) => p.id === activePageId.value)
+    urlPages.value = kept
+    if (!activeKept) ACTIVATE_PAGE(id)
+  }
+
+  /** 撤销最近一次关闭：重新打开那个网址，放回原位置并激活。 */
+  async function REOPEN_CLOSED_PAGE(): Promise<void> {
+    const last = lastClosedPage.value
+    if (!last) return
+    lastClosedPage.value = null
+    const id = await ADD_WEB_PAGE(last.url)
+    if (!id) return
+    const from = urlPages.value.findIndex((p) => p.id === id)
+    const to = Math.min(last.index, urlPages.value.length - 1)
+    if (from !== -1 && from !== to) {
+      const [page] = urlPages.value.splice(from, 1)
+      if (page) urlPages.value.splice(to, 0, page)
+    }
+  }
+
+  function DISMISS_CLOSED_PAGE(): void {
+    lastClosedPage.value = null
+  }
+
+  /** 地址栏回车：有当前页就在当前页导航，没有就新建一页。 */
+  async function NAVIGATE_ACTIVE(input: string, opts: { newPage?: boolean } = {}): Promise<void> {
+    const target = resolveInput(input)
+    if (!target) return
+    const id = activePageId.value
+    if (!id || opts.newPage) {
+      await ADD_WEB_PAGE(input)
+      return
+    }
+    UPDATE_PAGE_STATE(id, { url: target, loading: true, error: null })
   }
 
   // webview DOM 事件（did-start-loading / did-fail-load 等）回写页面状态。
@@ -305,6 +377,7 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     activePageId.value = null
     dockAddrOpen.value = false
     zoomHint.value = null
+    lastClosedPage.value = null
 
     if (mode.value === 'url') SET_MODE('doc')
     if (showingDropped && !splitStore.active) SET_OPEN(false)
@@ -385,7 +458,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     activePageId,
     dockAddrOpen,
     dragState,
-    urlWidth,
     deviceMode,
     turboMode,
     SET_OPEN,
@@ -395,6 +467,13 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     ADD_WEB_PAGE,
     ACTIVATE_PAGE,
     CLOSE_PAGE,
+    CLOSE_OTHER_PAGES,
+    CLOSE_PAGES_TO_RIGHT,
+    REOPEN_CLOSED_PAGE,
+    DISMISS_CLOSED_PAGE,
+    NAVIGATE_ACTIVE,
+    OPEN_TO_TAB,
+    lastClosedPage,
     UPDATE_PAGE_STATE,
     SET_DOCK_ADDR_OPEN,
     SET_PAGE_ZOOM,
@@ -404,7 +483,6 @@ export const useBrowserPanelStore = defineStore('browserPanel', () => {
     SHOW_ZOOM_HINT,
     zoomHint,
     SET_DRAG_STATE,
-    SET_URL_WIDTH,
     OPEN_EXTERNAL,
     OPEN_LINK,
     DROP_WEB_CONTENT,
