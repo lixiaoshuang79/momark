@@ -167,6 +167,14 @@ code.mu-inline-rule {
 
     display: inline-block;
 
+    /* The width cap lives on the inline-math box, not on the render inside it:
+       the render's containing block is this auto-width inline-block, so a
+       percentage cap there resolves against the formula's own shrink-to-fit
+       width — with a percentage `--editor-area-width` (the desktop default
+       `100%`) short formulas collapsed to 0px and long ones lost their last
+       100px. Here the percentage resolves against the block's content box. */
+    max-width: calc(var(--editor-area-width, 800px) - 100px);
+
     color: var(--editor-color);
     font-family: monospace;
     vertical-align: middle;
@@ -192,9 +200,10 @@ code.mu-inline-rule {
 }
 
 /* A long inline-math formula must scroll horizontally (in the editing popup and
-   inline when hidden) instead of overflowing the editor area. */
+   inline when hidden) instead of overflowing the editor area. The cap itself
+   sits on `.mu-math` above; `100%` here resolves against that box. */
 .mu-math > .mu-math-render {
-    max-width: calc(var(--editor-area-width, 800px) - 100px);
+    max-width: 100%;
     overflow: auto hidden;
 
     scrollbar-width: thin;
